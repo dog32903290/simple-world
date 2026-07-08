@@ -52,7 +52,8 @@ std::string t3SlotNameForChildType(const SymbolLibrary& lib, const std::string& 
 std::string t3ResolveNestedCompound(const std::string& parentGuid, const std::string& childGuid,
                                     const std::string& childSymbolId, SymbolLibrary& lib,
                                     std::vector<std::string>* warnings, const T3Resolver& resolve,
-                                    int depth, const std::function<void(const std::string&)>& warn) {
+                                    const T3LayoutResolver& layoutResolve, int depth,
+                                    const std::function<void(const std::string&)>& warn) {
   const std::string childSymGuid = lc(childSymbolId);
   if (!resolve || t3RecurseDisable() || childSymGuid.empty()) return std::string();
 
@@ -81,7 +82,7 @@ std::string t3ResolveNestedCompound(const std::string& parentGuid, const std::st
   if (!resolve(childSymGuid, childJson)) return std::string();  // resolver miss → honest "unmapped" above
 
   std::string nestedId;
-  const bool ok = importT3SymbolImpl(childJson, lib, &nestedId, warnings, resolve, depth + 1);
+  const bool ok = importT3SymbolImpl(childJson, lib, &nestedId, warnings, resolve, layoutResolve, depth + 1);
   const Symbol* nested = lib.find(childSymGuid);
   if (!ok || !nested || nested->atomic) {
     warn("t3: child " + childGuid + " nested compound import of " + childSymGuid + " failed, skipped");
@@ -92,13 +93,21 @@ std::string t3ResolveNestedCompound(const std::string& parentGuid, const std::st
 
 // ── Public entry points (forward to the depth-carrying core importT3SymbolImpl in t3_import.cpp) ───────
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
+                    std::vector<std::string>* warnings, const T3Resolver& resolve,
+                    const T3LayoutResolver& layoutResolve) {
+  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, resolve, layoutResolve, /*depth=*/0);
+}
+
+bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
                     std::vector<std::string>* warnings, const T3Resolver& resolve) {
-  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, resolve, /*depth=*/0);
+  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, resolve, /*layoutResolve=*/T3LayoutResolver{},
+                            /*depth=*/0);
 }
 
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
                     std::vector<std::string>* warnings) {
-  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, /*resolve=*/T3Resolver{}, /*depth=*/0);
+  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, /*resolve=*/T3Resolver{},
+                            /*layoutResolve=*/T3LayoutResolver{}, /*depth=*/0);
 }
 
 }  // namespace sw

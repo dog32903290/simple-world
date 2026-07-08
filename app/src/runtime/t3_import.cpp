@@ -47,12 +47,11 @@ std::string topLevelName(const std::string& raw) {
   return std::string();
 }
 
-// GUID→NAME TABLE (imported-compound-input-port-shows-guid-not-name): the SAME `/*Name*/` inline
-// comments that carry the readable name also sit on EVERY identified thing in the .t3 — inputs,
-// outputs, children, slots. topLevelName only recovers the ROOT name; this sweeps the WHOLE raw text
-// (BEFORE stripT3Comments deletes them) into a map so the input SlotDefs (and any other name-needing
-// endpoint) can look up their real display name instead of the bare GUID. Guids are lowercased so a
-// lookup keyed by the lowercased slot id (SlotDef.id) hits regardless of the .t3's casing.
+// GUID→NAME TABLE (imported-compound-input-port-shows-guid-not-name): the SAME `/*Name*/` inline comments
+// also sit on EVERY identified thing in the .t3 (inputs/outputs/children/slots), not just the root.
+// topLevelName only recovers the ROOT name; this sweeps the WHOLE raw text (BEFORE stripT3Comments
+// deletes them) so any name-needing endpoint can look up its real name instead of the bare GUID (lowercased
+// so a lookup keyed by SlotDef.id hits regardless of the .t3's casing).
 std::map<std::string, std::string> guidNameMap(const std::string& raw) {
   std::map<std::string, std::string> out;
   static const std::regex re(R"RE("Id"\s*:\s*"([^"]+)"\s*/\*([^*]+)\*/)RE");
@@ -64,13 +63,11 @@ std::map<std::string, std::string> guidNameMap(const std::string& raw) {
   return out;
 }
 
-// INPUT-PORT TYPE from the boundary input's .t3 DefaultValue SHAPE, mapped onto sw's dataType
-// vocabulary (Float/Texture2D/Gradient/Color/String — sw has NO distinct Vec2/Vec3/Int/Bool; a
-// vector is N scalar Float rails on the atom, so a vec BOUNDARY port is a Float in sw's model).
-// This is the FALLBACK type source; the primary is the collapse/wire re-anchor target atom port's
-// dataType (back-propagated after connections are built), which is exact where an input is wired.
-// Returns "" when the shape gives no signal (e.g. null Image — the wire re-anchor supplies Texture2D;
-// if that also fails the caller keeps Float and the honest gap is the null default).
+// INPUT-PORT TYPE from the boundary input's .t3 DefaultValue SHAPE, mapped onto sw's dataType vocabulary
+// (Float/Texture2D/Gradient/Color/String — sw has NO distinct Vec2/Vec3/Int/Bool; a vector is N scalar
+// Float rails on the atom, so a vec BOUNDARY port is a Float). FALLBACK type source only — the primary is
+// the wire re-anchor below (exact where an input is wired). "" when the shape gives no signal (e.g. null
+// Image — the wire re-anchor supplies Texture2D; if that also fails the caller keeps Float, an honest gap).
 std::string dataTypeFromDefault(const crude_json::value& dv) {
   if (dv.is_string()) return "String";              // e.g. TextureFormat = "R16G16B16A16_Float"
   if (dv.is_boolean() || dv.is_number()) return "Float";  // bool / int / float all ride the Float rail
@@ -82,13 +79,10 @@ std::string dataTypeFromDefault(const crude_json::value& dv) {
   return std::string();                                    // null / unknown → let the wire decide
 }
 
-// INPUT-TYPE RE-ANCHOR (primary type source): after the subgraph is built, each boundary INPUT that
-// feeds a child's port inherits that port's EXACT sw dataType — the truth where the input is wired
-// (Image→Texture2D, Gradient→Gradient, a scalar→Float). This runs on the committed `sym` for BOTH the
-// collapse path and the normal path (each stores its wires in sym.connections + registers every child
-// symbol in `lib`), so it needs no path-local maps. Only OVERWRITES when the target port resolves to a
-// non-empty, DIFFERENT type — an unwired input keeps its DefaultValue-shape type. First wire wins
-// (deterministic; a boundary vec fanning into two .x/.y Float rails resolves to Float either way).
+// INPUT-TYPE RE-ANCHOR (primary type source): each boundary INPUT that feeds a child's port inherits that
+// port's EXACT sw dataType (Image→Texture2D, Gradient→Gradient, a scalar→Float) — the truth where wired.
+// Runs on the committed `sym` for BOTH the collapse path and the normal path, no path-local maps needed.
+// Only OVERWRITES a non-empty DIFFERENT type; an unwired input keeps its DefaultValue-shape type.
 void refineInputTypesFromWires(Symbol& sym, const SymbolLibrary& lib) {
   for (const SymbolConnection& c : sym.connections) {
     if (c.srcChild != kSymbolBoundary) continue;           // only wires OUT of a boundary input
@@ -124,7 +118,8 @@ bool symbolIdOfT3(const std::string& t3Json, std::string* outId) {
 // depth 0; the nested-compound recursion (t3_import_recurse.cpp) re-enters here with depth+1. `resolve`
 // supplies nested compound children's .t3 by guid (empty ⇒ single-layer, byte-identical to pre-seam).
 bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
-                        std::vector<std::string>* warnings, const T3Resolver& resolve, int depth) {
+                        std::vector<std::string>* warnings, const T3Resolver& resolve,
+                        const T3LayoutResolver& layoutResolve, int depth) {
   auto warn = [&](const std::string& m) { if (warnings) warnings->push_back(m); };
 
   crude_json::value root = crude_json::value::parse(stripT3Comments(t3Json));
@@ -132,6 +127,8 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
 
   const std::string symGuid = lc(asStr(root, "Id"));
   if (symGuid.empty()) { warn("t3: missing top-level Id"); return false; }
+  // .t3ui LAYOUT: this symbol's OWN sibling .t3ui text (canvas positions), if the caller supplied one.
+  std::string t3uiJson; if (layoutResolve) layoutResolve(symGuid, t3uiJson);
 
   // GUID→NAME table from the RAW text (before the comments are stripped). SSOT for recovering the
   // readable name of every identified endpoint — root symbol, input/output slots, children, sub-slots.
@@ -178,7 +175,7 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
   // normal path (which reports the same empty-root diagnostic — no silent success).
   const std::string collapseType = swTexOpForCollapseRootGuid(symGuid);
   if (!collapseType.empty()) {
-    if (collapseImageFxWrapper(root, collapseType, sym, lib, warn)) {
+    if (collapseImageFxWrapper(root, collapseType, sym, lib, warn, t3uiJson)) {
       refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the atom/helper ports
       lib.symbols[sym.id] = sym;
       if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;  // only the TOP import seeds root
@@ -216,7 +213,8 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
         // NESTED COMPOUND: SymbolId is not a mapped atom. A resolver may supply the child's own .t3 (a
         // pure sub-graph compound) → RECURSE it into `lib` as a nested sub-compound, referenced by guid,
         // instead of skipping/flattening. "" ⇒ still unmapped → the honest skip below.
-        swType = t3ResolveNestedCompound(symGuid, childGuid, symbolId, lib, warnings, resolve, depth, warn);
+        swType = t3ResolveNestedCompound(symGuid, childGuid, symbolId, lib, warnings, resolve,
+                                         layoutResolve, depth, warn);
         if (swType.empty()) {
           warn("t3: child " + childGuid + " unmapped SymbolId " + lc(symbolId) +
                " (no sw atom — e.g. ComputeShaderStage/StructuredBufferWithViews/TransformMatrix), skipped");
@@ -390,6 +388,7 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
 
   sym.connections = std::move(conns);
   refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the child ports they feed
+  applyT3uiPositions(sym, t3uiJson, childGuidToId);  // .t3ui LAYOUT: after outputDefs exist (COMPOUND-OUTPUT-DEF above)
 
   lib.symbols[sym.id] = sym;
   if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;  // only the TOP import seeds root (depth>0

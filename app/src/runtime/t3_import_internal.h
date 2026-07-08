@@ -60,9 +60,11 @@ inline std::string stripT3Comments(const std::string& in) {
 // value-op children kept as real children), filling `sym` (which already has id/name/inputDefs set) and
 // registering atoms into `lib`. Returns true on success; false on a shape the tables don't yet cover
 // (caller warns + falls through to the normal per-child path). Impl in t3_import_collapse.cpp.
+// `t3uiJson` is the ROOT symbol's own sibling .t3ui text (may be empty) — the collapse pass applies it
+// itself (its helper-child + collapsed-atom childGuidToId map is local to this function).
 bool collapseImageFxWrapper(const crude_json::value& root, const std::string& swType, Symbol& sym,
-                            SymbolLibrary& lib,
-                            const std::function<void(const std::string&)>& warn);
+                            SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
+                            const std::string& t3uiJson);
 
 // DataSet-timeline seam: read a child's Outputs[].OutputData TimeClip blocks (= SymbolJson.cs:112-131,
 // Type "T3.Core.Animation.TimeClip") into `child.clips`, keyed by the sw output slot name. Split out of
@@ -78,7 +80,8 @@ void parseChildTimeClips(const crude_json::value& cv, const std::string& swType,
 // forward here with depth 0; the recursion below re-enters it with depth+1. Declared here so the
 // recursion helper (a separate TU) can call back into the core without a header cycle.
 bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
-                        std::vector<std::string>* warnings, const T3Resolver& resolve, int depth);
+                        std::vector<std::string>* warnings, const T3Resolver& resolve,
+                        const T3LayoutResolver& layoutResolve, int depth);
 
 // §1.3 CROSS-LAYER SLOT FALLBACK: resolve a t3 slot guid → sw slot NAME for a child whose swType may be
 // a NESTED COMPOUND. An atom resolves via the maps (swSlotNameForGuid). A compound (atomic==false in
@@ -98,6 +101,16 @@ std::string t3SlotNameForChildType(const SymbolLibrary& lib, const std::string& 
 std::string t3ResolveNestedCompound(const std::string& parentGuid, const std::string& childGuid,
                                     const std::string& childSymbolId, SymbolLibrary& lib,
                                     std::vector<std::string>* warnings, const T3Resolver& resolve,
-                                    int depth, const std::function<void(const std::string&)>& warn);
+                                    const T3LayoutResolver& layoutResolve, int depth,
+                                    const std::function<void(const std::string&)>& warn);
+
+// ── .t3ui CANVAS-POSITION SEAM (t3_import_layout.cpp) ──────────────────────────────────────────────────
+// Apply a symbol's OWN sibling .t3ui's SymbolChildUis[]/InputUis[]/OutputUis[] Position onto its already-
+// built children + boundary defs. `childGuidToId` is THIS import's t3-child-guid→childId map (built by the
+// walk in t3_import.cpp / t3_import_collapse.cpp — each has its own, scoped to what it actually committed).
+// No-op when t3uiJson is empty (no resolver hit — today's all-0,0 behaviour, zero churn) or when
+// t3LayoutDisable() is set (the layout golden's RED tooth).
+void applyT3uiPositions(Symbol& sym, const std::string& t3uiJson,
+                        const std::map<std::string, int>& childGuidToId);
 
 }  // namespace sw

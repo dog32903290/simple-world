@@ -3,18 +3,16 @@
 // self-contained pass). Pure CPU. See t3_import_internal.h for the shared helpers + the contract.
 //
 // A whole family of image .t3 ops are THIN wrappers around a TiXL image-fx-setup FRAMEWORK symbol
-// (_multiImageFxSetupStatic / …), parameterized by a ShaderPath pixel shader. In sw the op's BEHAVIOR is
-// the one .hlsl → ONE flat tex atom (ports 1:1 with the op's .cs). The wrapper collapses to that atom.
+// (_multiImageFxSetupStatic/…); sw's op is ONE flat tex atom (ports 1:1 w/ the .cs) — collapses to that.
 //
 // TWO shapes are covered, unified by the SAME re-anchoring:
 //   (1) SINGLE-fx-setup-child (HSE): the fx-setup child is the only child. Boundary Inputs wire straight
 //       into it. Collapse → 1 atom child; boundary→fx wires re-anchor onto atom ports.
 //   (2) MULTI-child (Blend, …): the fx-setup child is fed by HELPER VALUE ops (Vector4Components /
 //       IntToFloat / BoolToFloat …) that decompose boundary vec/int/bool inputs into the scalar rails.
-//       Those helpers are KEPT as real sw children (they already have atoms + map rows); only the
-//       fx-setup child collapses. A wire INTO the fx-setup child re-anchors onto the atom, keeping its
-//       SOURCE (boundary or helper child) — so a helper's X output feeding FloatParams[k] becomes
-//       helperChild.X → atom.<④d order[k]>. Non-fx wires (boundary→helper, helper→helper) are kept as-is.
+//       Those helpers are KEPT as real sw children; only the fx-setup child collapses. A wire INTO it
+//       re-anchors onto the atom, keeping its SOURCE — a helper's X output feeding FloatParams[k] becomes
+//       helperChild.X → atom.<④d order[k]> (non-fx wires are kept as-is).
 //
 // Re-anchoring of the fx-setup child's slots:
 //   *  → fxchild.ImageA/ImageB       ⇒ *  → atom.Image/FxTexture   (④c fixed-slot map; * = kept source)
@@ -88,8 +86,8 @@ std::vector<std::pair<std::string, float>> readVecDefault(const crude_json::valu
 }
 }  // namespace
 bool collapseImageFxWrapper(const crude_json::value& root, const std::string& swType, Symbol& sym,
-                            SymbolLibrary& lib,
-                            const std::function<void(const std::string&)>& warn) {
+                            SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
+                            const std::string& t3uiJson) {
   const NodeSpec* fs = findSpec(swType);
   if (!fs) { warn("t3: collapse target " + swType + " has no NodeSpec, aborting collapse"); return false; }
 
@@ -260,6 +258,7 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   const int atomId = nextChildId++;
   { SymbolChild atom; atom.id = atomId; atom.symbolId = swType; sym.children.push_back(atom); }
   sym.nextChildId = nextChildId;
+  childGuidToId[fxChildGuid] = atomId;  // .t3ui LAYOUT: the atom stands in for the collapsed fx-setup child
 
   const std::vector<std::string>& floatOrder = swFloatParamOrderForCollapse(swType);
   int floatWireIdx = 0;  // positional index into FloatParams (2929c4c9) wires, in .t3 array order.
@@ -394,6 +393,7 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
     }
   }
   sym.connections = std::move(conns);
+  applyT3uiPositions(sym, t3uiJson, childGuidToId);  // .t3ui LAYOUT: helpers + the collapsed atom
   return true;
 }
 

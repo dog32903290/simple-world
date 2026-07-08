@@ -68,6 +68,31 @@ int loadCatalogFromFolder(const std::string& dir, bool quiet) {
     return true;
   };
 
+  // .t3ui LAYOUT index (柏為 07-08 "鑽入複合子節點全擠在原點" fix): a SIBLING "<Name>.t3ui" carries the
+  // SAME .t3's canvas positions (SymbolChildUis[]/InputUis[]/OutputUis[]), keyed by its OWN top-level "Id"
+  // (== the .t3's Id — same peek). Missing sibling for a given .t3 is fine (that compound's children just
+  // stay at the pre-seam default 0,0 — no import ever fails for a missing .t3ui).
+  std::map<std::string, std::string> t3uiByGuid;
+  for (auto it = fs::directory_iterator(dir, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
+    const fs::path& p = it->path();
+    std::string ext = p.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext != ".t3ui") continue;
+    std::ifstream f(p, std::ios::binary);
+    if (!f) continue;
+    std::ostringstream ss; ss << f.rdbuf();
+    std::string json = ss.str();
+    std::string id;
+    if (sw::symbolIdOfT3(json, &id) && !id.empty()) t3uiByGuid[id] = std::move(json);
+  }
+  const sw::T3LayoutResolver layoutResolver =
+      [&t3uiByGuid](const std::string& guid, std::string& out) -> bool {
+    auto it = t3uiByGuid.find(guid);
+    if (it == t3uiByGuid.end()) return false;
+    out = it->second;
+    return true;
+  };
+
   int imported = 0, skipped = 0;
   for (const fs::path& p : files) {
     auto jit = jsonByFile.find(p);
@@ -81,7 +106,7 @@ int loadCatalogFromFolder(const std::string& dir, bool quiet) {
 
     std::string symId;
     std::vector<std::string> warnings;
-    const bool ok = sw::importT3Symbol(json, g_lib(), &symId, &warnings, resolver);
+    const bool ok = sw::importT3Symbol(json, g_lib(), &symId, &warnings, resolver, layoutResolver);
     for (const std::string& w : warnings)
       std::fprintf(stderr, "[catalog] %s: %s\n", p.filename().string().c_str(), w.c_str());
     if (!ok || symId.empty()) {

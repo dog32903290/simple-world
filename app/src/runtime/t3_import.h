@@ -46,6 +46,15 @@ namespace sw {
 // (byte-identical to the pre-seam single-layer importer — zero churn for every existing caller).
 using T3Resolver = std::function<bool(const std::string& guid, std::string& outJson)>;
 
+// .T3UI LAYOUT SEAM (canvas positions — a SIBLING file, not the .t3 itself). TiXL serializes a Symbol's
+// child/boundary-port canvas positions into "<Name>.t3ui" next to "<Name>.t3" (SymbolChildUis[]/InputUis[]/
+// OutputUis[], keyed by guid — Editor/UiModel/SymbolUiJson.cs). runtime stays a filesystem-free leaf, so
+// guid→.t3ui-text is ALSO an injected callback (same shape as T3Resolver, same seam pattern). Keyed by the
+// SYMBOL's own guid (== the .t3's top-level Id == the .t3ui's own "Id") — each recursion depth looks up ITS
+// OWN sibling .t3ui, not the parent's. Empty resolver / no match ⇒ no layout at all (every position stays
+// 0,0 — byte-identical to today, zero churn for every existing caller).
+using T3LayoutResolver = std::function<bool(const std::string& symbolGuid, std::string& outJson)>;
+
 // Import one .t3 (JSON text) into `lib` as a single Symbol. id == the .t3 top-level Id; inputDefs
 // from Inputs[]; children/connections = the mapped subgraph. Every atom a child's SymbolId resolves
 // to is also generated into `lib` (atomicSymbolFromSpec via findSpec). A child whose SymbolId is a
@@ -61,11 +70,25 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib,
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
                     std::vector<std::string>* warnings, const T3Resolver& resolve);
 
+// Layout overload: same contract, plus `layoutResolve` supplies each imported Symbol's OWN sibling .t3ui
+// (child + boundary-port canvas positions) by that Symbol's own guid. Applies to the root AND every
+// recursed nested compound (each looks up its own .t3ui at its own guid). No layoutResolve match for a
+// given symbol ⇒ that symbol's positions stay 0,0 (today's behaviour) — never blocks the import itself.
+bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
+                    std::vector<std::string>* warnings, const T3Resolver& resolve,
+                    const T3LayoutResolver& layoutResolve);
+
 // Test-only injection seam (compound-recursion RED case): force the recursion OFF even when a resolver
 // is supplied — the nested compound child reverts to "unmapped, skipped" (single-layer flatten). Off in
 // production. The nested-compound golden flips this around importT3Symbol to prove the recursion is the
 // load-bearing seam (nested absent → the nested terminal path vanishes → downstream diverges).
 bool& t3RecurseDisable();
+
+// Test-only injection seam (layout RED case): force applyT3uiPositions to no-op even with a matching
+// .t3ui — every child/boundary-port position reverts to 0,0. Off in production. The layout golden flips
+// this to prove the .t3ui read is the load-bearing seam (absent ⇒ every position collapses to the origin,
+// = the exact bug 柏為 observed diving into an imported compound).
+bool& t3LayoutDisable();
 
 // Cheap top-level Id peek: parse ONLY the root object's Id (comment-strip + crude_json + lowercase),
 // matching the sym.id importT3Symbol would assign. Lets the boot catalog skip a .t3 whose symbol is
@@ -93,5 +116,12 @@ int runT3TransformPointsParity(bool injectBug);
 // buildEvalGraph→cookResident and compare to the焊死 host-matrix oracle. Lives in
 // t3import_nestedcompound_golden.cpp. injectBug flips t3RecurseDisable → nested reverts to skip → RED.
 int runT3NestedCompoundParity(bool injectBug);
+
+// .T3UI LAYOUT golden (--selftest-t3-layout): import the REAL TransformPoints.t3 with its REAL sibling
+// TransformPoints.t3ui through the PRODUCTION path importT3Symbol(…, layoutResolve) and assert every
+// child + boundary pin lands at its EXACT .t3ui Position constant (not sw's own output — the .t3ui file's
+// literal numbers), proving the 柏為-observed "dive-in → children all stacked at (0,0)" bug is fixed.
+// injectBug flips t3LayoutDisable() → every position reverts to 0,0 → RED. Lives in t3import_layout_golden.cpp.
+int runT3LayoutGolden(bool injectBug);
 
 }  // namespace sw
