@@ -227,6 +227,7 @@ add_executable(simple_world
   src/app/document_navigation.cpp  # composition-path nav + combine + resident paths (split from document.cpp)
   src/app/document_io.cpp          # new/open/save lifecycle + dirty tracking + window title + selftest (split from document.cpp)
   src/app/catalog_boot.cpp         # boot CATALOG loader: scan assets/catalog_t3/*.t3 → append into g_lib() at startup (TiXL operator-library parity)
+  src/app/catalog_boot_layout_selftest.cpp  # ★.t3ui LAYOUT end-to-end proof: REAL loadCatalogFromFolder(SW_CATALOG_T3_DIR) → Blend's collapsed-compound children land on their real .t3ui Position (not 0,0); -bug reverts all to origin
   src/app/snapshot.cpp  # out-snapshot-png: product Output→PNG action (path policy + TiXL timestamp)
   src/app/audio_settings.cpp
   src/app/keymap_prefs.cpp           # #11: user keymap JSON override store (cross-session rebinding)
