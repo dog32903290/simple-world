@@ -92,8 +92,10 @@ void projectDefault(float aspect, float wx, float wy, float wz, float outNdc[3])
 
 // DrawMeshUnlit GOLDEN — the FIRST 3D mesh on screen. Two teeth, both deterministic + host-projected:
 //
-//   TOOTH A (mesh renders flat color, END-TO-END through the graph): QuadMesh (default Scale=1, span
-//     object [-0.5,0.5]²) → DrawMeshUnlit Color=(1,0,0,1) → RenderTarget (default camera + depth). The
+//   TOOTH A (mesh renders flat color, END-TO-END through the graph): QuadMesh (default Scale=1, .t3-parity
+//     default Pivot=(0,0) → offset=stretch*scale*(pivot-0.5)=(-0.5,-0.5) → ALREADY centered at the origin,
+//     span object [-0.5,0.5]²; no Center compensation needed) → DrawMeshUnlit Color=(1,0,0,1) →
+//     RenderTarget (default camera + depth). The
 //     quad sits at world z=0 facing the camera; under the default camera d·tan(fov/2)=1 → NDC = world.xy,
 //     so the quad's screen footprint is NDC [-0.5,0.5]². Assert: an interior pixel (NDC 0.2,0.2, deep
 //     inside) = (255,0,0) [= Color, since albedo=white]; a far-corner (NDC 0.9,0.9, outside the quad) =
@@ -136,11 +138,12 @@ int runDrawMeshUnlitSelfTest(bool injectBug) {
     PointGraph pg(dev, lib, q, W, H);
     Graph g;
     Node mesh; mesh.id = 1; mesh.type = "QuadMesh";
-    // QuadMesh spans object [0, scale]² (pivot 0.5 → offset 0; verts go 0..columnStep·(cols-1)=Scale).
-    // Center it at the world ORIGIN via Center=(-0.5,-0.5,0) so its center is ON the camera axis → NDC
-    // (0,0) = screen center (deterministic, z-independent), and its footprint is NDC [-0.5,0.5]².
+    // QuadMesh's .t3-parity default Pivot=(0,0) → offset=stretch*scale*(pivot-0.5)=(-0.5,-0.5) ALREADY
+    // centers the quad at the world ORIGIN (no Center compensation needed — the OLD sw default Pivot=0.5
+    // gave offset=0/a [0,scale]²-anchored quad, which is why this test used to shift it via Center; that
+    // shift is now redundant/double-counted). Its center sits ON the camera axis → NDC (0,0) = screen
+    // center (deterministic, z-independent), and its footprint is NDC [-0.5,0.5]².
     mesh.params["Segments.x"] = 1.0f; mesh.params["Segments.y"] = 1.0f; mesh.params["Scale"] = 1.0f;
-    mesh.params["Center.x"] = -0.5f; mesh.params["Center.y"] = -0.5f;
     g.nodes.push_back(mesh);
     Node draw; draw.id = 2; draw.type = "DrawMeshUnlit";
     draw.params["Color.x"] = 1.0f; draw.params["Color.y"] = 0.0f;
@@ -195,8 +198,10 @@ int runDrawMeshUnlitSelfTest(bool injectBug) {
     PointGraph pg(dev, lib, q, W, H);
     Graph g;
     Node mesh; mesh.id = 1; mesh.type = "QuadMesh";
+    // Pivot's .t3-parity default (0,0) already centers the quad in x/y (see TOOTH A comment above); only
+    // Center.z is needed here to push it in front of the camera.
     mesh.params["Segments.x"] = 1.0f; mesh.params["Segments.y"] = 1.0f; mesh.params["Scale"] = 1.0f;
-    mesh.params["Center.x"] = -0.5f; mesh.params["Center.y"] = -0.5f; mesh.params["Center.z"] = 1.0f;
+    mesh.params["Center.z"] = 1.0f;
     g.nodes.push_back(mesh);
     meshInjectBug() = false;
     EvaluationContext ctx{};
@@ -251,10 +256,11 @@ int runDrawMeshUnlitSelfTest(bool injectBug) {
                          PointGraph& pg) {
       Graph g;
       Node mesh; mesh.id = 1; mesh.type = "QuadMesh";
-      // Center at world (0,0,cz): the quad's center is ON the camera axis → projects to NDC (0,0) =
-      // screen center for ANY z (so both quads overlap exactly at screen center, the assert pixel).
+      // Pivot's .t3-parity default (0,0) already centers the quad in x/y; Center.z=cz places it at world
+      // (0,0,cz): the quad's center is ON the camera axis → projects to NDC (0,0) = screen center for ANY
+      // z (so both quads overlap exactly at screen center, the assert pixel).
       mesh.params["Segments.x"] = 1.0f; mesh.params["Segments.y"] = 1.0f; mesh.params["Scale"] = 1.0f;
-      mesh.params["Center.x"] = -0.5f; mesh.params["Center.y"] = -0.5f; mesh.params["Center.z"] = cz;
+      mesh.params["Center.z"] = cz;
       g.nodes.push_back(mesh);
       meshInjectBug() = false;
       EvaluationContext ctx{};

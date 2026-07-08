@@ -85,8 +85,11 @@ void registerMeshVerticesToPointsOp() {
 
 // =============================================================================================
 // Golden — THREE legs (R-2: flat-only is self-deception; flat-direct + flat-DRIVER + RESIDENT production).
-// Fixture: QuadMesh Segments=(1,1) → 4 verts at v0(0,0,0) v1(0,1,0) v2(1,0,0) v3(1,1,0); ColorRgb=(1,1,1),
-// Selection=1; default params (OffsetByTBN=0, W=1) → Position == vertex pos.
+// Fixture: QuadMesh Segments=(1,1) with its .t3-parity defaults (Pivot=(0,0) → offset=stretch*scale*
+// (pivot-0.5)=(-0.5,-0.5)) → 4 verts at v0(-0.5,-0.5,0) v1(-0.5,0.5,0) v2(0.5,-0.5,0) v3(0.5,0.5,0);
+// ColorRgb=(1,1,1), Selection=1; default params (OffsetByTBN=0, W=1) → Position == vertex pos.
+// (Derived from QuadMesh.cs:38-40,58-59,82-94 at Segments=(1,1)→cols=rows=2, Scale=Stretch=1, Pivot=(0,0),
+// Center=0, Rotation=0: colStep=rowStep=1, offset=(-0.5,-0.5,0), vertex(col,row)=(col,row,0)+offset.)
 //
 //  (1) FLAT direct-cook: hand-build a 4-vert SwVertex buffer + a PointCookCtx with meshVtx + meshVtxCount,
 //      dispatch cookMeshVerticesToPoints, CPU-readback the 4 SwPoints → assert Position == the 4 vertex
@@ -104,10 +107,13 @@ void registerMeshVerticesToPointsOp() {
 
 namespace {
 
-constexpr float kQuadVerts[4][3] = {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
+// QuadMesh.t3-parity defaults (Pivot=(0,0)) place the unit quad centered at the origin (offset=
+// stretch*scale*(pivot-0.5)=(-0.5,-0.5)), NOT the [0,1]² corner-anchored square the old sw default
+// (Pivot=0.5→offset=0) produced. Recomputed from QuadMesh.cs:38-40,58-59,82-94 (see header comment).
+constexpr float kQuadVerts[4][3] = {{-0.5f, -0.5f, 0}, {-0.5f, 0.5f, 0}, {0.5f, -0.5f, 0}, {0.5f, 0.5f, 0}};
 
 // Build a 4-vertex QuadMesh-equivalent SwVertex buffer (positions kQuadVerts; TBN identity basis;
-// Selection=1; ColorRgb=(1,1,1)) — matches QuadMesh defaults (mesh_ops_quadmesh.cpp).
+// Selection=1; ColorRgb=(1,1,1)) — matches QuadMesh's REAL .t3-parity defaults (mesh_ops_quadmesh.cpp).
 MTL::Buffer* makeQuadVtxBuffer(MTL::Device* dev) {
   SwVertex v[4];
   for (int i = 0; i < 4; ++i) {
@@ -260,7 +266,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool
   const uint32_t W = 256, H = 256;
 
   Graph g;
-  Node quad; quad.id = 1; quad.type = "QuadMesh"; g.nodes.push_back(quad);  // verts at (0,0)…(1,1)
+  Node quad; quad.id = 1; quad.type = "QuadMesh"; g.nodes.push_back(quad);  // verts at kQuadVerts (centered)
   Node mvp; mvp.id = 2; mvp.type = "MeshVerticesToPoints"; g.nodes.push_back(mvp);
   Node draw; draw.id = 3; draw.type = "DrawPoints2";
   draw.params["Color.x"] = 1.0f; draw.params["Color.y"] = 0.0f;

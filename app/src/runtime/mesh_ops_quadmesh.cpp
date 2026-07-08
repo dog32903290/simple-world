@@ -138,7 +138,7 @@ NodeSpec quadSpec() {
   s.type = "QuadMesh";
   s.title = "Quad Mesh";
   // Segments = Int2 (Width, Height) -> Vec2 of two Float ports (default (1,1) = a single quad).
-  // Stretch = Vec2 (default (1,1)). Scale = float (default 1). Pivot = Vec2 (default (0.5,0.5)).
+  // Stretch = Vec2 (default (1,1)). Scale = float (default 1). Pivot = Vec2 (default (0,0)).
   // Center = Vec3 (default 0). Rotation = Vec3 (default 0).
   PortSpec sgx; sgx.id = "Segments.x"; sgx.name = "Segments"; sgx.dataType = "Float"; sgx.isInput = true;
   sgx.def = 1.0f; sgx.minV = 1.0f; sgx.maxV = 64.0f; sgx.widget = Widget::Vec; sgx.vecArity = 2;
@@ -150,10 +150,13 @@ NodeSpec quadSpec() {
   sty.def = 1.0f; sty.minV = 0.0f; sty.maxV = 10.0f;
   PortSpec scl; scl.id = "Scale"; scl.name = "Scale"; scl.dataType = "Float"; scl.isInput = true;
   scl.def = 1.0f; scl.minV = 0.0f; scl.maxV = 10.0f;
+  // Pivot .t3 default (0,0) (QuadMesh.t3 Id 7f01d9b9). The proving goldens (mesh_golden.cpp) override
+  // Pivot.x/.y explicitly (stored param wins over this inspector default), so this only affects an
+  // un-overridden instance.
   PortSpec pvx; pvx.id = "Pivot.x"; pvx.name = "Pivot"; pvx.dataType = "Float"; pvx.isInput = true;
-  pvx.def = 0.5f; pvx.minV = 0.0f; pvx.maxV = 1.0f; pvx.widget = Widget::Vec; pvx.vecArity = 2;
+  pvx.def = 0.0f; pvx.minV = 0.0f; pvx.maxV = 1.0f; pvx.widget = Widget::Vec; pvx.vecArity = 2;
   PortSpec pvy; pvy.id = "Pivot.y"; pvy.name = "Pivot.y"; pvy.dataType = "Float"; pvy.isInput = true;
-  pvy.def = 0.5f; pvy.minV = 0.0f; pvy.maxV = 1.0f;
+  pvy.def = 0.0f; pvy.minV = 0.0f; pvy.maxV = 1.0f;
   PortSpec ctx; ctx.id = "Center.x"; ctx.name = "Center"; ctx.dataType = "Float"; ctx.isInput = true;
   ctx.def = 0.0f; ctx.minV = -10.0f; ctx.maxV = 10.0f; ctx.widget = Widget::Vec; ctx.vecArity = 3;
   PortSpec cty; cty.id = "Center.y"; cty.name = "Center.y"; cty.dataType = "Float"; cty.isInput = true;

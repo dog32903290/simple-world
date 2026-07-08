@@ -132,11 +132,12 @@ bool cookLit(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q, int W, i
   Graph gr;
   // A centered QuadMesh at world z=0, Normal=ForwardLH=(0,0,1) (faces the default camera). A REAL production
   // mesh op (statically registered, resident-proven) so BOTH cook legs gather it identically — the same
-  // fixture DrawMeshUnlit's golden uses. Center=(-0.5,-0.5) + Scale=1 → world span [-0.5,0.5]² at z=0 → the
-  // center pixel's worldPos = origin, N=(0,0,1) (the exact geometry the host oracle assumes).
+  // fixture DrawMeshUnlit's golden uses. QuadMesh's .t3-parity default Pivot=(0,0) → offset=stretch*scale*
+  // (pivot-0.5)=(-0.5,-0.5) ALREADY centers a Scale=1 quad at the origin (world span [-0.5,0.5]² at z=0,
+  // no Center compensation needed) → the center pixel's worldPos = origin, N=(0,0,1) (the exact geometry
+  // the host oracle assumes).
   Node mesh; mesh.id = 1; mesh.type = "QuadMesh";
   mesh.params["Segments.x"] = 1.0f; mesh.params["Segments.y"] = 1.0f; mesh.params["Scale"] = 1.0f;
-  mesh.params["Center.x"] = -0.5f; mesh.params["Center.y"] = -0.5f;
   gr.nodes.push_back(mesh);
   Node draw; draw.id = 2; draw.type = "DrawMeshPbr"; gr.nodes.push_back(draw);
   Node setMat; setMat.id = 3; setMat.type = "SetMaterial";

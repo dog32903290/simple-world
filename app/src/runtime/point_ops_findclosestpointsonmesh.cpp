@@ -181,7 +181,10 @@ bool flatDirectLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bo
 }
 
 // (2) FLAT-DRIVER gather leg: LinePoints → FindClosestPointsOnMesh ← QuadMesh through PointGraph::cook.
-// QuadMesh default = unit quad in z=0 spanning x,y∈[0,1] (2 tris). The line runs along Y at x=2, z=1
+// QuadMesh is pinned to Pivot=(0.5,0.5) → unit quad in z=0 spanning x,y∈[0,1] (2 tris). (QuadMesh's OWN
+// .t3-parity default is now Pivot=(0,0), which CENTERS the quad at the origin instead — this test pins
+// Pivot explicitly so its [0,1]²-anchored assertions below stay independent of that default.) The line
+// runs along Y at x=2, z=1
 // (Center=(2,0,1), Direction=(0,1,0), Length=4, Pivot=0.5 → 4 points at (2,-2,1)…(2,2,1)), entirely OFF
 // the quad. A faithful snap pulls every point ONTO the quad surface: x clamps from 2→1 (the +x edge),
 // z→0. So every snapped point has x≤1 and z≈0. wireMesh=false (RED tooth) omits the Mesh wire → identity
@@ -196,7 +199,9 @@ bool flatDriverLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bo
   line.params["Center.x"] = 2.0f; line.params["Center.y"] = 0.0f; line.params["Center.z"] = 1.0f;
   line.params["Direction.x"] = 0.0f; line.params["Direction.y"] = 1.0f; line.params["Direction.z"] = 0.0f;
   g.nodes.push_back(line);
-  Node quad; quad.id = 2; quad.type = "QuadMesh"; g.nodes.push_back(quad);
+  Node quad; quad.id = 2; quad.type = "QuadMesh";
+  quad.params["Pivot.x"] = 0.5f; quad.params["Pivot.y"] = 0.5f;  // pin [0,1]² fixture (see header comment)
+  g.nodes.push_back(quad);
   Node fcp; fcp.id = 3; fcp.type = "FindClosestPointsOnMesh"; g.nodes.push_back(fcp);
 
   int lineOut = -1, quadOut = -1, fcpPtsIn = -1, fcpMeshIn = -1;
@@ -238,7 +243,9 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool
   line.params["Center.x"] = 2.0f; line.params["Center.y"] = 0.0f; line.params["Center.z"] = 1.0f;
   line.params["Direction.x"] = 0.0f; line.params["Direction.y"] = 1.0f; line.params["Direction.z"] = 0.0f;
   g.nodes.push_back(line);
-  Node quad; quad.id = 2; quad.type = "QuadMesh"; g.nodes.push_back(quad);
+  Node quad; quad.id = 2; quad.type = "QuadMesh";
+  quad.params["Pivot.x"] = 0.5f; quad.params["Pivot.y"] = 0.5f;  // pin [0,1]² fixture (see header comment)
+  g.nodes.push_back(quad);
   Node fcp; fcp.id = 3; fcp.type = "FindClosestPointsOnMesh"; g.nodes.push_back(fcp);
   Node draw; draw.id = 4; draw.type = "DrawPoints2";
   draw.params["Color.x"] = 1.0f; draw.params["Color.y"] = 0.0f;

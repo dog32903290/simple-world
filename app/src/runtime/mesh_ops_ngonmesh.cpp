@@ -150,11 +150,13 @@ NodeSpec ngonSpec() {
   NodeSpec s;
   s.type = "NGonMesh";
   s.title = "NGon Mesh";
-  // Segments = int (NGonMesh.cs Segments InputSlot<int>), default 4 (the proving golden's exact-trig
-  // case). Radius = float, default 1. Stretch = Vec2 (default (1,1)). Center = Vec3 (default 0).
-  // Rotation = Vec3 (default 0). TextureMode = enum (Planar/Circular/CircularScaled), default Planar.
+  // Segments = int (NGonMesh.cs Segments InputSlot<int>), .t3 default 5 (NGonMesh.t3 Id 33921c65). The
+  // proving goldens (mesh_golden.cpp) override Segments=4 explicitly (stored param wins over this
+  // inspector default via resolvePortValue), so this default only affects an un-overridden instance.
+  // Radius = float, default 1. Stretch = Vec2 (default (1,1)). Center = Vec3 (default 0). Rotation = Vec3
+  // (default 0). TextureMode = enum (Planar/Circular/CircularScaled), default Planar.
   PortSpec seg; seg.id = "Segments"; seg.name = "Segments"; seg.dataType = "Float"; seg.isInput = true;
-  seg.def = 4.0f; seg.minV = 1.0f; seg.maxV = 64.0f;
+  seg.def = 5.0f; seg.minV = 1.0f; seg.maxV = 64.0f;
   PortSpec rad; rad.id = "Radius"; rad.name = "Radius"; rad.dataType = "Float"; rad.isInput = true;
   rad.def = 1.0f; rad.minV = 0.0f; rad.maxV = 10.0f;
   PortSpec stx; stx.id = "Stretch.x"; stx.name = "Stretch"; stx.dataType = "Float"; stx.isInput = true;

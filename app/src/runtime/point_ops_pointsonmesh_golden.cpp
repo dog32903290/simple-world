@@ -123,7 +123,13 @@ bool flatDriverLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bo
   registerPointsOnMeshOp();
 
   Graph g;
-  Node quad; quad.id = 1; quad.type = "QuadMesh"; g.nodes.push_back(quad);  // defaults → 4 verts / 2 tris
+  Node quad; quad.id = 1; quad.type = "QuadMesh";
+  // Pin Pivot=(0.5,0.5) EXPLICITLY (QuadMesh.t3-parity default is now (0,0), which centers the quad at
+  // the origin — offset=stretch*scale*(pivot-0.5)). This test's in-quad assertion below hard-codes the
+  // [0,1]² corner-anchored square (Pivot=0.5→offset=0), so the fixture is pinned rather than left to
+  // QuadMesh's own default (which this test doesn't otherwise care about).
+  quad.params["Pivot.x"] = 0.5f; quad.params["Pivot.y"] = 0.5f;
+  g.nodes.push_back(quad);
   Node pom; pom.id = 2; pom.type = "PointsOnMesh"; pom.params["Count"] = (float)N; pom.params["Seed"] = 10.0f;
   g.nodes.push_back(pom);
 
