@@ -135,7 +135,7 @@ static const PointModifyOp _reg_TransformSomePoints{
        "TransformSomePoints",
        {{"points", "points", "Points", true},    // input bag (port 0)
         {"out", "out", "Points", false},          // transformed output bag (port 1)
-        {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
+        {"Space", "Space", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
         {"WIsWeight", "WIsWeight", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         // Translation / Rotation(Euler°) / Scale — TiXL Vector3 inputs (Widget::Vec).
         {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
@@ -169,10 +169,10 @@ static const PointModifyOp _reg_WrapPointPosition{
         {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // .cs slot "Size" = box extents; default (2,2,2) per TiXL
-        {"Size.x", "Size", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
-        {"Size.y", "Size.y", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
-        {"Size.z", "Size.z", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
+        // .cs slot "Size" = box extents; .t3 DefaultValue=(1,1,1)
+        {"Size.x", "Size", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
+        {"Size.y", "Size.y", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
+        {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
        nullptr,
        "point.transform"}
 };
@@ -190,10 +190,10 @@ static const PointModifyOp _reg_SnapPointsToGrid{
        "SnapPointsToGrid",
        {{"points", "points", "Points", true},    // input bag (port 0)
         {"out", "out", "Points", false},          // snapped output bag (port 1)
-        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 2.0f},
+        {"Amount", "Amount", "Float", true, 0.5f, 0.0f, 2.0f},
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
          {"CenterDistance", "CornersDistance", "AxisCenterDistance", "AxisEdgeDistance"}},
-        {"GridScale", "GridScale", "Float", true, 1.0f, 0.01f, 10.0f},
+        {"GridScale", "GridScale", "Float", true, 0.5f, 0.01f, 10.0f},
         // GridStretch (TiXL Vector3, default 1,1,1) — per-axis grid cell scale
         {"GridStretch.x", "GridStretch", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"GridStretch.y", "GridStretch.y", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
