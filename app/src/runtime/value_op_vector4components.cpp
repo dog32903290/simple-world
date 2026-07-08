@@ -55,12 +55,12 @@ static const ValueOp _reg_vector4components{
     // Vector4Components (TiXL Lib.numbers.vec4.Vector4Components): decompose Vec4 → X/Y/Z/W Float.
     // Port order MUST match evalVector4Components's in[] read: the 4 Value components first (grouped
     // under one Widget::Vec head, vecArity=4 — fork-vec4-decompose-arity), then the 4 named outputs.
-    // Vector4Components default Value = {0,0,0,0} (Vector4 default).
+    // Vector4Components.t3 default Value = {1,1,1,1}.
     {"Vector4Components", "Vector4Components",
-     {{"Value.x", "Value",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 4},
-      {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
-      {"Value.z", "Value.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
-      {"Value.w", "Value.w", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+     {{"Value.x", "Value",   "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 4},
+      {"Value.y", "Value.y", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+      {"Value.z", "Value.z", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+      {"Value.w", "Value.w", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
       {"X", "X", "Float", false},
       {"Y", "Y", "Float", false},
       {"Z", "Z", "Float", false},
@@ -132,13 +132,14 @@ int runVector4ComponentsSelfTest(bool injectBug) {
     printf("[selftest-vector4components] W=%.4f want=%.4f -> %s\n", r, vw, pass ? "PASS" : "FAIL");
   }
 
-  // BOUNDARY: default Value = (0,0,0,0) → every output 0 (Vector4Components.t3 default decompose).
+  // BOUNDARY: explicit Value = (0,0,0,0) → every output 0 (decompose identity at the zero point; NOT
+  // the PortSpec default — Vector4Components.t3's actual default is {1,1,1,1}, set explicitly above).
   {
     float rx = evalComp(0.0f, 0.0f, 0.0f, 0.0f, "X");
     float rw = evalComp(0.0f, 0.0f, 0.0f, 0.0f, "W");
     bool pass = std::fabs(rx) < eps && std::fabs(rw) < eps;
     ok = ok && pass;
-    printf("[selftest-vector4components] default(0,0,0,0) X=%.4f W=%.4f want=0 -> %s\n",
+    printf("[selftest-vector4components] zero-input(0,0,0,0) X=%.4f W=%.4f want=0 -> %s\n",
            rx, rw, pass ? "PASS" : "FAIL");
   }
 

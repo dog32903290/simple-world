@@ -173,8 +173,9 @@ bool& composeVec3InjectBugRef() { return composeVec3InjectBug(); }
 
 // Self-registration. File-scope static ValueOp — independent leaf (SW_VALUE_OP_SRCS glob compiles
 // value_op_*.cpp). evaluate==nullptr: host-emitted by cookComposeVec3Nodes onto extOut[the 3 Result slots].
-//   Ports: Input (FloatList) ; IndexForX/Y/Z (Float, int-dissolved, defaults 0/1/2) ; InputRange.x/.y +
-//          OutputRange.x/.y (Vec2 components) ; SpringDamping (Float) ; Result.x/.y/.z (3 Float outputs).
+//   Ports: Input (FloatList) ; IndexForX/Y/Z (Float, int-dissolved, TiXL defaults 0/0/0 —
+//          ComposeVec3FromList.t3) ; InputRange.x/.y = 0/1, OutputRange.x/.y = 0/1 (Vec2 components,
+//          TiXL default {0,1}) ; SpringDamping (Float, default 0) ; Result.x/.y/.z (3 Float outputs).
 // ★ OUTPUT PORTS FIRST (indices 0/1/2): Result.* must land in extOut[0..2] (float[8]). This op has NINE
 // input ports; if the outputs trailed them they would sit at spec indices 9/10/11 — OUT OF BOUNDS for
 // extOut[8]/outCache[8], so evalResidentFloat would read 0. Declaring outputs first keeps them addressable
@@ -187,12 +188,12 @@ static const ValueOp _reg_composevec3fromlist{
       {"Result.z", "Result.z", "Float", false},
       {"Input", "Input", "FloatList", true},
       {"IndexForX", "IndexForX", "Float", true, 0.0f, -100000.0f, 100000.0f},
-      {"IndexForY", "IndexForY", "Float", true, 1.0f, -100000.0f, 100000.0f},
-      {"IndexForZ", "IndexForZ", "Float", true, 2.0f, -100000.0f, 100000.0f},
+      {"IndexForY", "IndexForY", "Float", true, 0.0f, -100000.0f, 100000.0f},
+      {"IndexForZ", "IndexForZ", "Float", true, 0.0f, -100000.0f, 100000.0f},
       {"InputRange.x", "InputRange", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 2},
-      {"InputRange.y", "InputRange.y", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 1},
+      {"InputRange.y", "InputRange.y", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 1},
       {"OutputRange.x", "OutputRange", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 2},
-      {"OutputRange.y", "OutputRange.y", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 1},
+      {"OutputRange.y", "OutputRange.y", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 1},
       {"SpringDamping", "SpringDamping", "Float", true, 0.0f, 0.0f, 100.0f}},
      /*evaluate=*/nullptr}};  // host-emit via cookComposeVec3Nodes; golden registered separately below
 
