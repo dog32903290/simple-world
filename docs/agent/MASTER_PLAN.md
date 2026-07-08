@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: ee35396
-DIRTY: clean
+HEAD: 1d42d6f
+DIRTY: 1 files
 CENSUS: 610 / 749 done
 BITE: 708 PASS | FAILED=[0] | NO-BITE=[0]
-STAMP_AT: 2026-07-09T06:12
+STAMP_AT: 2026-07-09T06:25
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -30,7 +30,7 @@ STAMP_AT: 2026-07-09T06:12
 - **overnight 批1 DONE 合流（2026-07-09 02:25，HEAD 見機器塊 `c859d28`，--bite 708/0/0，各條親手 cherry-pick+重建復驗）**：① crash-fix `parseChildTimeClips` OOB（`d5e37df`，crude_json const op[] 懸空參照；DrawMesh/FindClosestPointsOnMesh 現 probe 乾淨）② snapshot 軸2 Lane A（`19c90a4`，captureLive 讀 snapshotGroupIndex，UI 觸點在 Variation 面板 `[待柏為簽收位置]`）③ probe R4-fix（`81f8797`，親測全 12 kernel-未port 顆由假 READY→NOT-READY(R4)，TransformPoints/CombineBuffers/TransformMesh 正確留 READY）④ 軸3 tool-fix（`c859d28`，比對器誠實化，假陽性 294→263、240 真漂移 byte-identical 保留）。
 - **overnight 批2 DONE 合流（HEAD 見機器塊 `dbaae5b`，708/0/0，親驗）＝軸3 L1+L2**：① net/io（`dbaae5b`，17 節點 26 漂移，直讀 .t3 壓出檔內 stale 註解）② stateful anim（`d9d0222`，12 節點 Damp/Spring/Ease）。~44 條真漂移對齊 TiXL（census 263→~219）。**過程料**：SacnOutput.SyncUniverse=64001>maxV、WLedSerialOutput.LedCount=-1<minV 照 TiXL 原樣（忠實 clone）——若 sw load 時 clamp 到 slider 範圍會是殘留 divergence，range 非本軸任務、記著。
 - **overnight 批3 DONE 合流（HEAD 機器塊 `590b799`，708/0/0，親驗）＝軸3 L4+L5**：① generators（`590b799`，LinePoints/GridPoints/SpherePoints/HexGridPoints/RepetitionPoints 12 params）② string（`2036eee`，6 節點）。**⚠ 兩個要知道**：㈠ generators LinePoints.Direction (0,1,0)→(1,0,0) 連帶改 2 個 selftest 軸斷言 Y→X（boundingboxpoints/reorientlinepoints）+ line_points_parity_golden 註解——**幾何必然後果、非捏 oracle、P5 風險低但可 review 時瞄一眼**。㈡ string 有工具量測天花板：`PickStringPart.InputText`(真換行被 dump-nodespec sanitize 成空格→工具永遠顯示不了 0)、`SplitString.Split`(真換行 vs 字面\n 行為相同)、`FloatListToString.Format`(TiXL `{0:0.000}` sw 不支援=刻意 fork) 皆**非真漂移、別追**。RadialPoints.Cycles=工具 join-miss(TiXL 名 Rotations，值相符，tool-fix 別名表可補這條)。
-- **overnight 批4 DONE 合流（HEAD 機器塊 `ee35396`，708/0/0，親驗）＝軸3 atom 三 lane 50 params**：Value(`ab9e387`,31) + Math(`482d985`,9，IntToWrapmode NAMED FORK 跳過) + Field/Mesh(`cd8830b`+`ee35396`,10)。**⚠ QuadMesh.Pivot 0.5→0 連帶 5 檔 golden/fixture 漣漪（kQuadVerts 重推導 + 2 golden pin Pivot 解耦 + drawmeshunlit/pbr 移補償），是最大 golden touch＝獨立 Opus refuter 查中（`ac0f4ef1…`，未回 GO 前這批算 GO-pending，refuter NO-GO 則下輪 fixer 修 kQuadVerts/golden 期望）。**
+- **overnight 批4 DONE 合流（HEAD 機器塊 `ee35396`，708/0/0，親驗）＝軸3 atom 三 lane 50 params**：Value(`ab9e387`,31) + Math(`482d985`,9，IntToWrapmode NAMED FORK 跳過) + Field/Mesh(`cd8830b`+`ee35396`,10)。**✅ QuadMesh.Pivot 0.5→0 連帶 5 檔 golden 漣漪＝獨立 Opus refuter GO**（kQuadVerts 手推自 QuadMesh.cs byte-for-byte + 獨立 sw cook 雙重接地非 P5、2 golden pin 解耦沒放寬、補償移除幾何等價、牙非空咬）。**latent cleanup（批5 順手，非阻塞）**：`mesh_ops_quadmesh.cpp:80` cook-fallback `pivotDef={0.5,0.5}` 沒同步成 {0,0}（graph-cook 不可達故非 bug，防禦性對齊）。
 - **overnight 批5 待開（下輪）**：軸3 剩餘＝① flattened point/mesh 家族（dither/fastblur/koch/normalmap/randomizepoints/tonemapping/transformimage… 退場-adjacent，改 NodeSpec 與退場撞家族→退場現卡 kernel-porting 短期不退故可做，但注意同家族序列）② 需判斷桶（`draw_shading` SetFog/SetPointLight 刻意-0 有 fallback-buffer 設計/資產路徑+憑證 8 條/DataPointConverter 9 條——先 spot-check .cs 有無 NAMED FORK 再改）③ string 家族殘留 ~10 條（BlendStrings/StringInsert/StringRepeat/SubString/WrapString…，前 string lane 只做 6 顆）④ tool follow-up：把 VisibleGizmos.Visibility(sentinel -1↔"Inherit")/PlayAudioClip.Path/VideoStreamInput.Url 這些 NAMED-FORK 假陽性補進 whitelist/別名。④ 結構 HOLD 20 條獨立調查。snapshot Lane B + 軸1 kernel-port pilot 待柏為決策。詳 `DEFAULT_VALUE_PARITY_PLAN.md`。
 - **★柏為待決（睡醒看）**：㈠ **R5 架構分岔**＝mesh-compute 退場需 production PbrVertex stride 64→80 fork + vec3-wire-lands-on-head fix，做法「烤進 catalog asset vs 泛化進 importer」＝架構決策，我不擅自定。㈡ **kernel-port pilot 要不要開**＝退場真工是逐顆 port HLSL→MSL kernel（本質複雜、無監督易假綠），點 compute（無 stride 問題）是較乾淨 pilot 候選（如 WrapPointPosition）；等你點頭再開。㈢ snapshot Lane B 池模型（單池 vs TiXL per-symbol 多池）+ 是否含 Preset 子系統。
 - 接手先跑 `tools/sw_status.sh`。**地基批（probe/lint/CombineBuffers/R4 hardening）已 refuter GO 在 main（`0de7ff7`）**。
