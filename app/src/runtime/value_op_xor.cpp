@@ -5,8 +5,9 @@
 //     var a = A.GetValue(context);
 //     Result.Value = B.GetValue(context) ? !a : a;
 //
-//   Ports: A = InputSlot<bool> (no ctor default → false); B = InputSlot<bool> (no ctor default →
-//   false). Output: Result (Slot<bool>).
+//   Ports: A = InputSlot<bool> (no ctor default → false); B = InputSlot<bool> (no ctor default, but
+//   Xor.t3's authored instance overrides B's DefaultValue to true — the TiXL SSOT for the shipped
+//   default, not the ctor). Output: Result (Slot<bool>).
 //
 // This is a faithful XOR. Truth table of TiXL's `B ? !a : a` (verified, NOT assumed):
 //   A=0,B=0 → B false → a → 0     xor(0,0)=0  ✓
@@ -23,10 +24,11 @@
 //     1.0f/0.0f (matches IsGreater.cs handling at value_eval_ops.cpp:576). The Float→bool read
 //     treats any non-zero (incl. negatives / fractional) as true, which is the C# truthiness a
 //     bool slot would already have produced upstream; the boolean math itself is byte-identical.
-//   - fork-xor-default-false: TiXL A/B are InputSlot<bool> with no ctor default → C# bool default
-//     is false. We mirror with Float default 0.0f and Widget::Bool (same widget the runtime uses
-//     for the existing bool inputs Reset/Freeze in node_registry_math.cpp). Default eval = 0 XOR 0
-//     = 0, byte-identical to TiXL's default Xor.
+//   - fork-xor-default-false: TiXL A/B are InputSlot<bool> with no ctor default (C# bool default is
+//     false), but Xor.t3's authored instance sets B's DefaultValue=true — that .t3 value is the SSOT
+//     mirrored here (A=0.0f/false, B=1.0f/true, both Widget::Bool, same widget the runtime uses for
+//     the existing bool inputs Reset/Freeze in node_registry_math.cpp). Default eval = A(0) XOR B(1)
+//     = 1, byte-identical to TiXL's shipped default Xor.
 #include "runtime/graph.h"  // NodeSpec, EvaluationContext (fwd), findSpec/evalFloat/pinId for golden
 
 #include <cmath>
@@ -59,10 +61,10 @@ float evalXorOp(int /*outIdx*/, const float* in, int n, const EvaluationContext&
 static const ValueOp _reg_xor{
     // Xor (TiXL Lib.numbers.bool.logic.Xor): Result = B ? !a : a (== a XOR b).
     // Port order MUST match evalXorOp's in[] read: A, B, then out.
-    // Defaults: A=false(0), B=false(0). Bool inputs → Widget::Bool (runtime bool convention).
+    // Defaults (Xor.t3): A=false(0), B=true(1). Bool inputs → Widget::Bool (runtime bool convention).
     {"Xor", "Xor",
      {{"A", "A", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
-      {"B", "B", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+      {"B", "B", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},
       {"Result", "Result", "Float", false}},
      evalXorOp},
     "xor", runXorSelfTest};
