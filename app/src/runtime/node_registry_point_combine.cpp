@@ -47,8 +47,8 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"out", "out", "Points", false},           // port 2: snapped output bag
         // TiXL .hlsl cbuffer b0 fields (verbatim names, same order as cbuffer):
         {"BlendFactor", "BlendFactor", "Float", true, 0.0f, 0.0f, 1.0f},  // port 3
-        {"Distance",    "Distance",    "Float", true, 1.0f, 0.0f, 5.0f},  // port 4
-        {"MaxAmount",   "MaxAmount",   "Float", true, 1.0f, 0.0f, 2.0f}}, // port 5
+        {"Distance",    "Distance",    "Float", true, 0.0f, 0.0f, 5.0f},  // port 4
+        {"MaxAmount",   "MaxAmount",   "Float", true, 0.0f, 0.0f, 2.0f}}, // port 5
        nullptr,
        "point.transform"},
 
