@@ -31,8 +31,23 @@ NodeSpec specFromSymbol(const Symbol& s) {
 
 void refreshCompoundSpecs(const SymbolLibrary& lib) {
   std::map<std::string, NodeSpec> dyn;
+  // Pass 1 — the guid keys (unchanged behaviour): every non-atomic symbol keyed by its own id (=guid).
   for (const auto& kv : lib.symbols)
     if (!kv.second.atomic) dyn[kv.first] = specFromSymbol(kv.second);
+  // Pass 2 — NAME→compound ALIAS (廢棄節點退場 replace-in-place seam). A compound's human name (=
+  // Symbol.name, e.g. "TransformPoints") is ALSO keyed to its spec so a human-name reference
+  // (makeNode("X") / .swproj node type / any findSpec-by-name) resolves to the compound once its flat
+  // atom retires. Polarity is guaranteed WITHOUT touching findSpec: dynamicSpecs is consulted at the
+  // VERY TAIL of findSpec (node_registry.cpp — after registry() + all ~17 atom sinks), so while the
+  // flat atom is still registered the atom sink wins and this alias is inert → ZERO behaviour change.
+  // Only after the atom's sink row is removed does the miss fall through to this alias → the reference
+  // auto-takes-over the compound with NO scaffold-string edit. emplace (not []) so a guid key is never
+  // clobbered and, on a duplicate-name race, the first compound wins (uniqueness lint deferred — see
+  // RETIREMENT_BATTLE_SPEC §6.1). NB: nothing ENUMERATES dynamicSpecs (only findSpec's .find reads it),
+  // so the extra key adds no menu/inspector duplication.
+  for (const auto& kv : lib.symbols)
+    if (!kv.second.atomic && !kv.second.name.empty() && kv.second.name != kv.first)
+      dyn.emplace(kv.second.name, specFromSymbol(kv.second));
   setDynamicSpecs(std::move(dyn));
 }
 
