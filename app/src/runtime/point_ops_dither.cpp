@@ -147,15 +147,15 @@ static const ImageFilterOp _reg_dither{
       // Method (enum Methods{FloydSteinberg,Diffusion} → Bayer/hash dither, Dither.cs:20-21,38-42).
       {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Bayer", "Hash"}, true},
       // GrayScaleWeights (Vec4, declared-but-unused fork; TiXL default luma weights).
-      {"GrayScaleWeights.r", "GrayScaleWeights", "Float", true, 0.299f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-      {"GrayScaleWeights.g", "GrayScaleWeights.g", "Float", true, 0.587f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-      {"GrayScaleWeights.b", "GrayScaleWeights.b", "Float", true, 0.114f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"GrayScaleWeights.r", "GrayScaleWeights", "Float", true, 0.2126f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"GrayScaleWeights.g", "GrayScaleWeights.g", "Float", true, 0.7152f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"GrayScaleWeights.b", "GrayScaleWeights.b", "Float", true, 0.0722f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
       {"GrayScaleWeights.a", "GrayScaleWeights.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
       // GainAndBias (Vec2, ApplyGainAndBias on the grayscale; identity = (0.5,0.5)).
       {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
       {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
       // Scale (float, dither grid resolution; larger = finer cells).
-      {"Scale", "Scale", "Float", true, 1.0f, 0.01f, 256.0f},
+      {"Scale", "Scale", "Float", true, 4.0f, 0.01f, 256.0f},
       // Offset (Vec2, grid offset).
       {"Offset.x", "Offset", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
       {"Offset.y", "Offset.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
