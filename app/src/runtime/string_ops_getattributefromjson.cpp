@@ -351,7 +351,9 @@ void cookGetAttributeFromJson(StringCookCtx& c) {
 //     [1] "Columns"  = String output  (extraStrOutputs[1]; ", "-joined names, fork-jsonattr-columns-joined)
 //     [2] "RowCount" = Float output   (Int dissolved → scalarOutputs[2] → extOut[2] / outCache[2])
 //   Input ports (gathered after the outputs):
-//     [3] "JsonString" = String input (wire-OR-const; strDef "") → inputStrings[0]
+//     [3] "JsonString" = String input (wire-OR-const; strDef "https://cataas.com/cat" = TiXL default,
+//                        a non-JSON URL placeholder — parseJsonTable rejects it same as "", no behavior
+//                        change) → inputStrings[0]
 //     [4] "ColumnName" = String input (wire-OR-const; strDef "") → inputStrings[1]
 //     [5] "RowIndex"   = Float/Int — rides params
 //   PortSpec positional: {id, name, dataType, isInput, def, minV, maxV, widget, labels, pinless,
@@ -362,7 +364,7 @@ static const StringOp _reg_getattributefromjson{
       {"Columns",  "Columns",  "String", false},
       {"RowCount", "RowCount", "Float",  false},
       {"JsonString", "JsonString", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
-       false, ""},
+       false, "https://cataas.com/cat"},
       {"ColumnName", "ColumnName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        false, ""},
       {"RowIndex", "RowIndex", "Float", true, 0.0f, -1000000.0f, 1000000.0f, Widget::Slider}},

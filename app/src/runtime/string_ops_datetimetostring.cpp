@@ -10,7 +10,7 @@
 //           : v.ToString(format, CultureInfo.InvariantCulture);
 //     } catch (FormatException) { Output.Value = "Invalid Format"; }
 //   Ports: Value=InputSlot<DateTime>; Format=InputSlot<string>. Output=Slot<string>.
-//   DateTimeToString.t3: Format has no scalar default (empty → general "G" rendering).
+//   DateTimeToString.t3: Format default = "dddd MMMM dd, yyyy" (empty Format would render general "G").
 //
 // ROUTE B (DateTime-as-epoch-Float, the no-new-currency port — task directive, same as DateTimeToFloat):
 //   `Value` here = Unix-epoch SECONDS on a Float port; the calendar fields are derived via host gmtime
@@ -177,13 +177,13 @@ void cookDateTimeToString(StringCookCtx& c) {
 
 // Self-registration. File-scope static StringOp — explicit CMake list (string_ops_*).
 //   Ports: "Value"  = scalar Float input (the route-B epoch seconds; read via resolved params);
-//          "Format" = String input (wire-OR-const; strDef "" = the general "G" rendering);
+//          "Format" = String input (wire-OR-const; strDef "dddd MMMM dd, yyyy" = TiXL default);
 //          "Output" = the String output (host string currency).
 static const StringOp _reg_datetimetostring{
     {"DateTimeToString", "DateTimeToString",
      {{"Output", "Output", "String", false},
       {"Value", "Value", "Float", true, 0.0f, -2.0e9f, 2.0e9f, Widget::Slider},
-      {"Format", "Format", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""}},
+      {"Format", "Format", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "dddd MMMM dd, yyyy"}},
      /*evaluate=*/nullptr},  // String output cannot ride NodeSpec::evaluate (returns ONE float)
     cookDateTimeToString};
 

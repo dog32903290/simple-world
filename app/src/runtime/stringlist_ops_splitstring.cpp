@@ -11,7 +11,8 @@
 //     Fragments.Value = str.Split(c).ToList();
 //     Count.Value = Fragments.Value.Count;
 //
-//   Ports: String = InputSlot<string> (default "Line\nLine"); Split = InputSlot<string> (default "\n").
+//   Ports: String = InputSlot<string> (TiXL .t3 default "."); Split = InputSlot<string> (TiXL .t3 default
+//   is the literal 2-char text "\n", i.e. backslash+n — see fork-splitchar-serialization-vs-real-newline).
 //   Outputs: Fragments = Slot<List<string>>;  Count = Slot<int> (the fragment count).
 //
 // EVAL-SIDE LAYOUT: a StringList PRODUCER (rides the stringlist cook flow). String is the ONE String
@@ -40,6 +41,15 @@
 //   - fork-csharp-split-keeps-empties: C# String.Split default keeps empty fragments (adjacent/leading/
 //     trailing delimiters); ported verbatim (no RemoveEmptyEntries).
 //   - fork-splitstring-count-deferred: the Int Count output is not transported (single-list-output flow).
+//   - fork-splitchar-serialization-vs-real-newline: TiXL's Split default is the LITERAL 2-char text "\n"
+//     (backslash+n), which cookSplitString's split=="\\n" check special-cases into a real newline delim —
+//     sw's strDef already stores that resolved real newline byte directly (`\n` C++ escape), which the
+//     SAME check's `split.empty()`/`split[0]` fallthrough also resolves to the identical delim char.
+//     BEHAVIOR-IDENTICAL either way; the two representations only differ in the parity tool's own TSV
+//     dump (selftests.cpp sanitizes strDef's real newlines to a space for the DEF line, so the tool
+//     reports a residual "' ' vs '\\n'" — a harness display artifact, not a real drift). DEFERRED (a
+//     parser-dependent \n-vs-serialization case, same category as JoinStringList.Separator/ValueToRate.
+//     Rates/SequenceAnim.Sequence) — left untouched, not blind-copied.
 //   - fork-string-host-not-gpu: string list is host currency; no GPU EvaluationContext touched.
 #include <string>
 #include <vector>
@@ -104,8 +114,10 @@ void cookSplitString(StringListCookCtx& c) {
 // Self-registration. File-scope static StringListOp — independent leaf .cpp (no shared edit point).
 //   Port ORDER (position in spec = gather order for inputStrings):
 //     [0] "Fragments" = StringList output (the host string-list currency — StringList PRODUCER)
-//     [1] "String"    = String input  (wire-OR-const; strDef "Line\nLine" = the TiXL default text)
-//     [2] "Split"     = String input  (wire-OR-const; strDef "\n" = split on newline by default)
+//     [1] "String"    = String input  (wire-OR-const; strDef "." = the TiXL default text)
+//     [2] "Split"     = String input  (wire-OR-const; strDef real-newline = split on newline by default;
+//                        TiXL's OWN default is serialized as the literal 2-char "\n" text, resolved to
+//                        the SAME delim char by cookSplitString — see fork-splitchar-serialization above)
 //   The stringlist driver gathers String input ports into inputStrings in spec order: ports [1]/[2] are
 //   the two String inputs → inputStrings[0]==String, inputStrings[1]==Split. (Count, the TiXL Int output,
 //   is not exposed — fork-splitstring-count-deferred above.)
@@ -113,7 +125,7 @@ static const StringListOp _reg_splitstring{
     {"SplitString", "SplitString",
      {{"Fragments", "Fragments", "StringList", false},
       {"String", "String", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
-       "Line\nLine"},
+       "."},
       {"Split", "Split", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
        "\n"}},
      /*evaluate=*/nullptr},  // StringList output cannot ride NodeSpec::evaluate (returns ONE float)

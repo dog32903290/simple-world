@@ -54,13 +54,13 @@ void cookStringLengthStub(StringCookCtx& c) {
 //   Ports: "InputString" = the String input (the new wire-OR-const String port);
 //          "Length"       = the Float output (int dissolved to Float; host scalar via floatListBuf).
 // PortSpec positional fields for a String input: {id, name, dataType, isInput, def, minV, maxV,
-// widget, labels, pinless, vecArity, multiInput, strDef}. strDef "" = empty string default
-// (TiXL InputSlot<string> default is empty → Length 0).
+// widget, labels, pinless, vecArity, multiInput, strDef}. strDef = the TiXL default ("ten plus eleven
+// is 21", a 21-char sample sentence — Length would be 21).
 static const StringOp _reg_stringlength{
     {"StringLength", "StringLength",
      {{"Length", "Length", "Float", false},
       {"InputString", "InputString", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
-       false, ""}},
+       false, "ten plus eleven is 21"}},
      /*evaluate=*/nullptr},  // host scalar comes from the cook driver, not the value-eval evaluate fn
     cookStringLengthStub};
 

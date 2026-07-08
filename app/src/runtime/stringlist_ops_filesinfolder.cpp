@@ -15,7 +15,8 @@
 //                       : filePaths.FindAll(filepath => filepath.Contains(filter)).ToList();
 //     NumberOfFiles.Value = Files.Value.Count;
 //
-//   Ports: Folder = InputSlot<string> (default "."); Filter = InputSlot<string> (default "*.png");
+//   Ports: Folder = InputSlot<string> (default "Examples:images/sequences/agingFacesFemale");
+//          Filter = InputSlot<string> (default "");
 //          TriggerUpdate = InputSlot<bool>. Outputs: Files = Slot<List<string>>; NumberOfFiles = Slot<int>.
 //
 // EVAL-SIDE LAYOUT: a StringList PRODUCER (rides the StringListCookCtx String gather, same as SplitString).
@@ -89,7 +90,9 @@ void cookFilesInFolder(StringListCookCtx& c) {
   if (!c.output) return;
   c.output->clear();
 
-  // inputStrings[0] = Folder; inputStrings[1] = Filter. Unwired ports → their strDef consts ("." / "*.png").
+  // inputStrings[0] = Folder; inputStrings[1] = Filter. Unwired ports → their strDef consts (see PortSpec
+  // below); the "." / "*.png" here are only the defensive fallback for a null/short inputStrings pointer
+  // (unreachable in the normal resident/flat cook path — strDef is always resolved into inputStrings).
   const std::string folder =
       (c.inputStrings && c.inputStrings->size() > 0) ? (*c.inputStrings)[0] : std::string{"."};
   const std::string filter =
@@ -109,8 +112,9 @@ void cookFilesInFolder(StringListCookCtx& c) {
 //   Port ORDER (position in spec = gather order for inputStrings):
 //     [0] "Files"         = StringList output (the host string-list currency — StringList PRODUCER)
 //     [1] "NumberOfFiles" = Float output     (TiXL Int NumberOfFiles; NOT transported — count-deferred fork)
-//     [2] "Folder"        = String input      (wire-OR-const; strDef "." = current dir, the TiXL default)
-//     [3] "Filter"        = String input      (wire-OR-const; strDef "*.png" = the TiXL default substring)
+//     [2] "Folder"        = String input      (wire-OR-const; strDef "Examples:images/sequences/
+//                            agingFacesFemale" = the TiXL default)
+//     [3] "Filter"        = String input      (wire-OR-const; strDef "" = the TiXL default, i.e. keep all)
 //     [4] "TriggerUpdate" = Float input       (bool transport-trigger; unconsumed parity port)
 //   The stringlist driver gathers String input ports into inputStrings in spec order: ports [2]/[3] are
 //   the two String inputs → inputStrings[0]==Folder, inputStrings[1]==Filter.
@@ -118,9 +122,9 @@ static const StringListOp _reg_filesinfolder{
     {"FilesInFolder", "FilesInFolder",
      {{"Files", "Files", "StringList", false},
       {"NumberOfFiles", "NumberOfFiles", "Float", false},
-      {"Folder", "Folder", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "."},
-      {"Filter", "Filter", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
-       "*.png"},
+      {"Folder", "Folder", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
+       "Examples:images/sequences/agingFacesFemale"},
+      {"Filter", "Filter", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},
       {"TriggerUpdate", "TriggerUpdate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        false, ""}},
      /*evaluate=*/nullptr},  // StringList output cannot ride NodeSpec::evaluate (returns ONE float)

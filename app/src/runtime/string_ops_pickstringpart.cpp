@@ -217,7 +217,10 @@ void cookPickStringPart(StringCookCtx& c) {
 //     [0] "Fragments"  = String output  (MAIN → ctx.output → extStrOut[0] / stringBuf[id])
 //     [1] "TotalCount" = Float output   (Int dissolved → scalarOutputs[1] → extOut[1] / outCache[1])
 //   Input ports (gathered after the outputs; only "InputText" is a String → inputStrings[0]):
-//     [2] "InputText"     = String input (wire-OR-const; strDef "")
+//     [2] "InputText"     = String input (wire-OR-const; strDef = the TiXL default text, containing REAL
+//                           newline bytes — the .t3 JSON uses a single-backslash \n escape (a real 0x0A),
+//                           NOT the literal-2-char "\n" that replaceLiteralNewline() converts; the C++
+//                           source \n escape reproduces the same real-newline byte, so no behavior change)
 //     [3] "SplitInto"     = Float/Int (enum: 0=Characters 1=Words 2=Lines 3=Sentences) — rides params
 //     [4] "FragmentStart" = Float/Int — rides params
 //     [5] "FragmentCount" = Float/Int — rides params
@@ -228,7 +231,8 @@ static const StringOp _reg_pickstringpart{
      {{"Fragments",  "Fragments",  "String", false},
       {"TotalCount", "TotalCount", "Float",  false},
       {"InputText",  "InputText",  "String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
-       false, ""},
+       false,
+       "The sky above the port\nwas the colour of television,\ntuned to a dead channel"},
       {"SplitInto",     "SplitInto",     "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
        {"Characters", "Words", "Lines", "Sentences"}},
       {"FragmentStart", "FragmentStart", "Float", true, 0.0f, -1000000.0f, 1000000.0f, Widget::Slider},
