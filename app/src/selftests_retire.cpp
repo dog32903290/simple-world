@@ -93,6 +93,21 @@ std::string unmappedGuidOf(const std::string& warning) {
   return warning.substr(s, e - s);
 }
 
+// Extract the swType a "…no NodeSpec in findSpec for type <T>, child skipped" warning names (R2b —
+// a SECOND, distinct child-drop path from unmappedGuidOf's: here the guid IS mapped by TABLE ③
+// (swTypeForSymbolGuid returned non-empty) but the mapped swType string has no registered NodeSpec —
+// e.g. a typo'd/unregistered row landed in t3_import_maps.cpp. The child still silently drops; this
+// scan is what closes the gap where such a drop left NO warning the R2 ready-gate looked for.
+// "" when the warning is not a findSpec-skip line (mirrors unmappedGuidOf's contract).
+std::string findSpecSkipTypeOf(const std::string& warning) {
+  static const char* kKey = "no NodeSpec in findSpec for type ";
+  const size_t k = warning.find(kKey);
+  if (k == std::string::npos) return std::string();
+  const size_t s = k + std::strlen(kKey);
+  const size_t e = warning.find(',', s);
+  return warning.substr(s, e == std::string::npos ? std::string::npos : e - s);
+}
+
 // Import one catalog root into a fresh lib and return its readable NAME (Symbol.name — what §1's
 // name-fallback keys on) when it lands as a non-atomic compound. "" when the import failed or the root
 // came back atomic (nothing name-fallback would ever register). `dir` supplies the sibling resolver.
@@ -149,8 +164,13 @@ int runProbeImport(const char* t3Path) {
   }
 
   // R2 (+R3 by construction): feed the PRODUCTION importer + sibling-folder resolver. Ready ⇔ the root
-  // imports as a non-atomic compound WITH children AND zero "unmapped SymbolId … skipped" warnings. An
-  // unmapped child (framework code-op OR an unmapped leaf) leaves an R2/R3 warning → NOT-READY.
+  // imports as a non-atomic compound WITH children AND zero child-drop warnings — TWO distinct drop
+  // shapes, both silently remove a child from the graph, both must gate READY: (a) "unmapped SymbolId
+  // … skipped" (TABLE ③ has no row for the guid) and (b) "no NodeSpec in findSpec for type …, child
+  // skipped" (TABLE ③ DOES map the guid, but the mapped swType has no registered atom — e.g. a
+  // typo'd/unregistered row landed in t3_import_maps.cpp during the sweep). (b) alone used to leave
+  // NO warning the old R2 scan looked for → a probe could false-READ as READY over a compound that
+  // just silently lost a child.
   const FolderIndex idx = indexFolder(path.parent_path());
   const sw::T3Resolver resolver = [&idx](const std::string& guid, std::string& out) -> bool {
     auto it = idx.jsonByGuid.find(guid);
@@ -169,16 +189,28 @@ int runProbeImport(const char* t3Path) {
   std::vector<std::string> warnings;
   const bool ok = sw::importT3Symbol(json, lib, &symId, &warnings, resolver, layoutResolver);
 
-  // Collect the unmapped guids the importer skipped (deduped, stable order).
+  // Collect BOTH child-drop shapes the importer can warn (deduped, stable order per list).
   std::vector<std::string> unmapped;
+  std::vector<std::string> droppedTypes;
   for (const std::string& w : warnings) {
     const std::string g = unmappedGuidOf(w);
     if (!g.empty() && std::find(unmapped.begin(), unmapped.end(), g) == unmapped.end())
       unmapped.push_back(g);
+    const std::string t = findSpecSkipTypeOf(w);
+    if (!t.empty() && std::find(droppedTypes.begin(), droppedTypes.end(), t) == droppedTypes.end())
+      droppedTypes.push_back(t);
   }
 
   const sw::Symbol* s = (ok && !symId.empty()) ? lib.find(symId) : nullptr;
   const bool nonAtomic = s && !s->atomic && !s->children.empty();
+  if (!droppedTypes.empty()) {
+    // Checked FIRST: a findSpec-skip drop is the sweep-hardening case this fix closes — surface it
+    // under its own label so it reads distinctly from a plain unmapped-guid drop.
+    std::string list;
+    for (size_t i = 0; i < droppedTypes.size(); ++i) list += (i ? "," : "") + droppedTypes[i];
+    std::printf("PROBE %s: NOT-READY (R2 dropped-child findSpec-miss: %s)\n", name.c_str(), list.c_str());
+    return done(2);
+  }
   if (!unmapped.empty() || !nonAtomic) {
     std::string list;
     for (size_t i = 0; i < unmapped.size(); ++i) list += (i ? "," : "") + unmapped[i];
@@ -250,6 +282,54 @@ int runLintCatalogNames(bool injectBug) {
   return pass ? 0 : 1;
 }
 
-REGISTER_SELFTESTS(/*orderBase=*/960, {"lint-catalog-names", runLintCatalogNames});
+// ── §2 probe classifier regression (findSpec-skip drop hardening) ──────────────────────────────────
+// Pins the EXACT warning-string contract between t3_import.cpp's child-drop warn() call sites and
+// this file's unmappedGuidOf/findSpecSkipTypeOf classifiers, byte-copied from the producer:
+//   - t3_import.cpp:219-220  "…unmapped SymbolId <guid> (no sw atom…), skipped"      (R2, pre-existing)
+//   - t3_import.cpp:231      "…no NodeSpec in findSpec for type <T>, child skipped"  (R2b, THIS fix)
+// plus every OTHER warn() site in that file (input-slot / InputValue / wire drops) as a benign-guard:
+// none of those may false-trip either filter. A live end-to-end .t3 fixture for the R2b path is NOT
+// constructible without editing the owner-locked t3_import_maps.cpp (TABLE ③ never maps a guid to an
+// unregistered swType in production, and the nested-compound path can never reach findSpec at all —
+// see t3_import_recurse.cpp), so this pins the classifier directly against the producer's literal
+// format instead. injectBug mutates the expected findSpec-skip TYPE to a wrong value so the comparison
+// must actually fail (not a vacuous always-pass stub) — proves the check bites (--bite RED).
+int runProbeClassifyGolden(bool injectBug) {
+  int fails = 0;
+  auto check = [&](bool ok, const char* what) {
+    if (!ok) { std::printf("[probe-classify] FAIL: %s\n", what); ++fails; }
+  };
+
+  const std::string kUnmapped =
+      "t3: child 11111111-1111-1111-1111-111111111111 unmapped SymbolId "
+      "22222222-2222-2222-2222-222222222222 (no sw atom — e.g. "
+      "ComputeShaderStage/StructuredBufferWithViews/TransformMatrix), skipped";
+  const std::string kDropped = "t3: no NodeSpec in findSpec for type FakeUnregisteredType, child skipped";
+  const std::vector<std::string> kBenign = {
+      "t3: input slot missing Id, skipped",
+      "t3: child missing Id, skipped",
+      "t3: child 33333333-3333-3333-3333-333333333333 InputValue unknown slot "
+      "44444444-4444-4444-4444-444444444444, skipped",
+      "t3: child 33333333-3333-3333-3333-333333333333 InputValue type System.Foo unsupported, skipped",
+      "t3: wire src child 55555555-5555-5555-5555-555555555555 unmapped (skipped op), dropped",
+      "t3: wire dst child 66666666-6666-6666-6666-666666666666 unmapped (skipped op), dropped",
+  };
+
+  check(unmappedGuidOf(kUnmapped) == "22222222-2222-2222-2222-222222222222",
+        "unmapped-guid extractor misparses the t3_import.cpp:219-220 producer format");
+  const std::string wantDropped = injectBug ? "DeliberatelyWrongType" : "FakeUnregisteredType";
+  check(findSpecSkipTypeOf(kDropped) == wantDropped,
+        "findSpec-skip extractor misparses the t3_import.cpp:231 producer format");
+  for (const std::string& w : kBenign)
+    check(unmappedGuidOf(w).empty() && findSpecSkipTypeOf(w).empty(),
+          "a benign t3_import.cpp warn() line false-triggered a child-drop filter");
+
+  std::printf("[probe-classify] %d check(s) failed -> %s\n", fails, fails == 0 ? "PASS" : "FAIL");
+  std::fflush(stdout);
+  return fails == 0 ? 0 : 1;
+}
+
+REGISTER_SELFTESTS(/*orderBase=*/960, {"lint-catalog-names", runLintCatalogNames},
+                   {"probe-classify", runProbeClassifyGolden});
 
 }  // namespace sw
