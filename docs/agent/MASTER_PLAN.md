@@ -26,7 +26,9 @@ STAMP_AT: 2026-07-08T19:15
 
 ## Active Lane
 
-**★★★現行定位（2026-07-08，HEAD `363e9ef`，--bite 704/0/0，未 push）＝復合戰役，keystone+.t3ui 上岸，主戰場=廢棄節點退場（柏為 18:00 令）——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/COMPOUND_RECURSION_SEAM_SPEC.md`。**
+**⏸ LOOP 已停（柏為 2026-07-08 19:21 令「收尾關 loop」）。main `a51a6dc` 乾淨、704/0/0、過閘綠、未 push。接手先跑 `tools/sw_status.sh`。地基 lane（下方 Next）曾派後即停、零 WIP、需從頭重派（讀 `RETIREMENT_BATTLE_SPEC.md`）。stale worktree 待清（見 Conflict Register）。**
+
+**★★★現行定位（2026-07-08，HEAD `a51a6dc`，--bite 704/0/0，未 push）＝復合戰役，keystone 遞迴+.t3ui 排版+退場機制 pilot 三根上岸，主戰場=廢棄 139 節點退場（柏為 18:00 令）——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/RETIREMENT_BATTLE_SPEC.md`。**
 - **★關鍵校正（4 scout + refuter 確認）＝巢狀複合節點 MODEL 早已 live，非「要重新設計」**（[[tixl-clone-model-nested-catalog-node]] 那句 stale）：巢狀資料模型 `compound_graph.h` / resident 遞迴 inline `resident_eval_flatten.cpp` / 複合→NodeSpec catalog 註冊 `graph_bridge.cpp` / dive-in `editor_ui.cpp:252` / 8 顆真 .t3 boot-load 全 live。**不用重織網。**
 - **批 1 DONE（今日）**：① **keystone 匯入器遞迴上岸**（`t3_import_recurse.cpp`，讓「子節點本身是複合」遞迴建巢狀子複合而非 skip/壓扁；含 §1.3 跨層 slot 解析）——golden `t3-nestedcompound`（DrawPointsDOF→TransformPoints 兩層、中段 pin、TiXL host-matrix oracle P5 乾淨）RED→GREEN、injectBug 咬、**獨立 Opus refuter 判可合流**（override 側免補=共用 helper、connection-green 涵蓋）。② **值閘全掃**（`tools/default_value_parity.sh`+census `default_value_drift.txt`）＝**295 條預設值飄離 TiXL / 151 節點**（float 176 最高信號 + enum 26 + string 38 + float-vs-zero 53 低信號待逐顆確認）。
 - **`.t3ui` 排版 DONE（今日，`t3_import_layout.cpp`+8 顆 .t3ui 進 assets）**：鑽入複合子節點照 TiXL Position 擺（不再擠原點）。**⚠ 過程教訓**：merge 後 orchestrator 讀 eye state.json 誤報 0,0=**舊 app 實例遺留 state.json**(假警報,見 memory [[eye-hand-stale-instance-state-json]])；逼出真收穫=`catalog_boot_layout_selftest` base leg 從 `return 0` 假綠改 hard-fail（--bite 只驗 -bug leg，base leg NO-BITE 擋不住 boot 回歸）。親手 `--selftest-catalog-layout` 在真 assets 證 Blend 子節點非零 PASS。
