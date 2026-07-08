@@ -130,8 +130,8 @@ static const ImageFilterOp _reg_tonemapping{
     {"ToneMapping", "ToneMapping",
      {{"Image", "Image", "Texture2D", true},
       {"out", "out", "Texture2D", false},
-      // Mode (int enum, TiXL default 0 = Aces)
-      {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 6.0f, Widget::Enum,
+      // Mode (int enum, .t3 default 4 = AgX; ToneMapping.cs enum Modes order matches)
+      {"Mode", "Mode", "Float", true, 4.0f, 0.0f, 6.0f, Widget::Enum,
        {"Aces", "Reinhard", "Filmic", "Uncharted2", "AgX", "AgX_Punchy", "None"}, true},
       // CorrectGamma (bool, TiXL default false)
       {"CorrectGamma", "CorrectGamma", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
