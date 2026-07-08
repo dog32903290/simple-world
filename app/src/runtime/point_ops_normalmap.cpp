@@ -109,10 +109,10 @@ static const ImageFilterOp _reg_normalmap{
       {"out", "out", "Texture2D", false},
       // Impact (float, gradient→normal tilt strength).
       {"Impact", "Impact", "Float", true, 1.0f, 0.0f, 20.0f},
-      // SampleRadius (float, neighbour offset px).
-      {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
-      // Twist (float, degrees added to the gradient angle).
-      {"Twist", "Twist", "Float", true, 0.0f, -180.0f, 180.0f},
+      // SampleRadius (float, neighbour offset px; .t3 default 2.0).
+      {"SampleRadius", "SampleRadius", "Float", true, 2.0f, 0.0f, 10.0f},
+      // Twist (float, degrees added to the gradient angle; .t3 default 180.0).
+      {"Twist", "Twist", "Float", true, 180.0f, -180.0f, 180.0f},
       // Mode (float selector: 0 RGB flipped-Y / 1 RGB / 2 angle+magnitude / 3 keep-BA; .hlsl thresholds).
       {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
        {"RGB (flip Y)", "RGB", "Angle+Magnitude", "RG keep BA"}, true},
