@@ -132,13 +132,13 @@ static const ValueOp _reg_hsbtocolor{
     // Alpha) → vec4 Color decomposed into R/G/B/A Float outputs. Port order MUST match
     // evalHSBToColor's in[] read: the 4 scalar inputs first, then the 4 named outputs (grouped under
     // one Widget::Vec head, vecArity=4 — fork-vec4-decompose-arity).
-    // TiXL defaults are the InputSlot<float> defaults (0). min/max are inspector affordances only
-    // (no clamp on eval): Hue spans the hue wheel, Sat/Bri/Alpha span [0,1].
+    // TiXL defaults (HSBToColor.t3): Hue=0, Saturation=0, Brightness=0.5, Alpha=1. min/max are
+    // inspector affordances only (no clamp on eval): Hue spans the hue wheel, Sat/Bri/Alpha span [0,1].
     {"HSBToColor", "HSBToColor",
      {{"Hue", "Hue", "Float", true, 0.0f, 0.0f, 360.0f, Widget::Slider, {}, false, 1},
       {"Saturation", "Saturation", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1},
-      {"Brightness", "Brightness", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1},
-      {"Alpha", "Alpha", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1},
+      {"Brightness", "Brightness", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Slider, {}, false, 1},
+      {"Alpha", "Alpha", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1},
       {"R", "R", "Float", false},
       {"G", "G", "Float", false},
       {"B", "B", "Float", false},

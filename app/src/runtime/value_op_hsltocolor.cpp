@@ -128,13 +128,13 @@ static const ValueOp _reg_hsltocolor{
     // HSLToColor (TiXL Lib.numbers.color.HSLToColor): HSL+Alpha → RGBA color.
     // Port order MUST match evalHslToColor's in[] read: 4 scalar inputs (Hue/Saturation/Lightness/
     // Alpha) first, then the 4 decomposed Color outputs (R/G/B/A) under one Widget::Vec head.
-    // Defaults from HSLToColor.cs L72-82: Hue/Saturation/Lightness = 0, Alpha = 1 (L82).
+    // Defaults from HSLToColor.t3: Hue/Saturation = 0, Lightness = 0.5, Alpha = 1.
     // PortSpec field order (graph.h:27):
     //   id, name, dataType, isInput, def, minV, maxV, widget, labels, pinless, vecArity, multiInput.
     {"HSLToColor", "HSLToColor",
      {{"Hue",        "Hue",        "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider},
       {"Saturation", "Saturation", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider},
-      {"Lightness",  "Lightness",  "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider},
+      {"Lightness",  "Lightness",  "Float", true, 0.5f, -100.0f, 100.0f, Widget::Slider},
       {"Alpha",      "Alpha",      "Float", true, 1.0f, -100.0f, 100.0f, Widget::Slider},
       {"Color.x", "Color",   "Float", false, 0.0f, 0.0f, 0.0f, Widget::Vec, {}, false, 4},
       {"Color.y", "Color.y", "Float", false, 0.0f, 0.0f, 0.0f, Widget::Vec, {}, false, 1},
