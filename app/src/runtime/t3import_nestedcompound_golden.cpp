@@ -238,20 +238,28 @@ int runT3NestedCompoundParity(bool injectBug) {
     c.overrides["UniformScale"] = 1.0f; c.overrides["RotationMode"] = 0.0f;
     break;
   }
-  // (b) Const-child scaffold for IntsToBuffer.Params (Space=ObjectSpace, StrengthFactor=0). Two CONSTANT
-  //     boundary wires into one MultiInput collide destructively in the flatten; Connection drivers from
-  //     Const children append in wire order [Space, StrengthFactor] (the母本's pre-骨7 pattern).
+  // (b) Const-child scaffold for the marshal Params (FloatsToBuffer.Strength + IntsToBuffer.Space/
+  //     StrengthFactor). The resident marshal cook (point_graph_resident_buffer.cpp:181-183) collects
+  //     ONLY Connection-driven scalars — a Constant primary is not a payload float. In the nested flatten
+  //     a boundary→Params wire resolves to a Constant, so every marshal param would silently drop
+  //     (strength→0 → identity transform). Repoint each to a Const CHILD (Connection driver, appended in
+  //     wire order — the母本's pre-骨7 pattern), fed the TransformPoints boundary default value.
+  const int fbId = childIdOfType(*tp, "FloatsToBuffer");
+  if (!fbId) { printf("[t3-nested] FAIL: nested FloatsToBuffer not mapped\n"); pool->release(); return 1; }
   if (!lib.symbols.count("Const"))
     if (const NodeSpec* cs = findSpec("Const")) lib.symbols["Const"] = atomicSymbolFromSpec(*cs);
-  const int spaceConstId = tp->nextChildId++;
-  const int sfConstId = tp->nextChildId++;
-  { SymbolChild s; s.id = spaceConstId; s.symbolId = "Const"; s.overrides["value"] = 1.0f; tp->children.push_back(s); }
-  { SymbolChild s; s.id = sfConstId;    s.symbolId = "Const"; s.overrides["value"] = 0.0f; tp->children.push_back(s); }
+  auto marshalParamValue = [](const std::string& srcSlot) -> float {
+    if (srcSlot.rfind("1ab4671f", 0) == 0) return 1.0f;  // Space = ObjectSpace(1)
+    if (srcSlot.rfind("a2b65311", 0) == 0) return 0.0f;  // StrengthFactor = 0
+    if (srcSlot.rfind("fb2cfc5e", 0) == 0) return 1.0f;  // Strength = 1
+    return 0.0f;
+  };
   for (SymbolConnection& c : tp->connections)
-    if (c.srcChild == kSymbolBoundary && c.dstChild == intsId && c.dstSlot == "Params") {
-      const bool isSpace = (c.srcSlot.rfind("1ab4671f", 0) == 0);
-      c.srcChild = isSpace ? spaceConstId : sfConstId;
-      c.srcSlot = "out";
+    if (c.srcChild == kSymbolBoundary && c.dstSlot == "Params" && (c.dstChild == intsId || c.dstChild == fbId)) {
+      const int cid = tp->nextChildId++;
+      SymbolChild s; s.id = cid; s.symbolId = "Const"; s.overrides["value"] = marshalParamValue(c.srcSlot);
+      tp->children.push_back(s);
+      c.srcChild = cid; c.srcSlot = "out";
     }
   // (c) ROOT fixture: add the Buffer producer to DrawPointsDOF and repoint the DrawPointsDOF→
   //     TransformPoints.Points cross-layer wire's SOURCE at it (the §1.3-resolved dstSlot is left intact
