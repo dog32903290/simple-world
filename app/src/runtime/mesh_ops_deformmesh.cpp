@@ -135,7 +135,7 @@ NodeSpec deformMeshSpec() {
   s.title = "Deform Mesh";
   PortSpec meshIn; meshIn.id="Mesh"; meshIn.name="Mesh"; meshIn.dataType="Mesh"; meshIn.isInput=true;
   PortSpec uvs; uvs.id="UseVertexSelection"; uvs.name="UseVertexSelection"; uvs.dataType="Float"; uvs.isInput=true;
-  uvs.def=0.0f; uvs.minV=0.0f; uvs.maxV=1.0f; uvs.widget=Widget::Bool;
+  uvs.def=1.0f; uvs.minV=0.0f; uvs.maxV=1.0f; uvs.widget=Widget::Bool;
   PortSpec sp; sp.id="Spherize"; sp.name="Spherize"; sp.dataType="Float"; sp.isInput=true; sp.def=0.0f; sp.minV=0.0f; sp.maxV=1.0f;
   PortSpec rad; rad.id="Radius"; rad.name="Radius"; rad.dataType="Float"; rad.isInput=true; rad.def=1.0f; rad.minV=0.0f; rad.maxV=10.0f;
   PortSpec px; px.id="Pivot.x"; px.name="Pivot"; px.dataType="Float"; px.isInput=true;
@@ -143,12 +143,12 @@ NodeSpec deformMeshSpec() {
   PortSpec py; py.id="Pivot.y"; py.name="Pivot.y"; py.dataType="Float"; py.isInput=true; py.def=0.0f; py.minV=-10.0f; py.maxV=10.0f;
   PortSpec pz; pz.id="Pivot.z"; pz.name="Pivot.z"; pz.dataType="Float"; pz.isInput=true; pz.def=0.0f; pz.minV=-10.0f; pz.maxV=10.0f;
   PortSpec tp; tp.id="Taper"; tp.name="Taper"; tp.dataType="Float"; tp.isInput=true; tp.def=0.0f; tp.minV=-2.0f; tp.maxV=2.0f;
-  PortSpec ta; ta.id="TaperAxis"; ta.name="TaperAxis"; ta.dataType="Float"; ta.isInput=true; ta.def=1.0f; ta.minV=0.0f; ta.maxV=2.0f;
+  PortSpec ta; ta.id="TaperAxis"; ta.name="TaperAxis"; ta.dataType="Float"; ta.isInput=true; ta.def=0.0f; ta.minV=0.0f; ta.maxV=2.0f;
   PortSpec ax; ax.id="AmountPerAxis.x"; ax.name="AmountPerAxis"; ax.dataType="Float"; ax.isInput=true;
   ax.def=1.0f; ax.minV=-2.0f; ax.maxV=2.0f; ax.widget=Widget::Vec; ax.vecArity=2;
   PortSpec ay; ay.id="AmountPerAxis.y"; ay.name="AmountPerAxis.y"; ay.dataType="Float"; ay.isInput=true; ay.def=1.0f; ay.minV=-2.0f; ay.maxV=2.0f;
   PortSpec tw; tw.id="Twist"; tw.name="Twist"; tw.dataType="Float"; tw.isInput=true; tw.def=0.0f; tw.minV=-360.0f; tw.maxV=360.0f;
-  PortSpec twa; twa.id="TwistAxis"; twa.name="TwistAxis"; twa.dataType="Float"; twa.isInput=true; twa.def=1.0f; twa.minV=0.0f; twa.maxV=2.0f;
+  PortSpec twa; twa.id="TwistAxis"; twa.name="TwistAxis"; twa.dataType="Float"; twa.isInput=true; twa.def=0.0f; twa.minV=0.0f; twa.maxV=2.0f;
   PortSpec tpx; tpx.id="TwistPivot.x"; tpx.name="TwistPivot"; tpx.dataType="Float"; tpx.isInput=true;
   tpx.def=0.0f; tpx.minV=-10.0f; tpx.maxV=10.0f; tpx.widget=Widget::Vec; tpx.vecArity=3;
   PortSpec tpy; tpy.id="TwistPivot.y"; tpy.name="TwistPivot.y"; tpy.dataType="Float"; tpy.isInput=true; tpy.def=0.0f; tpy.minV=-10.0f; tpy.maxV=10.0f;

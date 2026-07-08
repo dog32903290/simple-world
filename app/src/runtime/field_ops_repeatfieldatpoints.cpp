@@ -200,10 +200,9 @@ NodeSpec repeatFieldAtPointsSpec() {
   // golden feeds a host-authored PointTransform buffer via the cook seam).
   PortSpec inf; inf.id = "InputField"; inf.name = "Input Field"; inf.dataType = "Field"; inf.isInput = true;
   PortSpec pts; pts.id = "Points"; pts.name = "Points"; pts.dataType = "Points"; pts.isInput = true;
-  // K [GraphParam] — RepeatFieldAtPoints.t3 default. (No authored .t3 value ships a non-default K; the
-  // op default 1.0 is the safe blend width; the golden overrides via the cook seam.)
+  // K [GraphParam] — RepeatFieldAtPoints.t3 default 0.0001 (the golden overrides via the cook seam).
   PortSpec k; k.id = "K"; k.name = "K"; k.dataType = "Float"; k.isInput = true;
-  k.def = 1.0f; k.minV = 0.0001f; k.maxV = 10.0f;
+  k.def = 0.0001f; k.minV = 0.0001f; k.maxV = 10.0f;
   // CombineMethod = enum CODE SELECTOR (drawn as a dropdown, Widget::Enum) — a Float port storing the
   // enum index (0=Union, 1=UnionSoft, 2=UnionRound), same convention as CombineSDF/TorusSDF's Axis.
   PortSpec cm; cm.id = "CombineMethod"; cm.name = "Combine Method"; cm.dataType = "Float"; cm.isInput = true;

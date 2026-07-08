@@ -170,7 +170,7 @@ NodeSpec collapseVerticesSpec() {
   s.title = "Collapse Vertices";
   PortSpec meshIn; meshIn.id="Mesh"; meshIn.name="Mesh"; meshIn.dataType="Mesh"; meshIn.isInput=true;
   PortSpec am; am.id="Amount"; am.name="Amount"; am.dataType="Float"; am.isInput=true; am.def=1.0f; am.minV=0.0f; am.maxV=1.0f;
-  PortSpec stc; stc.id="StepCount"; stc.name="StepCount"; stc.dataType="Float"; stc.isInput=true; stc.def=4.0f; stc.minV=1.0f; stc.maxV=16.0f;
+  PortSpec stc; stc.id="StepCount"; stc.name="StepCount"; stc.dataType="Float"; stc.isInput=true; stc.def=3.0f; stc.minV=1.0f; stc.maxV=16.0f;
   PortSpec ss; ss.id="SmoothSteps"; ss.name="SmoothSteps"; ss.dataType="Float"; ss.isInput=true; ss.def=1.0f; ss.minV=0.0f; ss.maxV=4.0f;
   PortSpec str; str.id="Strength"; str.name="Strength"; str.dataType="Float"; str.isInput=true; str.def=1.0f; str.minV=-4.0f; str.maxV=4.0f;
   PortSpec gox; gox.id="GridOffset.x"; gox.name="GridOffset"; gox.dataType="Float"; gox.isInput=true;
@@ -191,7 +191,7 @@ NodeSpec collapseVerticesSpec() {
   rx.def=0.0f; rx.minV=-360.0f; rx.maxV=360.0f; rx.widget=Widget::Vec; rx.vecArity=3;
   PortSpec ry; ry.id="Rotate.y"; ry.name="Rotate.y"; ry.dataType="Float"; ry.isInput=true; ry.def=0.0f; ry.minV=-360.0f; ry.maxV=360.0f;
   PortSpec rz; rz.id="Rotate.z"; rz.name="Rotate.z"; rz.dataType="Float"; rz.isInput=true; rz.def=0.0f; rz.minV=-360.0f; rz.maxV=360.0f;
-  PortSpec fo; fo.id="FallOff"; fo.name="FallOff"; fo.dataType="Float"; fo.isInput=true; fo.def=0.5f; fo.minV=0.0f; fo.maxV=2.0f;
+  PortSpec fo; fo.id="FallOff"; fo.name="FallOff"; fo.dataType="Float"; fo.isInput=true; fo.def=1.0f; fo.minV=0.0f; fo.maxV=2.0f;
   PortSpec ph; ph.id="Phase"; ph.name="Phase"; ph.dataType="Float"; ph.isInput=true; ph.def=0.0f; ph.minV=-10.0f; ph.maxV=10.0f;
   PortSpec th; th.id="Threshold"; th.name="Threshold"; th.dataType="Float"; th.isInput=true; th.def=0.0f; th.minV=-1.0f; th.maxV=1.0f;
   PortSpec out; out.id="Result"; out.name="Result"; out.dataType="Mesh"; out.isInput=false;
