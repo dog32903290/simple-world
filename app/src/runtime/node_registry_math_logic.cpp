@@ -20,19 +20,20 @@ namespace {
       // _lastResult change-gate is a dirty-flag opt, not load-bearing — see evalIsGreater fork note).
 static const MathOp _reg_IsGreater{
       {"IsGreater", "IsGreater",
-       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Threshold", "Threshold", "Float", true, 0.0f, -10.0f, 10.0f},
+       {{"Value", "Value", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.5f, -10.0f, 10.0f},
         {"Result", "Result", "Float", false}},
        evalIsGreater,
        "numbers.float.logic"}
 };
 
       // Compare — IsTrue per Mode(IsSmaller/IsEqual/IsLarger/IsNotEqual). TiXL float/logic/Compare.cs.
+      // .t3 default Mode=1 (IsEqual).
 static const MathOp _reg_Compare{
       {"Compare", "Compare",
        {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"TestValue", "TestValue", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+        {"Mode", "Mode", "Float", true, 1.0f, 0.0f, 3.0f, Widget::Enum,
          {"IsSmaller", "IsEqual", "IsLarger", "IsNotEqual"}},
         {"Precision", "Precision", "Float", true, 0.001f, 0.0f, 1.0f},
         {"IsTrue", "IsTrue", "Float", false}},
@@ -45,7 +46,7 @@ static const MathOp _reg_Compare{
 static const MathOp _reg_HasValueIncreased{
       {"HasValueIncreased", "HasValueIncreased",
        {{"HasIncreased", "HasIncreased", "Float", false},
-        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Value", "Value", "Float", true, 1.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr,
        "numbers.float.logic"}
@@ -56,7 +57,7 @@ static const MathOp _reg_HasValueIncreased{
 static const MathOp _reg_HasValueDecreased{
       {"HasValueDecreased", "HasValueDecreased",
        {{"HasDecreased", "HasDecreased", "Float", false},
-        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Value", "Value", "Float", true, 1.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr,
        "numbers.float.process"}
@@ -72,7 +73,7 @@ static const MathOp _reg_HasValueChanged{
        {{"HasChanged", "HasChanged", "Float", false},
         {"Delta", "Delta", "Float", false},
         {"DeltaOnHit", "DeltaOnHit", "Float", false},
-        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Value", "Value", "Float", true, 1.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
          {"Changed", "Increased", "Decreased"}},

@@ -125,9 +125,10 @@ static const MathOp _reg_Abs{
 };
 
       // Floor: truncate toward zero via (int) cast (TiXL adjust/Floor.cs; fork: trunc not floor)
+      // .t3 default Value=29.0.
 static const MathOp _reg_Floor{
       {"Floor", "Floor",
-       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+       {{"Value", "Value", "Float", true, 29.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
        evalFloor,
        "numbers.float.adjust"}
@@ -140,7 +141,7 @@ static const MathOp _reg_Lerp{
       {"Lerp", "Lerp",
        {{"A",     "A",     "Float", true, 0.0f, -10.0f, 10.0f},
         {"B",     "B",     "Float", true, 1.0f, -10.0f, 10.0f},
-        {"F",     "F",     "Float", true, 0.5f, 0.0f,   1.0f},
+        {"F",     "F",     "Float", true, 0.0f, 0.0f,   1.0f},
         {"Clamp", "Clamp", "Float", true, 0.0f, 0.0f,   1.0f, Widget::Bool},
         {"out",   "out",   "Float", false}},
        evalLerp,
