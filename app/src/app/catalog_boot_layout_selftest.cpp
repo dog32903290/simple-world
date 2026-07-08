@@ -83,9 +83,18 @@ int runCatalogBootLayoutSelfTest(bool injectBug) {
     printf("[catalog-layout] Blend child #%d %-20s x=%.4f y=%.4f\n", i + 1, kExpected[i].type, ch->x, ch->y);
   }
 
+  // HARD-FAIL, not NO-BITE (柏為 07-08 gate hole): the shipped assets/catalog_t3/*.t3ui provably carry
+  // non-zero Positions (committed beside each .t3). A base run producing FEWER than all-children
+  // non-zero means the PRODUCTION boot path (loadCatalogFromFolder → collapse/normal →
+  // applyT3uiPositions) failed to seed them — that IS 柏為's "every child stacked on (0,0)" bug and it
+  // must FAIL the gate. A base-leg `return 0` here would be invisible: run_all_selftests.sh --bite only
+  // inspects the -bug leg's exit code for NO-BITE, so a base return-0 lets a real layout regression pass
+  // GREEN (P1 閘空轉 — the exact blind spot this selftest exists to close). The GOLDEN_STANDARD did-not-
+  // trip→return-0 rule is about the -BUG injection not tripping; a base run that can't fail is not that.
   if (!injectBug && nonZero < kNumExpected) {
-    printf("[catalog-layout] NO-BITE: non-bug run produced %d/%d non-zero children\n", nonZero, kNumExpected);
-    return 0;
+    printf("[catalog-layout] FAIL: base run seeded only %d/%d non-zero children — .t3ui layout NOT "
+           "applied on the real boot path (柏為's 0,0 bug reproduced)\n", nonZero, kNumExpected);
+    return 1;
   }
   printf("[catalog-layout] %s: mismatches=%d\n", injectBug ? "-bug" : "PASS", mismatches);
   if (!injectBug) return mismatches == 0 ? 0 : 1;
