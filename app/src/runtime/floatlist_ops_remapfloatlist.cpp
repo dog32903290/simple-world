@@ -148,11 +148,11 @@ static const FloatListOp _reg_remapfloatlist{
       {"FloatList", "FloatList", "FloatList", true},
       {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"Normal", "Clamped", "Modulo"}, true},
       {"RangeInMin", "RangeInMin", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, true},
-      {"RangeInMax", "RangeInMax", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, true},
+      {"RangeInMax", "RangeInMax", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider, {}, true},
       {"RangeOutMin", "RangeOutMin", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, true},
-      {"RangeOutMax", "RangeOutMax", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, true},
-      {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, /*vecArity=*/2},
-      {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+      {"RangeOutMax", "RangeOutMax", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider, {}, true},
+      {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, /*vecArity=*/2},
+      {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
      /*evaluate=*/nullptr},  // FloatList output cannot ride NodeSpec::evaluate (returns ONE float)
     cookRemapFloatList};
 

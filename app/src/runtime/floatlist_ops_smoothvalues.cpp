@@ -37,8 +37,10 @@
 //   empty-branch behaviour here is "leave *output untouched" (the op writes nothing) → an empty input
 //   yields whatever the driver pre-seeded (empty by construction). The golden drives a non-empty input.
 //
-//   .cs DEFAULTS: WindowSize = new() → int default 0 → Clamp(1,10) ⇒ 1 (a single forward sample, but the
-//   pre-loop SampleAtIndex still double-counts `index` ⇒ window {index, index} ⇒ mean == list[index]).
+//   .cs ctor default: WindowSize = new() → int default 0. SmoothValues.t3's AUTHORED instance overrides
+//   WindowSize's DefaultValue to 999999 (the .t3 SSOT this leaf's PortSpec mirrors) — either way the cook's
+//   Clamp(1,10) caps it: ctor-0 ⇒ 1, .t3-999999 ⇒ 10 (a single forward sample vs the full 10-wide window;
+//   the pre-loop SampleAtIndex always double-counts `index` regardless of window width).
 #include <cmath>  // (no NaN literal needed: count is always >= 1 for an in-bounds index, see below)
 
 #include "runtime/floatlist_op_registry.h"  // FloatListOp / FloatListCookCtx / floatListInjectBug / floatListParam
@@ -56,9 +58,10 @@ void cookSmoothValues(FloatListCookCtx& c) {
   if (!c.inputLists || c.inputLists->empty() || (*c.inputLists)[0].empty()) return;
   const std::vector<float>& in = (*c.inputLists)[0];
 
-  // WindowSize.Clamp(1, 10) — default 0 clamps up to 1 (int param; dissolve via lround-free cast is exact
-  // for the small integer range, but cast-from-float of an integer-valued param is exact regardless).
-  int windowSize = (int)floatListParam(c.params, "WindowSize", 0.0f);
+  // WindowSize.Clamp(1, 10) — .t3 default 999999 clamps down to 10 (int param; dissolve via lround-free
+  // cast is exact for the small integer range, but cast-from-float of an integer-valued param is exact
+  // regardless).
+  int windowSize = (int)floatListParam(c.params, "WindowSize", 999999.0f);
   if (windowSize < 1) windowSize = 1;
   else if (windowSize > 10) windowSize = 10;
 
@@ -92,14 +95,15 @@ void cookSmoothValues(FloatListCookCtx& c) {
 
 // Self-registration. File-scope static FloatListOp — independent leaf .cpp (no shared edit point).
 //   Ports: "out" first (FloatList output); "Input" (FloatList input); "WindowSize" (int enum-free Slider,
-//          pinless param, default 0 → clamps to 1). int rides the Float value rail (Cut32 IntList fold:
-//          WindowSize carries no overflow/bitwise — a small [1,10] clamp — so the float dissolve is exact).
+//          pinless param, .t3 default 999999 → clamps to 10). int rides the Float value rail (Cut32
+//          IntList fold: WindowSize carries no overflow/bitwise — a small [1,10] clamp — so the float
+//          dissolve is exact).
 // PortSpec field order: id,name,dataType,isInput,def,minV,maxV,widget,labels,pinless,vecArity,multiInput.
 static const FloatListOp _reg_smoothvalues{
     {"SmoothValues", "SmoothValues",
      {{"out", "out", "FloatList", false},
       {"Input", "Input", "FloatList", true},
-      {"WindowSize", "WindowSize", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Slider, {}, /*pinless=*/true}},
+      {"WindowSize", "WindowSize", "Float", true, 999999.0f, 0.0f, 10.0f, Widget::Slider, {}, /*pinless=*/true}},
      /*evaluate=*/nullptr},  // FloatList output cannot ride NodeSpec::evaluate (returns ONE float)
     cookSmoothValues};
 
