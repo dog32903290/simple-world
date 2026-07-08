@@ -132,24 +132,24 @@ static const ImageFilterOp _reg_kochkaleidoscope{
     //   Image -> Offset(Vec2) -> Angle -> Steps -> Rotate -> Scale -> Center(Vec2) ->
     //   ShadeSteps -> ShadeFolds -> Resolution.
     // NOTE TiXL op type name is spelled "KochKaleidoskope" (k, not c) — our cookType/file/selftest
-    // use "kochkaleidoscope" (c). t3 defaults: Angle=3.0, Steps=6, Scale=0, others 0.
+    // use "kochkaleidoscope" (c). t3 defaults: Angle=0.0, Steps=6, Scale=3.0, Center=(0.5,0.5), others 0.
     {"KochKaleidoskope", "KochKaleidoskope",
      {{"Image", "Image", "Texture2D", true},
       {"out", "out", "Texture2D", false},
       // Offset (Vector2, .cs:12-13) — split into .x/.y Float ports (Widget::Vec head + component).
       {"Offset.x", "Offset", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
       {"Offset.y", "Offset.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-      // Angle (float, .cs:15-16, t3 default 3.0).
-      {"Angle", "Angle", "Float", true, 3.0f, -180.0f, 180.0f},
+      // Angle (float, .cs:15-16, t3 default 0.0).
+      {"Angle", "Angle", "Float", true, 0.0f, -180.0f, 180.0f},
       // Steps (int, .cs:18-19, t3 default 6) — int enum-less, carried as a Float port.
       {"Steps", "Steps", "Float", true, 6.0f, 1.0f, 32.0f},
       // Rotate (float, .cs:21-22, t3 default 0).
       {"Rotate", "Rotate", "Float", true, 0.0f, -180.0f, 180.0f},
-      // Scale (float, .cs:24-25, t3 default 0).
-      {"Scale", "Scale", "Float", true, 0.0f, 0.0f, 10.0f},
-      // Center (Vector2, .cs:27-28) — split into .x/.y Float ports.
-      {"Center.x", "Center", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
-      {"Center.y", "Center.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Scale (float, .cs:24-25, t3 default 3.0).
+      {"Scale", "Scale", "Float", true, 3.0f, 0.0f, 10.0f},
+      // Center (Vector2, .cs:27-28, t3 default (0.5,0.5)) — split into .x/.y Float ports.
+      {"Center.x", "Center", "Float", true, 0.5f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
+      {"Center.y", "Center.y", "Float", true, 0.5f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
       // ShadeSteps (float, .cs:30-31, t3 default 0).
       {"ShadeSteps", "ShadeSteps", "Float", true, 0.0f, -2.0f, 2.0f},
       // ShadeFolds (float, .cs:33-34, t3 default 0).
