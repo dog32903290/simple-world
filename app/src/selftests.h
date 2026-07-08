@@ -23,4 +23,10 @@ int runSelftestFromArgs(int argc, char** argv);
 // selftests_retire.cpp; dispatched from runSelftestFromArgs.)
 int runProbeImport(const char* t3Path);
 
+// --lint-catalog-names: hard-fail (nonzero) when two assets/catalog_t3/*.t3 compounds share the
+// readable NAME the §1 name-fallback keys on (退場戰役 §5 風險#1). injectBug splices a synthetic
+// duplicate → the RED path is a real --bite tooth. Also registered as the "lint-catalog-names"
+// selftest (impl selftests_retire.cpp) so run_all_selftests.sh auto-covers it.
+int runLintCatalogNames(bool injectBug);
+
 }  // namespace sw

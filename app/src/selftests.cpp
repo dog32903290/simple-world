@@ -332,6 +332,11 @@ int runSelftestFromArgs(int argc, char** argv) {
       }
       return runProbeImport(argv[i + 1]);
     }
+    // --lint-catalog-names: catalog name-uniqueness lint (退場戰役 §5 風險#1). ALSO a registered selftest
+    // (name "lint-catalog-names" → run_all_selftests.sh auto-runs it as --selftest-lint-catalog-names +
+    // -bite). This bare alias honors the spec's flag spelling so a stray --lint-* never launches the GUI.
+    if (std::strcmp(a, "--lint-catalog-names") == 0) return runLintCatalogNames(false);
+    if (std::strcmp(a, "--lint-catalog-names-bug") == 0) return runLintCatalogNames(true);
 
     // Non-uniform entries (no bug variant / take arguments).
     if (std::strcmp(a, "--selftest-dispatch") == 0) return runDispatchSelfTest();
