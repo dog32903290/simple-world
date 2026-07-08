@@ -17,7 +17,9 @@
 //   AppendAsInt(float f) (cs:71-74):  Result.Add( (int)(f * 255).Clamp(0,255) );
 //     ★C# operator precedence: `.Clamp` binds to the float (f*255), so the value is CLAMPED IN FLOAT to
 //      [0,255] and THEN cast (int) — a truncation toward zero. So the element = (int)clampf(f*255, 0, 255).
-//   Modes enum (cs:86-93): RGBA=0, ARGB=1, RGB=2, R=3, A=4.  DEFAULT _outputMode = RGB (cs:76).
+//   Modes enum (cs:86-93): RGBA=0, ARGB=1, RGB=2, R=3, A=4.  Class-field default _outputMode = RGB (cs:76),
+//   but ColorListToInts.t3's AUTHORED instance overrides OutputMode's DefaultValue to 0 (RGBA) — the .t3
+//   SSOT this leaf's PortSpec mirrors.
 //
 // EVAL-SIDE LAYOUT: a FloatList PRODUCER that consumes a ColorList MultiInput. ColorLists is gathered off
 // the ColorList rail into ctx.inputColorLists (the bridge the FloatList cook driver added — flat +
@@ -80,7 +82,7 @@ void cookColorListToInts(FloatListCookCtx& c) {
   if (!c.output) return;
   c.output->clear();  // ColorListToInts.cs:24 — list.Clear()
 
-  const int mode = (int)floatListParam(c.params, "OutputMode", 2.0f);  // default RGB (cs:76)
+  const int mode = (int)floatListParam(c.params, "OutputMode", 0.0f);  // .t3 default RGBA (see header)
 
   if (c.inputColorLists) {
     for (const std::vector<simd::float4>& l : *c.inputColorLists) {
@@ -106,7 +108,7 @@ static const FloatListOp _reg_colorlisttoints{
     {"ColorListToInts", "ColorListToInts",
      {{"ColorLists", "ColorLists", "ColorList", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        /*multiInput=*/true},
-      {"OutputMode", "OutputMode", "Float", true, 2.0f, 0.0f, 4.0f, Widget::Enum,
+      {"OutputMode", "OutputMode", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
        {"RGBA", "ARGB", "RGB", "R", "A"}, /*pinless=*/true},
       {"out", "out", "FloatList", false}},
      /*evaluate=*/nullptr},  // FloatList output cannot ride NodeSpec::evaluate (returns ONE float)

@@ -42,14 +42,15 @@
 //   rate multiply, like AnimVec3; NOT added after like AnimValue). componentIndex = 0 for every element
 //   (AnimFloatList is single-channel; the .cs passes literal 0 to CalcValueForNormalizedTime).
 //
-//   AnimFloatList.t3 DefaultValues (mirrored into the PortSpec below; verified against the .t3):
-//     Shape=1 (Ramps) · Bias=0.5 · Ratio=1 · AllowSpeedFactor=1 (FactorA) · OffsetNumber=… (see note)
-//     · OffsetCycle=… · Rate=1 · Amplitude=1 · Phase=0 · Offset=0 · OverrideTime=0 (DROPPED port).
+//   AnimFloatList.t3 DefaultValues (mirrored into the PortSpec below; verified against the RAW .t3 JSON,
+//   not the class-default comment that used to live here):
+//     Shape=1 (Ramps) · Bias=0.5 · Ratio=1 · AllowSpeedFactor=0 (None) · OffsetNumber=1 · OffsetCycle=1
+//     · Rate=1 · Amplitude=1 · Phase=0 · Offset=0 · OverrideTime=0 (DROPPED port).
 //   The defaults that are NOT load-bearing for parity (the golden sets every param explicitly) carry the
 //   conventional Anim* values: Rate=1, Amplitude=1, Phase=0, Offset=0, Bias=0.5, Ratio=1. OffsetNumber
-//   default is left at 0 → the empty-list guard fires until the user dials a count (faithful: a fresh
-//   AnimFloatList with no count set produces no elements). OffsetCycle default 0 → every index shares the
-//   same `offsetNumber` time shift (all elements identical) until the user spreads them — the .cs behaviour.
+//   default = 1 → a fresh AnimFloatList already emits a single sample (the .t3-authored default, NOT the
+//   bare-ctor 0 that would trip the empty-list guard). OffsetCycle default = 1 → each index's time shift
+//   already spreads by 1 unit before the user dials it further — the .t3-shipped behaviour.
 //
 // FORKS (named):
 //   - fork-animfloatlist-floatlist-rail: AnimFloatList is a PRODUCER on the host FloatList currency
@@ -169,15 +170,15 @@ static const FloatListOp _reg_animfloatlist{
        {"Endless", "Ramps", "Saws", "KickSaws", "Square", "ZigZag", "Wave", "Sin",
         "PerlinNoise", "PerlinNoiseSigned", "Random", "RandomSigned", "Steps"},
        /*pinless=*/true},
-      {"OffsetNumber", "OffsetNumber", "Float", true, 0.0f, 0.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
-      {"OffsetCycle", "OffsetCycle", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
+      {"OffsetNumber", "OffsetNumber", "Float", true, 1.0f, 0.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
+      {"OffsetCycle", "OffsetCycle", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Rate", "Rate", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Amplitude", "Amplitude", "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Phase", "Phase", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Offset", "Offset", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Bias", "Bias", "Float", true, 0.5f, 0.0001f, 1.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Ratio", "Ratio", "Float", true, 1.0f, 0.0001f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
-      {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
+      {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
        {"None", "FactorA", "FactorB"}, /*pinless=*/true}},
      /*evaluate=*/nullptr},  // FloatList output cannot ride NodeSpec::evaluate (returns ONE float)
     cookAnimFloatList};
