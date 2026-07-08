@@ -306,8 +306,8 @@ static const ImageFilterComputeOp _reg_fastblur{
     {"FastBlur", "FastBlur",
      {{"Image", "Image", "Texture2D", true},
       {"out", "out", "Texture2D", false},
-      // MaxLevels (TiXL Int, default 0 => auto; ResolveSteps clamps 1..12). Float Widget::Drag.
-      {"MaxLevels", "MaxLevels", "Float", true, 0.0f, 0.0f, 12.0f},
+      // MaxLevels (TiXL Int; .t3 DefaultValue=5; ResolveSteps clamps 1..12). Float Widget::Drag.
+      {"MaxLevels", "MaxLevels", "Float", true, 5.0f, 0.0f, 12.0f},
       {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
        {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
       {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
