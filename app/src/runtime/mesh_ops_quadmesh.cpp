@@ -77,7 +77,7 @@ void quadCook(MeshCookCtx& c) {
   float stretchDef[2] = {1.0f, 1.0f};
   float stretch[2];
   cookMeshVecN(c.params, "Stretch", stretchDef, 2, stretch);
-  float pivotDef[2] = {0.5f, 0.5f};
+  float pivotDef[2] = {0.0f, 0.0f};
   float pivot[2];
   cookMeshVecN(c.params, "Pivot", pivotDef, 2, pivot);
   float rotDef[3] = {0.0f, 0.0f, 0.0f};
