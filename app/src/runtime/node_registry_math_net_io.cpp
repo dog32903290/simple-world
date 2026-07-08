@@ -36,9 +36,9 @@ namespace {
 static const MathOp _reg_UDPInput{
     {"UDPInput", "UDPInput",
      {{"WasTrigger", "WasTrigger", "Float", false},   // extOut[0] — a datagram arrived this frame (cs:99)
-      {"Listen", "Listen", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},          // cs:23
-      {"Port", "Port", "Float", true, 7000.0f, 0.0f, 65535.0f, Widget::Slider},     // cs:32
-      {"ListLength", "ListLength", "Float", true, 10.0f, 1.0f, 1000.0f, Widget::Slider}},  // cs:26
+      {"Listen", "Listen", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},          // .t3 default=true
+      {"Port", "Port", "Float", true, 6969.0f, 0.0f, 65535.0f, Widget::Slider},     // .t3 default=6969
+      {"ListLength", "ListLength", "Float", true, 1.0f, 1.0f, 1000.0f, Widget::Slider}},  // .t3 default=1
      nullptr, "io.udp"}
 };
 
@@ -53,7 +53,7 @@ static const MathOp _reg_UDPOutput{
       {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:308
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},    // cs:329
       {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},  // cs:326
-      {"TargetPort", "TargetPort", "Float", true, 7001.0f, 0.0f, 65535.0f, Widget::Slider}}, // cs:338
+      {"TargetPort", "TargetPort", "Float", true, 6969.0f, 0.0f, 65535.0f, Widget::Slider}}, // .t3 default=6969
      nullptr, "io.udp"}
 };
 
@@ -68,10 +68,10 @@ static const MathOp _reg_TcpClient{
      {{"WasTrigger", "WasTrigger", "Float", false},     // extOut[0] — a message arrived (cs:697)
       {"IsConnected", "IsConnected", "Float", false},    // extOut[1] — socket connected (cs:698)
       {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},           // cs:555
-      {"Port", "Port", "Float", true, 8080.0f, 0.0f, 65535.0f, Widget::Slider},        // cs:570
+      {"Port", "Port", "Float", true, 7070.0f, 0.0f, 65535.0f, Widget::Slider},        // .t3 default=7070
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},   // cs:585
       {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}, // cs:582
-      {"ListLength", "ListLength", "Float", true, 10.0f, 1.0f, 1000.0f, Widget::Slider}},   // cs:564
+      {"ListLength", "ListLength", "Float", true, 9.0f, 1.0f, 1000.0f, Widget::Slider}},   // .t3 default=9
      nullptr, "io.tcp"}
 };
 
@@ -83,9 +83,9 @@ static const MathOp _reg_TcpServer{
      {{"IsListening", "IsListening", "Float", false},   // extOut[0] — listener up (cs:1129)
       {"ConnectionCount", "ConnectionCount", "Float", false},  // extOut[1] — # clients (cs:1130)
       {"Listen", "Listen", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:1045
-      {"Port", "Port", "Float", true, 8080.0f, 0.0f, 65535.0f, Widget::Slider},       // cs:1054
+      {"Port", "Port", "Float", true, 7070.0f, 0.0f, 65535.0f, Widget::Slider},       // .t3 default=7070
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},  // cs:1066
-      {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},   // cs:1063
+      {"SendOnChange", "SendOnChange", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},   // .t3 default=false
      nullptr, "io.tcp"}
 };
 
@@ -98,8 +98,8 @@ static const MathOp _reg_SerialInput{
     {"SerialInput", "SerialInput",
      {{"WasTrigger", "WasTrigger", "Float", false},     // extOut[0] — a line arrived (cs:1485)
       {"IsConnected", "IsConnected", "Float", false},    // extOut[1] — port open (cs:1505)
-      {"BaudRate", "BaudRate", "Float", true, 9600.0f, 0.0f, 4000000.0f, Widget::Slider},   // cs:1527
-      {"ListLength", "ListLength", "Float", true, 10.0f, 1.0f, 1000.0f, Widget::Slider},    // cs:1528
+      {"BaudRate", "BaudRate", "Float", true, 0.0f, 0.0f, 4000000.0f, Widget::Slider},   // .t3 default=0
+      {"ListLength", "ListLength", "Float", true, 0.0f, 1.0f, 1000.0f, Widget::Slider},    // .t3 default=0
       {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},               // cs:1529
      nullptr, "io.serial"}
 };
@@ -110,10 +110,10 @@ static const MathOp _reg_SerialInput{
 static const MathOp _reg_SerialOutput{
     {"SerialOutput", "SerialOutput",
      {{"IsConnected", "IsConnected", "Float", false},   // extOut[0] — port open echo (cs:1575)
-      {"BaudRate", "BaudRate", "Float", true, 9600.0f, 0.0f, 4000000.0f, Widget::Slider},   // cs:1619
+      {"BaudRate", "BaudRate", "Float", true, 0.0f, 0.0f, 4000000.0f, Widget::Slider},   // .t3 default=0
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},        // cs:1622
-      {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},      // cs:1623
-      {"AddLineEnding", "AddLineEnding", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},    // cs:1624
+      {"SendOnChange", "SendOnChange", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},      // .t3 default=false
+      {"AddLineEnding", "AddLineEnding", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},    // .t3 default=false
       {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},               // cs:1625
      nullptr, "io.serial"}
 };
@@ -126,7 +126,7 @@ static const MathOp _reg_SerialOutput{
 static const MathOp _reg_WLedSerialOutput{
     {"WLedSerialOutput", "WLedSerialOutput",
      {{"IsConnected", "IsConnected", "Float", false},   // extOut[0] — port open echo
-      {"LedCount", "LedCount", "Float", true, 0.0f, 0.0f, 4096.0f, Widget::Slider},
+      {"LedCount", "LedCount", "Float", true, -1.0f, 0.0f, 4096.0f, Widget::Slider},  // .t3 default=-1
       {"Brightness", "Brightness", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
       {"MapMode", "MapMode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"Stretch", "Repeat", "Lerp"}},
       {"ColorOrder", "ColorOrder", "Float", true, 0.0f, 0.0f, 5.0f, Widget::Enum,
@@ -147,7 +147,7 @@ static const MathOp _reg_WLedSerialOutput{
 static const MathOp _reg_RequestUrl{
     {"RequestUrl", "RequestUrl",
      {{"RequestFired", "RequestFired", "Float", false},  // extOut[0] — a GET was kicked this frame (cs:20)
-      {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},  // cs:8c7a6493
+      {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "https://cataas.com/cat"},  // .t3 default
       {"TriggerRequest", "TriggerRequest", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},  // cs:4DC9DEF5
      nullptr, "io.json"}
 };
@@ -162,7 +162,7 @@ static const MathOp _reg_RequestUrl{
 static const MathOp _reg_LoadImageFromUrl{
     {"LoadImageFromUrl", "LoadImageFromUrl",
      {{"RequestFired", "RequestFired", "Float", false},   // extOut[0] — a download was kicked (cs:26)
-      {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},  // cs:21b2e219
+      {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Lib:https://cataas.com/cat"},  // .t3 default
       {"TriggerUpdate", "TriggerUpdate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},  // cs:710BA03D
      nullptr, "image.load"}
 };
@@ -183,8 +183,8 @@ static const MathOp _reg_WebSocketClient{
       {"IsConnected", "IsConnected", "Float", false},    // extOut[1] — socket open (cs:239)
       {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},           // cs:29
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},   // cs:65
-      {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}, // cs:62
-      {"ListLength", "ListLength", "Float", true, 10.0f, 1.0f, 1000.0f, Widget::Slider}},  // cs:38
+      {"SendOnChange", "SendOnChange", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}, // .t3 default=false
+      {"ListLength", "ListLength", "Float", true, 5.0f, 1.0f, 1000.0f, Widget::Slider}},  // .t3 default=5
      nullptr, "io.websocket"}
 };
 
@@ -199,9 +199,9 @@ static const MathOp _reg_WebSocketServer{
      {{"IsListening", "IsListening", "Float", false},   // extOut[0] — listener up (cs:118)
       {"ConnectionCount", "ConnectionCount", "Float", false},  // extOut[1] — # clients (cs:119)
       {"Listen", "Listen", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:524
-      {"Port", "Port", "Float", true, 8080.0f, 0.0f, 65535.0f, Widget::Slider},       // cs:527
+      {"Port", "Port", "Float", true, 8081.0f, 0.0f, 65535.0f, Widget::Slider},       // .t3 default=8081
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},  // cs:539
-      {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},   // cs:536
+      {"SendOnChange", "SendOnChange", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},   // .t3 default=false
      nullptr, "io.websocket"}
 };
 
@@ -214,7 +214,7 @@ static const MathOp _reg_WebServer{
     {"WebServer", "WebServer",
      {{"IsRunning", "IsRunning", "Float", false},   // extOut[0] — listener up echo (cs:62)
       {"Listen", "Listen", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:379
-      {"Port", "Port", "Float", true, 8080.0f, 0.0f, 65535.0f, Widget::Slider}},      // cs:385
+      {"Port", "Port", "Float", true, 8082.0f, 0.0f, 65535.0f, Widget::Slider}},      // .t3 default=8082
      nullptr, "io.http"}
 };
 
@@ -231,7 +231,7 @@ static const MathOp _reg_ArtnetOutput{
       {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},   // cs:586
       {"SendSync", "SendSync", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},         // cs:588
       {"SendUnicast", "SendUnicast", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},   // cs:589
-      {"EnableArtNet4", "EnableArtNet4", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},  // cs:590
+      {"EnableArtNet4", "EnableArtNet4", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},  // .t3 default=false
       {"MaxFps", "MaxFps", "Float", true, 60.0f, 0.0f, 240.0f, Widget::Slider}},       // cs:593
      nullptr, "io.dmx"}
 };
@@ -243,10 +243,10 @@ static const MathOp _reg_ArtnetOutput{
 static const MathOp _reg_ArtnetInput{
     {"ArtnetInput", "ArtnetInput",
      {{"Activity", "Activity", "Float", false},   // extOut[0] — 1 if a subscribed universe is live
-      {"Active", "Active", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},               // cs:618
+      {"Active", "Active", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},               // .t3 default=true
       {"StartUniverse", "StartUniverse", "Float", true, 1.0f, 0.0f, 32767.0f, Widget::Slider}, // cs:633
       {"NumUniverses", "NumUniverses", "Float", true, 1.0f, 1.0f, 4096.0f, Widget::Slider},    // cs:624
-      {"Timeout", "Timeout", "Float", true, 1.2f, 0.0f, 60.0f, Widget::Slider}},        // cs:636
+      {"Timeout", "Timeout", "Float", true, 0.0f, 0.0f, 60.0f, Widget::Slider}},        // .t3 default=0
      nullptr, "io.dmx"}
 };
 
@@ -258,7 +258,7 @@ static const MathOp _reg_DMXOutput{
     {"DMXOutput", "DMXOutput",
      {{"IsConnected", "IsConnected", "Float", false},   // extOut[0] — port open echo (cs:1043)
       {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:949
-      {"MaxFps", "MaxFps", "Float", true, 40.0f, 0.0f, 240.0f, Widget::Slider}},        // cs:958
+      {"MaxFps", "MaxFps", "Float", true, 0.0f, 0.0f, 240.0f, Widget::Slider}},        // .t3 default=0
      nullptr, "io.dmx"}
 };
 
@@ -275,7 +275,7 @@ static const MathOp _reg_SacnOutput{
       {"Priority", "Priority", "Float", true, 100.0f, 0.0f, 200.0f, Widget::Slider},   // cs:1709
       {"MaxFps", "MaxFps", "Float", true, 60.0f, 0.0f, 240.0f, Widget::Slider},        // cs:1711
       {"EnableSync", "EnableSync", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},     // cs:1712
-      {"SyncUniverse", "SyncUniverse", "Float", true, 1.0f, 1.0f, 63999.0f, Widget::Slider}},  // cs:1713
+      {"SyncUniverse", "SyncUniverse", "Float", true, 64001.0f, 1.0f, 63999.0f, Widget::Slider}},  // .t3 default=64001
      nullptr, "io.dmx"}
 };
 
@@ -286,7 +286,7 @@ static const MathOp _reg_SacnOutput{
 static const MathOp _reg_SacnInput{
     {"SacnInput", "SacnInput",
      {{"Activity", "Activity", "Float", false},   // extOut[0] — 1 if a subscribed universe is live
-      {"Active", "Active", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},               // cs:1735
+      {"Active", "Active", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},               // .t3 default=true
       {"StartUniverse", "StartUniverse", "Float", true, 1.0f, 1.0f, 63999.0f, Widget::Slider}, // cs:1752
       {"NumUniverses", "NumUniverses", "Float", true, 1.0f, 1.0f, 4096.0f, Widget::Slider},    // cs:1742
       {"Timeout", "Timeout", "Float", true, 0.0f, 0.0f, 60.0f, Widget::Slider}},         // cs:1755
