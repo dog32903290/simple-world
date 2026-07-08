@@ -10,7 +10,7 @@
 namespace sw {
 
 // Leaf register fns (defined in point_ops_<name>.cpp, no header).
-void registerTransformPointsOp();
+// (TransformPoints flat atom RETIRED — replaced by the .t3 compound; see node_registry_point_modify_transform.cpp.)
 void registerOrientPointsOp();
 void registerRandomizePointsOp();
 void registerSetPointAttributesOp();
@@ -53,7 +53,7 @@ void registerSelectPointsWithSdfOp();
 void registerFindClosestPointsOnMeshOp();
 
 void registerPointModifyPointOps() {
-  registerTransformPointsOp();
+  // TransformPoints flat atom RETIRED (廢棄節點退場 pilot) — the .t3 compound provides it now.
   registerOrientPointsOp();
   registerRandomizePointsOp();
   registerSetPointAttributesOp();

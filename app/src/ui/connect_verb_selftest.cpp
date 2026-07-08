@@ -48,18 +48,18 @@ int runHandConnectSelfTest(bool injectBug) {
   std::vector<int> savedPath = doc::g_compositionPath;
 
   // A compound whose subgraph has TWO atomic point ops that share a Points type: RadialPoints
-  // (Points output) and TransformPoints (Points input + output). The wire we drive is
-  // RadialPoints.<out> -> TransformPoints.<in>. A second RadialPoints lets us exercise reconnect.
+  // (Points output) and OrientPoints (Points input + output). The wire we drive is
+  // RadialPoints.<out> -> OrientPoints.<in>. A second RadialPoints lets us exercise reconnect.
   const std::string srcOut = portId("RadialPoints", /*input=*/false, "Points");
-  const std::string dstIn  = portId("TransformPoints", /*input=*/true, "Points");
-  const std::string dstOut = portId("TransformPoints", /*input=*/false, "Points");
+  const std::string dstIn  = portId("OrientPoints", /*input=*/true, "Points");
+  const std::string dstOut = portId("OrientPoints", /*input=*/false, "Points");
 
   bool ok = !srcOut.empty() && !dstIn.empty();  // the ops must expose the Points ports we address
 
   SymbolLibrary lib;
   Symbol comp; comp.id = "comp"; comp.name = "comp";
   { SymbolChild a; a.id = 1; a.symbolId = "RadialPoints";    comp.children.push_back(a); }
-  { SymbolChild b; b.id = 2; b.symbolId = "TransformPoints"; comp.children.push_back(b); }
+  { SymbolChild b; b.id = 2; b.symbolId = "OrientPoints"; comp.children.push_back(b); }
   { SymbolChild c; c.id = 3; c.symbolId = "RadialPoints";    comp.children.push_back(c); }
   comp.nextChildId = 4;
   lib.symbols[comp.id] = comp;
@@ -73,7 +73,7 @@ int runHandConnectSelfTest(bool injectBug) {
 
   auto cur = [&]() -> Symbol* { return doc::g_lib().find("comp"); };
 
-  // (1) connect: RadialPoints(1).out -> TransformPoints(2).in. injectBug skips the verb line so the
+  // (1) connect: RadialPoints(1).out -> OrientPoints(2).in. injectBug skips the verb line so the
   //     "wire appeared" leg goes RED.
   if (!injectBug) {
     std::string line = "connect 1 " + srcOut + " 2 " + dstIn;
@@ -121,7 +121,7 @@ int runHandConnectSelfTest(bool injectBug) {
                 cnt, nw ? nw->srcChild : -1, reconnected ? "OK" : "RED");
   }
 
-  // (4) dataType mismatch reject: TransformPoints has no Float INPUT named like a Points slot; drive
+  // (4) dataType mismatch reject: OrientPoints has no Float INPUT named like a Points slot; drive
   //     a connect whose src is a Points OUTPUT into a slot id that does not exist -> bad dst slot,
   //     no change. (The pin drag rejects type mismatch via RejectNewItem; the verb rejects via the
   //     hook's portInfo/type guard. We assert the graph did not move.)

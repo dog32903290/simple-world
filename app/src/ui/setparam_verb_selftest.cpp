@@ -46,16 +46,16 @@ int runHandSetParamSelfTest(bool injectBug) {
   SymbolLibrary saved = doc::g_lib();
   std::vector<int> savedPath = doc::g_compositionPath;
 
-  // TransformPoints exposes at least one Float INPUT (translate/scale/rotation components). We address
+  // OrientPoints exposes at least one Float INPUT (translate/scale/rotation components). We address
   // its first Float input by real slot id. A non-Float slot id (its Points input) is the reject probe.
-  const std::string floatIn = portId("TransformPoints", /*input=*/true, "Float");
-  const std::string pointsIn = portId("TransformPoints", /*input=*/true, "Points");
+  const std::string floatIn = portId("OrientPoints", /*input=*/true, "Float");
+  const std::string pointsIn = portId("OrientPoints", /*input=*/true, "Points");
 
   bool ok = !floatIn.empty();  // the op must expose the Float input we drive
 
   SymbolLibrary lib;
   Symbol comp; comp.id = "comp"; comp.name = "comp";
-  { SymbolChild b; b.id = 2; b.symbolId = "TransformPoints"; comp.children.push_back(b); }
+  { SymbolChild b; b.id = 2; b.symbolId = "OrientPoints"; comp.children.push_back(b); }
   comp.nextChildId = 3;
   lib.symbols[comp.id] = comp;
   lib.rootId = "comp";

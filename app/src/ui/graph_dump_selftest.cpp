@@ -52,15 +52,15 @@ int runGraphDumpSelfTest(bool injectBug) {
   std::vector<int> savedPath = doc::g_compositionPath;
 
   const std::string srcOut = portId("RadialPoints", /*input=*/false, "Points");
-  const std::string dstIn  = portId("TransformPoints", /*input=*/true, "Points");
+  const std::string dstIn  = portId("OrientPoints", /*input=*/true, "Points");
   bool ok = !srcOut.empty() && !dstIn.empty();
 
-  // Known compound: RadialPoints(1) -> TransformPoints(2), plus a third child (3) so the count
+  // Known compound: RadialPoints(1) -> OrientPoints(2), plus a third child (3) so the count
   // assertion has a child to lose under injectBug. The wire connects 1.out -> 2.in.
   SymbolLibrary lib;
   Symbol comp; comp.id = "comp"; comp.name = "comp";
   { SymbolChild a; a.id = 1; a.symbolId = "RadialPoints";    comp.children.push_back(a); }
-  { SymbolChild b; b.id = 2; b.symbolId = "TransformPoints"; comp.children.push_back(b); }
+  { SymbolChild b; b.id = 2; b.symbolId = "OrientPoints"; comp.children.push_back(b); }
   if (!injectBug) { SymbolChild c; c.id = 3; c.symbolId = "RadialPoints"; comp.children.push_back(c); }
   { SymbolConnection w; w.srcChild = 1; w.srcSlot = srcOut; w.dstChild = 2; w.dstSlot = dstIn;
     comp.connections.push_back(w); }

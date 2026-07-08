@@ -124,4 +124,12 @@ int runT3NestedCompoundParity(bool injectBug);
 // injectBug flips t3LayoutDisable() → every position reverts to 0,0 → RED. Lives in t3import_layout_golden.cpp.
 int runT3LayoutGolden(bool injectBug);
 
+// 廢棄節點退場 PILOT harness (--selftest-t3-transformpoints-retire): four gates proving the RETIRED flat
+// TransformPoints atom's references are auto-taken-over by the .t3 compound via the replace-in-place seam
+// (refreshCompoundSpecs name alias + findSpec's dynamicSpecs tail). ① takeover polarity (name→compound,
+// injectBug=stand-in atom shadows) + ③ reference reachability/cookability (injectBug=drop alias→nullptr) +
+// ② parity (delegates runT3TransformPointsParity) + ④ layout (delegates runT3LayoutGolden). Lives in
+// t3import_transformpoints_retire_golden.cpp. See docs/agent/RETIREMENT_BATTLE_SPEC.md §7.
+int runT3TransformPointsRetireGates(bool injectBug);
+
 }  // namespace sw

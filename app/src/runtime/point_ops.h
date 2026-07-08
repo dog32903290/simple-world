@@ -107,10 +107,8 @@ int runCommonPointSetsSelfTest(bool injectBug);
 // injectBug = assert the WRONG center law (center==max) -> faithful (min+max)/2 mismatches -> FAIL.
 void registerBoundingBoxPointsOp();
 int runBoundingBoxPointsSelfTest(bool injectBug);
-// TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate, PLUS a
-// multi-axis rotation tooth (a known point under Rot!=0 lands where the Y·X·Z order predicts).
-// injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).
-int runTransformPointsSelfTest(bool injectBug);
+// (TransformPoints flat atom + its own --selftest-transformpoints RETIRED 2026-07-08, 廢棄節點退場 pilot
+//  — the .t3 compound provides it now. The parity ORACLE below STAYS, verifying the .t3 replay.)
 // refuter-T GPU adversarial probe (batch 17, point_ops_transformpoints.cpp): drives the REAL
 // transformpoints kernel directly over a hand-built bag (non-identity Position AND Rotation) with
 // MULTI-AXIS non-equal Rotation + non-uniform Scale, captures GPU Position+Rotation, compares each

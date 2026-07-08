@@ -853,6 +853,7 @@ add_executable(simple_world
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/t3import_nestedcompound_golden.cpp   # ★COMPOUND-RECURSION keystone: DrawPointsDOF.t3 recurses TransformPoints into a nested compound → structural + cross-layer parity vs host-matrix oracle; -bug disables recursion → RED
   src/runtime/t3import_layout_golden.cpp           # ★.t3ui LAYOUT keystone: TransformPoints.t3+.t3ui → every child/boundary-pin x,y matches the .t3ui constants (not sw's own output); -bug disables the read → RED (all 0,0)
+  src/runtime/t3import_transformpoints_retire_golden.cpp  # ★廢棄節點退場 PILOT: retired flat TransformPoints atom → references auto-taken-over by the .t3 compound (①takeover ③reference ②parity ④layout, four teeth)
   src/runtime/t3import_transformmesh_golden.cpp    # 骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle
   src/runtime/t3import_displacemeshnoise_golden.cpp # 骨9 MESH mixed-slot: DisplaceMeshNoise.t3 interleaved FloatsToBuffer.Params → SwVertex vs snoise oracle
   src/runtime/t3import_combinebuffers_golden.cpp   # 187 量產第一波: CombineBuffers.t3 code-op replay → concat-oracle parity (recipe verification spike)

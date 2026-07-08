@@ -1,13 +1,17 @@
-// TransformPoints — lane-A MODIFIER op: cook fn + register + golden. Faithful port of
-// external/tixl .../point/transform/TransformPoints (.cs ports, .hlsl math). Reads an input
-// bag (c.inputs[0]) and writes a TRS-transformed bag (c.output); the point count is INHERITED
-// from the upstream bag (no Count param — PointGraph::nodeCount gives a modifier its input's
-// count). This is the first modifier and the TEMPLATE the batch-2 fan-out copies.
+// TransformPoints — PARITY ORACLE (the flat atom RETIRED 2026-07-08, 廢棄節點退場 pilot).
 //
-// Self-contained leaf (its own capture vector + registerDrawOp). The cook reads scalar params
-// via paramOr on the node being cooked (c.nodeId) and the vector params via readVecN(*n,...).
-#include "runtime/point_ops.h"
-
+// The flat TransformPoints modifier ATOM (cook fn + NodeSpec + its own --selftest-transformpoints) is
+// GONE: its behaviour is now the nested .t3 compound (assets/catalog_t3/TransformPoints.t3). What STAYS
+// here is the compute-parity ORACLE — runTransformPointsParityProbe (--selftest-xfprobe), the焊死
+// host-matrix + fused-kernel reference that BOTH surviving goldens verify the .t3 replay against:
+//   • t3import_transformpoints_golden.cpp (--selftest-t3-transformpoints) — line "oracle self-check".
+//   • t3import_nestedcompound_golden.cpp (--selftest-t3-nestedcompound) — same oracle self-check.
+// The oracle dispatches the "transformpoints" MSL kernel directly (runXfKernelDirect) and compares its
+// GPU output to the .NET TransformMatrix host-matrix recomputed in C++ (independent of the shader's qMul
+// shortcut). Retiring the atom does NOT touch this kernel, transformpoints_params.h, or the oracle math —
+// so the two .t3 goldens keep their independent reference. See docs/agent/RETIREMENT_BATTLE_SPEC.md §7.
+//
+// ZONE: runtime (GPU oracle probe). No NodeSpec, no cook binding, no findSpec entry — pure verification.
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -17,9 +21,8 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/dispatch.h"               // calcDispatchCount
-#include "runtime/graph.h"                  // Graph/Node/readVecN/pinId
-#include "runtime/point_graph.h"            // PointCookCtx, registerPointOp/DrawOp, PointGraph
-#include "runtime/tex_op_cache.h"           // cachedComputePSO
+#include "runtime/point_ops.h"              // runTransformPointsParityProbe decl
+#include "runtime/tex_op_cache.h"           // clearTexOpCache (drop stale PSO before teardown)
 #include "runtime/transformpoints_params.h" // TransformParams, TransformBinding
 #include "runtime/tixl_point.h"             // SwPoint (64B) + EvaluationContext
 
@@ -28,165 +31,6 @@
 #endif
 
 namespace sw {
-namespace {
-
-// TransformPoints modifier: dispatch the transformpoints kernel input bag -> output bag.
-// count comes from c.count (inherited from the upstream Points bag). No input bag = safe no-op.
-void cookTransformPoints(PointCookCtx& c) {
-  if (!c.output || c.count == 0 || !c.lib) return;
-  const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
-  if (!srcBag) return;  // unwired input -> nothing to transform
-
-  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "transformpoints");
-  if (!pso) return;
-
-  TransformParams P{};
-  P.Count = c.count;
-  P.Space = (int)(cookParam(c, "Space", 0.0f) + 0.5f);
-  float t[3] = {0, 0, 0}, r[3] = {0, 0, 0}, s[3] = {1, 1, 1}, pv[3] = {0, 0, 0};
-  cookVecN(c, "Translation", t, 3, t);
-  cookVecN(c, "Rotation", r, 3, r);
-  cookVecN(c, "Stretch", s, 3, s);
-  cookVecN(c, "Pivot", pv, 3, pv);
-  P.TranslationX = t[0]; P.TranslationY = t[1]; P.TranslationZ = t[2];
-  P.RotationX = r[0]; P.RotationY = r[1]; P.RotationZ = r[2];
-  P.StretchX = s[0]; P.StretchY = s[1]; P.StretchZ = s[2];
-  P.PivotX = pv[0]; P.PivotY = pv[1]; P.PivotZ = pv[2];
-  P.Scale = cookParam(c, "Scale", 1.0f);
-  P.Strength = cookParam(c, "Strength", 1.0f);
-
-  MTL::CommandBuffer* cmd = c.queue->commandBuffer();
-  MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
-  enc->setComputePipelineState(pso);
-  enc->setBuffer(const_cast<MTL::Buffer*>(srcBag), 0, TRANSFORM_SourcePoints);
-  enc->setBuffer(c.output, 0, TRANSFORM_ResultPoints);
-  enc->setBytes(&P, sizeof(P), TRANSFORM_Params);
-  const uint32_t tg = 64;
-  enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(c.count, tg), 1, 1),
-                            MTL::Size::Make(tg, 1, 1));
-  enc->endEncoding();
-  cmd->commit();
-  cmd->waitUntilCompleted();
-  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
-}
-
-// --- golden plumbing (self-contained: own capture vector + draw op) ---
-std::vector<SwPoint>* g_capXf = nullptr;
-void captureDrawXf(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* pts) {
-  if (!g_capXf || !pts || c.count == 0) return;
-  g_capXf->assign(c.count, SwPoint{});
-  std::memcpy(g_capXf->data(), const_cast<MTL::Buffer*>(pts)->contents(),
-              (size_t)c.count * sizeof(SwPoint));
-}
-
-}  // namespace
-
-void registerTransformPointsOp() { registerPointOp("TransformPoints", cookTransformPoints); }
-
-// fwd decl (defined below, with the parity probe): dispatch transformpoints over a hand-built bag.
-static bool runXfKernelDirect(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
-                              const std::vector<SwPoint>& in, const TransformParams& P,
-                              std::vector<SwPoint>& out);
-
-// Golden: RadialPoints(ring R at origin) -> TransformPoints(ObjectSpace, Stretch=2, Translate=
-// (5,0,0), Strength=1) -> capture. The whole ring must scale x2 and shift +5 in x: every point
-// sits radius 2R from (5,0,0), and mean x ~= 5. Proves the modifier input-bag flow (reads the
-// upstream bag, writes a transformed one) + the TRS math end to end. injectBug: Strength=0 ->
-// identity passthrough -> ring stays radius R at origin -> the radius/center assertion FAILs.
-int runTransformPointsSelfTest(bool injectBug) {
-  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  const uint32_t N = 64;
-  const float R = 2.0f;
-  const float SCALE = 2.0f, TX = 5.0f;
-
-  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
-  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
-  MTL::CommandQueue* q = dev->newCommandQueue();
-  NS::Error* err = nullptr;
-  MTL::Library* lib = dev->newLibrary(NS::String::string(SW_SHADER_METALLIB, NS::UTF8StringEncoding), &err);
-  if (!lib) {
-    printf("[selftest-transformpoints] FAIL: no metallib\n");
-    q->release(); dev->release(); pool->release();
-    return 1;
-  }
-
-  registerBuiltinPointOps();    // RadialPoints (the input generator)
-  registerTransformPointsOp();  // TransformPoints (this op; explicit -> self-contained)
-  std::vector<SwPoint> captured;
-  g_capXf = &captured;
-  registerDrawOp("DrawPoints", captureDrawXf);
-
-  PointGraph pg(dev, lib, q, 64, 64);
-
-  Graph g;
-  Node gen; gen.id = 1; gen.type = "RadialPoints";
-  gen.params["Count"] = (float)N;
-  gen.params["Radius"] = R;
-  gen.params["Cycles"] = 1.0f;
-  g.nodes.push_back(gen);
-  Node xf; xf.id = 2; xf.type = "TransformPoints";
-  xf.params["Space"] = 1.0f;  // ObjectSpace
-  xf.params["Stretch.x"] = SCALE; xf.params["Stretch.y"] = SCALE; xf.params["Stretch.z"] = SCALE;
-  xf.params["Scale"] = 1.0f;
-  xf.params["Translation.x"] = TX;
-  xf.params["Strength"] = injectBug ? 0.0f : 1.0f;  // bug: identity passthrough
-  g.nodes.push_back(xf);
-  Node drw; drw.id = 3; drw.type = "DrawPoints"; g.nodes.push_back(drw);
-  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points(out) -> TransformPoints.points(in, port0)
-  g.connections.push_back({102, pinId(2, 1), pinId(3, 0)});  // TransformPoints.out(port1) -> DrawPoints.points(in)
-
-  EvaluationContext ctx{};
-  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
-
-  bool onScaled = captured.size() == N;
-  float meanX = 0.0f, maxRadErr = 0.0f;
-  const float wantR = R * SCALE;  // 4
-  for (const SwPoint& p : captured) {
-    meanX += p.Position.x;
-    float dx = p.Position.x - TX, dy = p.Position.y;  // distance from the translated center
-    float e = std::fabs(std::sqrt(dx * dx + dy * dy) - wantR);
-    if (e > maxRadErr) maxRadErr = e;
-    onScaled = onScaled && e < 0.05f;
-  }
-  if (!captured.empty()) meanX /= (float)captured.size();
-  bool scalePass = (captured.size() == N) && std::fabs(meanX - TX) < 0.1f && onScaled;
-
-  // MULTI-AXIS ROTATION TOOTH (catches a rotation-ORDER regression, which the scale/translate
-  // sub-test above cannot — Rotation=0 there). Drive ONE point at (0,1,0) through Rot=90/90/90 in
-  // ObjectSpace (Scale=1, Trans=0, Pivot=0). With the correct Y·X·Z order this lands at (0,0,1);
-  // the OLD Z·Y·X bug lands at (0,1,0) (the input, unchanged). Hand-derived, refuter-T cross-checks.
-  // injectBug (Strength=0) ALSO leaves it at (0,1,0) -> the same assertion bites both regressions.
-  float rotErr = 9.9f;
-  {
-    std::vector<SwPoint> one(1);
-    one[0] = SwPoint{};
-    one[0].Position = SW_PACKED3{0.0f, 1.0f, 0.0f};
-    one[0].Rotation = SW_FLOAT4{0.0f, 0.0f, 0.0f, 1.0f};  // identity orgRot
-    TransformParams RP{};
-    RP.Count = 1; RP.Space = 1;  // ObjectSpace
-    RP.RotationX = 90.0f; RP.RotationY = 90.0f; RP.RotationZ = 90.0f;
-    RP.StretchX = 1.0f; RP.StretchY = 1.0f; RP.StretchZ = 1.0f; RP.Scale = 1.0f;
-    RP.Strength = injectBug ? 0.0f : 1.0f;  // bug: identity passthrough -> stays (0,1,0) -> FAIL
-    std::vector<SwPoint> ro;
-    if (runXfKernelDirect(dev, q, lib, one, RP, ro) && ro.size() == 1) {
-      float ex = 0.0f, ey = 0.0f, ez = 1.0f;  // Y·X·Z expectation for (0,1,0)@90,90,90
-      rotErr = std::sqrt((ro[0].Position.x-ex)*(ro[0].Position.x-ex) +
-                         (ro[0].Position.y-ey)*(ro[0].Position.y-ey) +
-                         (ro[0].Position.z-ez)*(ro[0].Position.z-ez));
-    }
-  }
-  bool rotPass = rotErr < 1e-3f;
-
-  bool pass = scalePass && rotPass;
-  printf("[selftest-transformpoints] n=%zu meanX=%.3f(need~%.1f) ringR=%.2f(need~%.1f maxErr=%.4f) "
-         "rotTooth(0,1,0)@90,90,90->(0,0,1) err=%.4f(need<1e-3) -> %s\n",
-         captured.size(), meanX, TX, wantR, wantR, maxRadErr, rotErr, pass ? "PASS" : "FAIL");
-
-  g_capXf = nullptr;
-  lib->release(); q->release(); dev->release(); pool->release();
-  return pass ? 0 : 1;
-}
 
 // ============================================================================
 // refuter-T GPU adversarial probe (batch 17, permanent bite tooth): falsifies the
@@ -267,8 +111,6 @@ static TV3 tXform(TV3 v, const TM4& m) {
            v.x*m.m[0][2]+v.y*m.m[1][2]+v.z*m.m[2][2]+m.m[3][2] };
 }
 
-}  // namespace (probe helpers)
-
 // Dispatches the transformpoints kernel directly over a hand-built input bag, returning the GPU
 // output (Position+Rotation). Independent of the graph plumbing so the probe sets arbitrary orgRot.
 static bool runXfKernelDirect(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
@@ -300,6 +142,8 @@ static bool runXfKernelDirect(MTL::Device* dev, MTL::CommandQueue* q, MTL::Libra
   src->release(); dst->release(); pso->release();
   return true;
 }
+
+}  // namespace (probe helpers)
 
 int runTransformPointsParityProbe(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();

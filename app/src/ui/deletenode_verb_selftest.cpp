@@ -68,25 +68,25 @@ int runHandDeleteNodeSelfTest(bool injectBug) {
 
   // Three atomic point ops sharing the Points type so we can build a chain of wires:
   //   child 1 RadialPoints    (Points out)
-  //   child 2 TransformPoints (Points in + Points out)  <- the DELETE target (a wire SINK for 1->2 AND
+  //   child 2 OrientPoints (Points in + Points out)  <- the DELETE target (a wire SINK for 1->2 AND
   //                                                        a wire SOURCE for 2->3)
-  //   child 3 TransformPoints (Points in + Points out)
+  //   child 3 OrientPoints (Points in + Points out)
   // Wires: 1.out -> 2.in  (child 2 is the dst)   [incident on 2]
   //        2.out -> 3.in  (child 2 is the src)   [incident on 2]
   //        1.out -> 3.in  is NOT built; instead we ALSO keep an unrelated survivor below.
   // Unrelated survivor wire: 1.out -> 3.in (touches neither... it touches 1 and 3, both survive) — this
   // proves the sweep is SCOPED to child 2, not a blanket wipe.
   const std::string srcOut = portId("RadialPoints", /*input=*/false, "Points");
-  const std::string tin    = portId("TransformPoints", /*input=*/true, "Points");
-  const std::string tout   = portId("TransformPoints", /*input=*/false, "Points");
+  const std::string tin    = portId("OrientPoints", /*input=*/true, "Points");
+  const std::string tout   = portId("OrientPoints", /*input=*/false, "Points");
 
   bool ok = !srcOut.empty() && !tin.empty() && !tout.empty();  // ops must expose the Points ports
 
   SymbolLibrary lib;
   Symbol comp; comp.id = "comp"; comp.name = "comp";
   { SymbolChild a; a.id = 1; a.symbolId = "RadialPoints";    comp.children.push_back(a); }
-  { SymbolChild b; b.id = 2; b.symbolId = "TransformPoints"; comp.children.push_back(b); }
-  { SymbolChild c; c.id = 3; c.symbolId = "TransformPoints"; comp.children.push_back(c); }
+  { SymbolChild b; b.id = 2; b.symbolId = "OrientPoints"; comp.children.push_back(b); }
+  { SymbolChild c; c.id = 3; c.symbolId = "OrientPoints"; comp.children.push_back(c); }
   comp.nextChildId = 4;
   // Wires (built directly in the lib, not via the connect verb — this test is about DELETE, not connect).
   { SymbolConnection w; w.srcChild = 1; w.srcSlot = srcOut; w.dstChild = 2; w.dstSlot = tin;
@@ -95,7 +95,7 @@ int runHandDeleteNodeSelfTest(bool injectBug) {
     comp.connections.push_back(w); }                                   // 2->3 (2 is src)
   { SymbolConnection w; w.srcChild = 1; w.srcSlot = srcOut; w.dstChild = 3; w.dstSlot = tin;
     comp.connections.push_back(w); }                                   // 1->3 survivor (no child 2)
-  // NOTE: 3.in now has two incoming wires (2->3 and 1->3). TransformPoints' Points input is NOT
+  // NOTE: 3.in now has two incoming wires (2->3 and 1->3). OrientPoints' Points input is NOT
   // multiInput, but we bypass the connect-verb single-cardinality guard by building wires directly —
   // that is fine here: the test only asserts DELETE's incident-sweep math, not connect legality.
   lib.symbols[comp.id] = comp;

@@ -12,33 +12,14 @@
 namespace sw {
 namespace {
 
-static const PointModifyOp _reg_TransformPoints{
-      {"TransformPoints",
-       "TransformPoints",
-       // points input marked required=true (experience-S0 demo). Trailing positional fields are the
-       // PortSpec defaults def/minV/maxV/widget/labels/pinless/vecArity/multiInput/strDef, then the
-       // new last member required=true.
-       {{"points", "points", "Points", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "", true},  // input bag (port 0), REQUIRED
-        {"out", "out", "Points", false},          // transformed output bag (port 1)
-        {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
-        // Translation / Rotation(Euler°) / Stretch / Pivot — TiXL Vector3 inputs (Widget::Vec).
-        {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Translation.z", "Translation.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
-        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
-        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
-        {"Stretch.x", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Stretch.z", "Stretch.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 10.0f},
-        {"Pivot.x", "Pivot", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f}},
-       nullptr,
-       "point.transform"}  // category (experience-S0 demo, = TiXL Symbol.Namespace)
-};
+// ── TransformPoints flat atom RETIRED (廢棄節點退場 pilot, 2026-07-08) ──────────────────────────────
+// The flat TransformPoints NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by the
+// nested .t3 compound (assets/catalog_t3/TransformPoints.t3, guid 7f6c64fe…). A human-name reference to
+// "TransformPoints" (makeNode / .swproj) no longer hits this sink — it falls through findSpec's tail to
+// the compound's name alias (graph_bridge.cpp refreshCompoundSpecs). The compute-parity ORACLE
+// (runTransformPointsParityProbe / transformpoints_params.h / transformpoints.metal) stays LIVE in
+// point_ops_transformpoints.cpp — the t3-transformpoints + t3-nestedcompound goldens verify the .t3
+// replay against it. See docs/agent/RETIREMENT_BATTLE_SPEC.md §7 pilot.
 
 static const PointModifyOp _reg_OrientPoints{
       {"OrientPoints",
