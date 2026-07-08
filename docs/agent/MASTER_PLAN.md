@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 363e9ef
+HEAD: 6002315
 DIRTY: 1 files
 CENSUS: 610 / 749 done
 BITE: 704 PASS
-STAMP_AT: 2026-07-08T18:01
+STAMP_AT: 2026-07-08T19:15
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -30,7 +30,9 @@ STAMP_AT: 2026-07-08T18:01
 - **★關鍵校正（4 scout + refuter 確認）＝巢狀複合節點 MODEL 早已 live，非「要重新設計」**（[[tixl-clone-model-nested-catalog-node]] 那句 stale）：巢狀資料模型 `compound_graph.h` / resident 遞迴 inline `resident_eval_flatten.cpp` / 複合→NodeSpec catalog 註冊 `graph_bridge.cpp` / dive-in `editor_ui.cpp:252` / 8 顆真 .t3 boot-load 全 live。**不用重織網。**
 - **批 1 DONE（今日）**：① **keystone 匯入器遞迴上岸**（`t3_import_recurse.cpp`，讓「子節點本身是複合」遞迴建巢狀子複合而非 skip/壓扁；含 §1.3 跨層 slot 解析）——golden `t3-nestedcompound`（DrawPointsDOF→TransformPoints 兩層、中段 pin、TiXL host-matrix oracle P5 乾淨）RED→GREEN、injectBug 咬、**獨立 Opus refuter 判可合流**（override 側免補=共用 helper、connection-green 涵蓋）。② **值閘全掃**（`tools/default_value_parity.sh`+census `default_value_drift.txt`）＝**295 條預設值飄離 TiXL / 151 節點**（float 176 最高信號 + enum 26 + string 38 + float-vs-zero 53 低信號待逐顆確認）。
 - **`.t3ui` 排版 DONE（今日，`t3_import_layout.cpp`+8 顆 .t3ui 進 assets）**：鑽入複合子節點照 TiXL Position 擺（不再擠原點）。**⚠ 過程教訓**：merge 後 orchestrator 讀 eye state.json 誤報 0,0=**舊 app 實例遺留 state.json**(假警報,見 memory [[eye-hand-stale-instance-state-json]])；逼出真收穫=`catalog_boot_layout_selftest` base leg 從 `return 0` 假綠改 hard-fail（--bite 只驗 -bug leg，base leg NO-BITE 擋不住 boot 回歸）。親手 `--selftest-catalog-layout` 在真 assets 證 Blend 子節點非零 PASS。
-- **★★現行主戰場＝廢棄扁平化節點退場（柏為 18:00 令）**：151 顆壓平複合(130 safe+21 deps)換成巢狀 .t3 複合。機器齊(遞迴+排版+8 顆 catalog 範本)。執行藍圖 Plan agent 產出中→pilot 先證 replace-in-place 機制再資料驅動放量。**owner-lock t3_import*/node_registry/catalog_boot=序列瓶頸；各家族 leaf 檔可 worktree 並行。**
+- **★★現行主戰場＝廢棄扁平化節點退場（柏為 18:00 令）**：可退 **139 顆**（151−collapse-8，後者是正確終態不退，見 `RETIREMENT_BATTLE_SPEC.md` §3）。**機制 keystone pilot 上岸+refuter GO（`6002315`）**：`findSpec` 尾端 name→compound fallback（`graph_bridge.cpp` refreshCompoundSpecs 加 name 別名 key，node-agnostic 零字串綁定、atom 在時被 sink 遮=零行為改變）；TransformPoints 退場、四閘 golden `t3-transformpoints-retire`、真 boot 名字接管到複合。⚠census：node_health flattened 數不減（TransformPoints leaf 保 oracle 拆 oracle-only 仍算 flattened；多數退場刪 leaf 自然減）→進度用退場 ledger 追。
+  - **★放量硬前置（refuter 判定）**：name 唯一性 lint 必須先落地（emplace 同名衝突今由 map 任意定勝負；兩複合同名/複合名撞未退 atom 會靜默錯解）。
+  - **下一根＝地基 lane**：①name 唯一性 lint ②`--probe-import <t3>` ready-set 掃描器 ③退場 CombineBuffers(證非 TransformPoints 專屬)。齊了才開按家族 worktree 平行 sweep。owner-lock `graph_bridge`/`node_registry`/`t3_import_maps`/`catalog_boot` 序列；leaf 檔並行。
 - **批 2+ 其餘（與退場不撞檔可並行）**：namespace/category 分類軸 / 修 240 條預設值飄移(照 TiXL,census `default_value_drift.txt`) / snapshot 真渲染縮圖牆(柏為要，中偏輕、機器已 live、規格 `SNAPSHOT_THUMBNAIL_SPEC.md`) / 教學/example .t3 匯入。
 - **⚠ refuter 兩個非阻擋 follow-up（歸複合重放 lane）**：flatten 側「scalar override 灌進 nested 邊界輸入」未測+Const-child scaffold 暗示脆；`t3-transformpoints` 一行 stale "MEASURED RED" 註解（現實 GREEN）。
 
@@ -157,7 +159,7 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 
 ## Next Handoff Sentence
 
-**★★下一根（2026-07-08，現行）：廢棄扁平化節點退場（柏為 18:00 令，復合戰役主戰場）。** 151 顆壓平複合(130 safe+21 deps)換成巢狀 .t3 複合(replace-in-place：同名巢狀複合接管+移除 flat atom 註冊，因 `node_registry.cpp:88-91` atom shadow 複合)。機器齊(遞迴 keystone+.t3ui 排版+8 顆 catalog 範本)。**執行藍圖 Plan agent 產出中**(ready-set 判定/collapse-12/分批/harness)→回來審→pilot 先證機制再資料驅動放量。owner-lock t3_import*/node_registry/catalog_boot 序列；leaf 檔並行。之後/並行：namespace 軸 / 修 240 飄移(`default_value_drift.txt`) / snapshot 縮圖牆(`SNAPSHOT_THUMBNAIL_SPEC.md`) / 教學 .t3。開頭跑 `tools/sw_status.sh`。
+**★★下一根（2026-07-08，現行）：退場戰役地基 lane（機制 pilot 已上岸 refuter GO `6002315`）。** 三樣，齊了才開按家族 worktree 平行 sweep 收割 139：①**name 唯一性 lint**（放量硬前置，refuter 判定）②`--probe-import <t3>` ready-set 掃描器（掃 139 顆哪些葉全映射可退，隨 `t3_import_maps.cpp` 補齊單調成長）③退場 **CombineBuffers**（第二顆真節點證機制非 TransformPoints 專屬）。**全規格 `docs/agent/RETIREMENT_BATTLE_SPEC.md`**（keystone=name vs guid key domain §0、collapse-8 不退 §3、四閘 harness §5、pilot §7）。owner-lock `graph_bridge`/`node_registry`/`t3_import_maps`/`catalog_boot` 序列；各家族 leaf 檔 worktree 並行。並行不撞：namespace 軸 / 修 240 飄移 / snapshot 縮圖牆(`SNAPSHOT_THUMBNAIL_SPEC.md`) / 教學 .t3。開頭跑 `tools/sw_status.sh`。
 
 〔舊句 2026-07-02（mesh 家族兩缺口→187 量產）已完成/被今日方向取代，移 done-record：骨4 mesh-buffer 橋 / 骨9 mixed-slot replay / 骨2 HLSL→MSL 尾巴 / ParticleSystem 解鎖照 [[particlesystem-pool-fork-match-tixl]]〕
 
