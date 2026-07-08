@@ -84,16 +84,16 @@ const std::vector<NodeSpec>& generatorSpecs() {
        // shared appendPointOrientationSpec helper (single Color) does NOT fit — ColorA/ColorB and
        // the OrientationAxis/Angle tail are spelled inline here.
        {{"points", "points", "Points", false},
-        {"Count", "Count", "Float", true, 64.0f, 2.0f, 8192.0f},
-        {"Length", "Length", "Float", true, 5.0f, 0.0f, 50.0f},
+        {"Count", "Count", "Float", true, 100.0f, 2.0f, 8192.0f},
+        {"Length", "Length", "Float", true, 1.0f, 0.0f, 50.0f},
         {"Pivot", "Pivot", "Float", true, 0.5f, 0.0f, 1.0f},
         // Center (TiXL Vector3 TranslationInput) — line start before pivot/length.
         {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Direction (TiXL Vector3) — line orientation; .md default 0,1,0 (points up).
-        {"Direction.x", "Direction", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Direction.y", "Direction.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Direction (TiXL Vector3) — line orientation; .t3 default (1,0,0) (points along X).
+        {"Direction.x", "Direction", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Direction.y", "Direction.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Direction.z", "Direction.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         // GainAndBias (TiXL Vector2) — distribution along the line; 0.5,0.5 = identity.
         {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
@@ -151,7 +151,7 @@ const std::vector<NodeSpec>& generatorSpecs() {
              {"Count", "Count", "Float", true, 100.0f, 1.0f, 65536.0f},
              {"CountX", "CountX", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
              {"CountY", "CountY", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
-             {"CountZ", "CountZ", "Float", true, 1.0f, 1.0f, 256.0f, Widget::Slider},
+             {"CountZ", "CountZ", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
              {"SizeMode", "SizeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
              // Size (TiXL Vector3) — per-axis extent (Cell: spacing, Bounds: total volume).
              {"Size.x", "Size", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
@@ -188,8 +188,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
       {"SpherePoints",
        "SpherePoints",
        {{"points", "points", "Points", false},
-        {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
-        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f},
+        {"Count", "Count", "Float", true, 100.0f, 16.0f, 8192.0f},
+        {"Radius", "Radius", "Float", true, 1.0f, 0.1f, 10.0f},
         // Center (TiXL Vector3) — vector param: 3 Float components drawn as one DragFloat3,
         // read via readVecN("Center"). Head port id "Center.x", name "Center", Vec/arity 3.
         {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},

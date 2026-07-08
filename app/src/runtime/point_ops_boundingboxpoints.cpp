@@ -306,14 +306,15 @@ int runBoundingBoxPointsSelfTest(bool injectBug) {
     pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
 
     bool graphCountOk = (captured.size() == 1);  // 16-point line -> ONE AABB point
-    // The LinePoints default Direction is (0,1,0) so the line runs along Y: the box has extent
-    // along Y (Scale.y > 0) and ~0 along X/Z. Assert a finite, non-degenerate box (Y extent) +
-    // Selected=1 — proves the source bag was actually read through the driver, not the empty path.
-    float boxY = graphCountOk ? captured[0].Scale.y : 0.0f;
-    bool graphBoxOk = graphCountOk && std::isfinite(boxY) && boxY > 0.0f &&
+    // The LinePoints default Direction is (1,0,0) (.t3-parity) so the line runs along X: the box
+    // has extent along X (Scale.x > 0) and ~0 along Y/Z. Assert a finite, non-degenerate box (X
+    // extent) + Selected=1 — proves the source bag was actually read through the driver, not the
+    // empty path.
+    float boxX = graphCountOk ? captured[0].Scale.x : 0.0f;
+    bool graphBoxOk = graphCountOk && std::isfinite(boxX) && boxX > 0.0f &&
                       near(captured[0].FX2, 1.0f);
-    printf("[selftest-boundingboxpoints] graph LinePoints(16)->BBox captured=%zu boxY=%.3f -> %s\n",
-           captured.size(), boxY, (graphCountOk && graphBoxOk) ? "ok" : "NO");
+    printf("[selftest-boundingboxpoints] graph LinePoints(16)->BBox captured=%zu boxX=%.3f -> %s\n",
+           captured.size(), boxX, (graphCountOk && graphBoxOk) ? "ok" : "NO");
     pass = pass && graphCountOk && graphBoxOk;
     g_capBBox = nullptr;
   }

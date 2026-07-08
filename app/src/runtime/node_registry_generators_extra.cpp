@@ -20,8 +20,8 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
       // Math: same cell->clampedCount->zeroAdjustedSize->SizeMode base as GridPoints,
       // then applies hex X-offset = HexOffsetsAndAngles[hexAttrIndex].x * sizeX * 0.3333
       // and rescales pos.x *= 0.578 * 3 (HexScale), with per-cell rotation rotDelta.
-      // Defaults: CountX=4, CountY=4, CountZ=1, Size=(1,1,1), Center=(0,0,0),
-      //   W=1.0, OrientationAxis=(0,1,0), OrientationAngle=0, Pivot=(0,0,0), SizeMode=Cell.
+      // Defaults (verbatim from .t3): CountX=10, CountY=10, CountZ=10, Size=(1,1,1), Center=(0,0,0),
+      //   W=1.0, OrientationAxis=(0,0,1), OrientationAngle=0, Pivot=(0,0,0), SizeMode=Bounds(1).
       // NOTE: Count = buffer CAPACITY = CountX * CountY * CountZ (host responsibility).
       // Scale (TiXL Single [Input], default 1.0): .t3 routes Scale -> ScaleVector3 scaling the Size
       //   Vector3 (HexGridPoints.t3:329-337); applied host-side in the cook (effective Size=Scale*Size).
@@ -32,10 +32,10 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
        {{"points", "points", "Points", false},
         // Count = output buffer capacity (host sets = CountX*CountY*CountZ)
         {"Count", "Count", "Float", true, 16.0f, 1.0f, 65536.0f},
-        {"CountX", "CountX", "Float", true, 4.0f, 1.0f, 256.0f, Widget::Slider},
-        {"CountY", "CountY", "Float", true, 4.0f, 1.0f, 256.0f, Widget::Slider},
-        {"CountZ", "CountZ", "Float", true, 1.0f, 1.0f, 256.0f, Widget::Slider},
-        {"SizeMode", "SizeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
+        {"CountX", "CountX", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
+        {"CountY", "CountY", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
+        {"CountZ", "CountZ", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
+        {"SizeMode", "SizeMode", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
         // Size (TiXL Vector3) — per-axis cell extent
         {"Size.x", "Size", "Float", true, 1.0f, 0.01f, 10.0f, Widget::Vec, {}, true, 3},
         {"Size.y", "Size.y", "Float", true, 1.0f, 0.01f, 10.0f, Widget::Vec, {}, true, 1},
@@ -49,10 +49,10 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
         {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
         {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
         {"W", "W", "Float", true, 1.0f, 0.0f, 1.0f},
-        // OrientationAxis (TiXL Vector3, default 0,1,0) + OrientationAngle (degrees)
+        // OrientationAxis (TiXL Vector3, default 0,0,1) + OrientationAngle (degrees)
         {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
-        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f},
         // Scale (TiXL Single, default 1.0) — scales the Size Vector3 (.t3 ScaleVector3 routing).
         //   APPEND-ONLY: kept last so existing pin ids stay stable (no .scn breakage).
@@ -114,7 +114,7 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
       //
       // Port order = .cs [Input] declaration order (APPEND not insert; pin ids are index-based):
       //   Count, StartPosition, StartW, Translate, Scale, Rotate, Pivot, Phase, AddSeparator.
-      // Defaults from RepetitionPoints.t3 (NOT guessed): Count=0 (UI hint 16; TiXL clamps 1..10000),
+      // Defaults from RepetitionPoints.t3 (NOT guessed): Count=0 (TiXL clamps 1..10000 downstream),
       //   StartPosition=0, StartW=0, Translate=0, Scale=1 (float), Rotate=0, Pivot=0, Phase=0,
       //   AddSeparator=true. Scale is a single float broadcast to Vector3 (note the commented-out
       //   Vector3 Scale in the .cs — TiXL kept the float port).
@@ -123,9 +123,8 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
       {"RepetitionPoints",
        "RepetitionPoints",
        {{"points", "points", "Points", false},
-        // Count (TiXL Int, .t3 default 0; clamped 1..10000 by the cook). UI default 16 = a usable
-        // hint, not load-bearing — the .cs clamps it regardless.
-        {"Count", "Count", "Float", true, 16.0f, 1.0f, 10000.0f},
+        // Count (TiXL Int, .t3 default 0; clamped 1..10000 by the cook).
+        {"Count", "Count", "Float", true, 0.0f, 1.0f, 10000.0f},
         // StartPosition (TiXL Vector3, default 0) — added to translateStep*u.
         {"StartPosition.x", "StartPosition", "Float", true, 0.0f, -50.0f, 50.0f, Widget::Vec, {}, true, 3},
         {"StartPosition.y", "StartPosition.y", "Float", true, 0.0f, -50.0f, 50.0f, Widget::Vec, {}, true, 1},

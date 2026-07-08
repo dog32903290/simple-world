@@ -67,8 +67,8 @@ int runLinePointsParitySelfTest(bool injectBug) {
 
   // Shared cook helper: a tiny Count=4 line so indices are stable. GainAndBias identity (default
   // 0.5,0.5), Pivot default 0.5. With Count=4, steps=3 (separator off): f1 = t = i/3 → point[0] f1=0,
-  // point[3] f1=1. Direction (0,1,0) default; the orientation teeth use Simple mode (default) so the
-  // quaternion is a clean axis-angle the test can pin in closed form.
+  // point[3] f1=1. Direction (1,0,0) default (.t3-parity); the orientation teeth use Simple mode
+  // (default) so the quaternion is a clean axis-angle the test can pin in closed form.
   auto cookKnob = [&](const std::map<std::string, float>& extra, std::vector<SwPoint>& out) {
     PointGraph pg(h.dev, h.lib, h.queue, 64, 64);
     Graph g;

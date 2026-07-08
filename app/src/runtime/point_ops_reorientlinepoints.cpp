@@ -170,7 +170,7 @@ int runReorientLinePointsSelfTest(bool injectBug) {
   Graph g;
   Node gen; gen.id = 1; gen.type = "LinePoints";
   gen.params["Count"]  = (float)N;
-  gen.params["Length"] = 5.0f;     // line spans +Y by 5 units
+  gen.params["Length"] = 5.0f;     // line spans +X by 5 units (.t3-parity Direction default)
   g.nodes.push_back(gen);
   Node ro; ro.id = 2; ro.type = "ReorientLinePoints";
   ro.params["Amount"] = 1.0f;
@@ -184,13 +184,13 @@ int runReorientLinePointsSelfTest(bool injectBug) {
   pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
 
   bool countOk = (captured.size() == N);
-  // tangent of the +Y line is (0,1,0); rotated forward should align (dot ~ +1 normal, -1 bug).
+  // tangent of the +X line is (1,0,0); rotated forward should align (dot ~ +1 normal, -1 bug).
   float minAlign = 9.9f;  // most-misaligned interior point's dot
   for (size_t k = 0; k < captured.size(); ++k) {
     const SwPoint& p = captured[k];
     std::array<float, 4> rq = {p.Rotation.x, p.Rotation.y, p.Rotation.z, p.Rotation.w};
     std::array<float, 3> fwd = hQRotate({0, 0, 1}, rq);  // +Z forward in world
-    float dot = fwd[1];  // dot with tangent (0,1,0)
+    float dot = fwd[0];  // dot with tangent (1,0,0)
     if (dot < minAlign) minAlign = dot;
   }
   // injectBug flips the alignment test direction: require forward to OPPOSE the tangent.
