@@ -15,22 +15,23 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 47c32a6
-DIRTY: clean
+HEAD: 18b08cc
+DIRTY: 1 files
 CENSUS: 610 / 749 done
-BITE: 701 PASS
-STAMP_AT: 2026-07-07T17:46
+BITE: 702 PASS
+STAMP_AT: 2026-07-08T16:18
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**★★★現行定位（2026-07-07，HEAD `47c32a6`，--bite 701/0/0，已 push origin）——接手先讀 memory [[uiux-lane-2026-07-07]] + [[next-phase-compound-catalog-2026-07-07]]，別被下方舊 lane 敘述帶歪。**
-- **今日完成＝柏為 UIUX 四訴求 + 二輪 Output 回饋全上岸**（14 commit `b9b2f0b`→`47c32a6`）：drag jog 手感 / 影片匯出(引擎+設定窗+ProRes4444) / 解析度 preset=固定像素+Fill window-follow+Custom / docking 版面(canvas 中央+周邊 dock+resize 自適應) / 相機 orbit(Viewer+Locked-to-Op)。全機器閘綠 + 眼手驗。
-- **★下一大階段＝復合戰役（柏為 2026-07-07 令，task#11-14，等他說開工——他說「復合等等再說」）**：①廢棄/obsolete 節點退場（先）②每節點對 TiXL census ③復合織完(165/298→滿) ④TiXL 巢狀 catalog 分佈。**開工先讀 CLONE_MAP.md 對帳**（複合帳 165/298）。
-- **★承重約束（別踩）**：sw DrawPoints 是 2D 正交廢棄版(丟 Z 不吃相機)，TiXL DrawPoints 是 3D 相機投影(源證在 next-phase memory)。**復合戰役重建點-draw 家族時必須港吃相機的點著色器 + executor DrawKind::Points 綁相機矩陣**——那才讓相機 orbit 對點生效(現在只對 mesh/layer 生效)。orbit 基建(view_camera A/B/C)已完整正確、非白做。
-- **⚠ 已知假綠**：`output_orbit_viewer.scn` 用粒子運動假證 orbit(點不吃相機故對它無效)；點著色器修好後改靜態點真證。
+**★★★現行定位（2026-07-08，HEAD `18b08cc`，--bite 702/0/0，未 push）＝復合戰役開打，批 1 上岸——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/COMPOUND_RECURSION_SEAM_SPEC.md`。**
+- **★關鍵校正（4 scout + refuter 確認）＝巢狀複合節點 MODEL 早已 live，非「要重新設計」**（[[tixl-clone-model-nested-catalog-node]] 那句 stale）：巢狀資料模型 `compound_graph.h` / resident 遞迴 inline `resident_eval_flatten.cpp` / 複合→NodeSpec catalog 註冊 `graph_bridge.cpp` / dive-in `editor_ui.cpp:252` / 8 顆真 .t3 boot-load 全 live。**不用重織網。**
+- **批 1 DONE（今日）**：① **keystone 匯入器遞迴上岸**（`t3_import_recurse.cpp`，讓「子節點本身是複合」遞迴建巢狀子複合而非 skip/壓扁；含 §1.3 跨層 slot 解析）——golden `t3-nestedcompound`（DrawPointsDOF→TransformPoints 兩層、中段 pin、TiXL host-matrix oracle P5 乾淨）RED→GREEN、injectBug 咬、**獨立 Opus refuter 判可合流**（override 側免補=共用 helper、connection-green 涵蓋）。② **值閘全掃**（`tools/default_value_parity.sh`+census `default_value_drift.txt`）＝**295 條預設值飄離 TiXL / 151 節點**（float 176 最高信號 + enum 26 + string 38 + float-vs-zero 53 低信號待逐顆確認）。
+- **★下一根＝`.t3ui` 排版 lane**（柏為 07-08 觀察「鑽入複合子節點全擠原點」）：座標在 sibling `.t3ui` 非 .t3，sw catalog 只帶 .t3→child 全落 (0,0)。修=帶 .t3ui 進來 + importer 解析 `SymbolChildUis[].Position`→`child.x/y`（+ InputUis/OutputUis→SlotDef.x/y 邊界 pin）。**owner-lock 同 `t3_import.cpp`+`catalog_boot.cpp`，緊接 keystone 做、不可與碰這兩檔的 lane 並行。** 全規格在 SEAM_SPEC.md「後續 lane」節。
+- **批 2+ 排程**：namespace/category 分類軸 / 修 240 條預設值飄移(照 TiXL) / snapshot 真渲染縮圖牆(柏為要，中偏輕、機器已 live=ExportSession+cookResident、無需 atlas) / 151 顆退場替換(safe130 資料驅動+deps21 修腳手架+12 collapse 反轉)+ 教學/example .t3 匯入。
+- **⚠ refuter 兩個非阻擋 follow-up（歸複合重放 lane）**：flatten 側「scalar override 灌進 nested 邊界輸入」未測+Const-child scaffold 暗示脆；`t3-transformpoints` 一行 stale "MEASURED RED" 註解（現實 GREEN）。
 
 ---
 > ⬇⬇⬇ **以下為舊 lane 敘述（AI-畫布 harness / 187 mesh 量產 / 原子重放 — 今日 UIUX 之前的狀態）＝done-record 備查，非現行方向。現行看上方 2026-07-07 塊。** ⬇⬇⬇
@@ -137,7 +138,7 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 - **DrawPoints 換 quad sprite（`3310181`，柏為 02:38 parity 修）** — 預設面板 DrawPoints 從「不分大小的 4px 死點」變成「依 PointSize 的 6-vert camera-facing quad sprite」，照 TiXL DrawPoints.hlsl（11 param 全砍→接回 PointSize/Color/ScaleFactor/BlendMode）。**怎麼驗**：開 app 看預設場景，點現在是 quad sprite（吃 PointSize/Color/blend）；預設場景 PointSize=1.5 可見，裸節點 .t3 預設 0.1≈1px（忠實但小，你可調 PointSize 旋鈕）。**機器閘**：drawpoints-parity golden no-bug GREEN+bug RED、7 顆下游 golden 無回歸、--bite 525、refuter 5/5 SURVIVES。**待你簽**：① quad sprite 觀感對不對 ② 預設場景 PointSize=1.5 vs TiXL 預設場景值（可能需跑真 TiXL 看）③ 純像素 byte parity 標 pixel-deferred-windows（等 Windows TiXL reference）。
 
 ## Conflict Register
-無 active 平行 lane、無未解衝突，tree clean（HEAD 見機器塊）。今日 session（2026-07-01→07-02）連線極不穩、殺了多個 build agent（骨7b/骨8），全靠 worktree 隔離 + 增量 commit + orchestrator salvage-commit 撐住，零工作損失——這條工法今天被壓測過。未 push：領先 origin 若干 doc commit（`0e1a0e3` 已推、之後 doc-cleanup 未推，待柏為授權）。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769，非本線引入、不擋 commit）；`detectbpm` NO-BITE（task_9d081266）。
+**2026-07-08 復合戰役批 1：main `18b08cc`，未 push（領先 origin 復合戰役全部 commit）。** keystone 遞迴（branch `worktree-agent-a8dd21ac0f2d9294d` FF）+ 值閘（branch `worktree-agent-a0015507449f7c901` cherry-pick `9ac32ea`）已進 main，兩 worktree 可清。**★下一根 `.t3ui` 排版 lane owner-lock `t3_import.cpp`+`catalog_boot.cpp`——任何碰這兩檔的 lane 不可與它並行**（namespace 軸也碰 graph_bridge/compound_graph，排序不撞；snapshot 縮圖牆碰 app/variation+ui/variation_panel 可並行；值閘飄移修碰 node_registry_* 可並行）。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769）；`detectbpm` 已於 07-06 修（見史）。
 
 〔以下 2026-06-29/30 舊條目多已解或屬歷史，非現行衝突；留作背景，勿讀成當前阻塞〕
 
@@ -155,7 +156,7 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 
 ## Next Handoff Sentence
 
-**★★下一根（2026-07-07，現行，取代下方 07-02 mesh 句）：復合戰役（柏為令，等他說開工——「復合等等再說」）。** 順序：①廢棄/obsolete 節點退場（先）②每節點對 TiXL census ③復合織完（165/298→滿）④TiXL 巢狀 catalog 分佈（複合=巢狀註冊節點能拖/鑽入，image 不壓扁，[[tixl-clone-model-nested-catalog-node]]）。**開工先讀 CLONE_MAP.md 對帳 + memory [[next-phase-compound-catalog-2026-07-07]]**。承重約束：點-draw 家族重建必須港吃相機的著色器（見該 memory，否則相機 orbit 對點永遠無效）。task#11-14 帶依賴鏈。開頭跑 `tools/sw_status.sh`。
+**★★下一根（2026-07-08，現行）：`.t3ui` 排版 lane（柏為觀察「鑽入複合子節點全擠原點」）。** 座標在 sibling `.t3ui`（非 .t3），sw catalog 只帶 .t3→child 全落 (0,0)。修兩步：①帶 .t3ui 進 `assets/catalog_t3/`（或 catalog_boot 從 external/tixl 讀 sibling）②`importT3Symbol` 解析 `SymbolChildUis[].Position`（ChildId→經現有 map→childId）寫 `child.x/y`，順手 InputUis/OutputUis→SlotDef.x/y 邊界 pin。harness=import 帶 .t3ui 複合→斷言 children x/y 非全 0 且互異，injectBug 不讀→全 0→diverge。座標系不用轉換。**owner-lock `t3_import.cpp`+`catalog_boot.cpp`。全規格 `docs/agent/COMPOUND_RECURSION_SEAM_SPEC.md`「後續 lane」節。** 之後：namespace 軸 / 修 240 飄移 / snapshot 縮圖牆 / 151 退場替換。開頭跑 `tools/sw_status.sh`。
 
 〔舊句 2026-07-02（mesh 家族兩缺口→187 量產）已完成/被今日方向取代，移 done-record：骨4 mesh-buffer 橋 / 骨9 mixed-slot replay / 骨2 HLSL→MSL 尾巴 / ParticleSystem 解鎖照 [[particlesystem-pool-fork-match-tixl]]〕
 
