@@ -50,15 +50,23 @@ struct CrossfadeState {
 };
 CrossfadeState g_xfade;
 
+// TiXL SymbolUi.Child.cs:50-56 — EnabledForSnapshots == (SnapshotGroupIndex == 1). 0 = not relevant
+// (skip), 1 = used for snapshots, >1 = ParameterCollections (NOT the snapshot path). The snapshot
+// filter (VariationHandling.cs:159) captures ONLY EnabledForSnapshots children, so only ==1 participates.
+constexpr int kSnapshotGroupEnabled = 1;
+
 // Capture the live composition's Float-slot effective values into a DocVariation (fork-pool-docvocab).
 // = TiXL CreateOrUpdateSnapshotVariation, but in sw's float-per-slot vocabulary: every Float input of
-// every child contributes (childId, slotId) -> effectiveInput. (sw has no per-child EnabledForSnapshots
-// flag yet; all children participate — a named simplification of the TiXL filter, every node enabled.)
+// every SNAPSHOT-ENABLED child contributes (childId, slotId) -> effectiveInput. The EnabledForSnapshots
+// filter (VariationHandling.cs:159: `if (!symbolChildUi.EnabledForSnapshots) continue;`) is honoured
+// here via SymbolChild.snapshotGroupIndex (backing field, already persisted) — a child with
+// snapshotGroupIndex != 1 is skipped entirely, exactly like TiXL's AddSnapshotEnabledChildrenToList.
 StoredSnapshot captureLive(SymbolLibrary& lib, const std::string& compositionId) {
   StoredSnapshot snap;
   Symbol* comp = lib.find(compositionId);
   if (!comp) return snap;
   for (const SymbolChild& child : comp->children) {
+    if (child.snapshotGroupIndex != kSnapshotGroupEnabled) continue;  // TiXL: skip !EnabledForSnapshots
     const Symbol* def = lib.find(child.symbolId);
     if (!def) continue;
     for (const SlotDef& in : def->inputDefs) {

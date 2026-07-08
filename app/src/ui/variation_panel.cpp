@@ -11,8 +11,9 @@
 #include "imgui.h"
 
 #include "app/document.h"
-#include "app/variation_panel.h"  // varpanel:: pool / mix / crossfader wiring
-#include "verify/eye/eye.h"       // one-line hooks: slot/button rects for the hand
+#include "app/variation_panel.h"    // varpanel:: pool / mix / crossfader wiring
+#include "runtime/compound_graph.h"  // Symbol / SymbolChild / childReadableName (snapshot-enable toggle)
+#include "verify/eye/eye.h"         // one-line hooks: slot/button rects for the hand
 
 namespace sw::ui {
 namespace {
@@ -147,6 +148,34 @@ void drawVariationPanel() {
   if (!selFilled) ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::TextDisabled(haveSel ? "slot %d" : "(pick a slot)", s_selected);
+
+  // ── Snapshot-enabled children (= TiXL EnabledForSnapshots per-child toggle) ─────────────────────
+  // [待柏為簽收：觸點位置暫定 Variation 面板，柏為可能要移到節點右鍵選單] scout 指出 sw 無現成
+  // per-node toggle 樣板；inspector.cpp 已 >400 行(rule 4 警戒)，故先落在這個 Variation 窗(此欄
+  // 剛好在 Grab 上方，語義最貼)。功能可用即可，placement 由柏為事後定。
+  // captureLive (app/variation_panel) only tracks children whose snapshotGroupIndex==1 (TiXL
+  // VariationHandling.cs:159 / SymbolUi.Child.cs:50-56). This lets 柏為 flip that flag per child.
+  ImGui::Separator();
+  ImGui::TextDisabled("Snapshot Children (which nodes a Grab captures)");
+  if (sw::Symbol* comp = sw::doc::currentSymbol()) {
+    if (comp->children.empty()) {
+      ImGui::TextDisabled("(no nodes in this composition)");
+    }
+    for (sw::SymbolChild& child : comp->children) {
+      ImGui::PushID(2000 + child.id);
+      bool enabled = child.snapshotGroupIndex == 1;  // EnabledForSnapshots (1 = used for snapshots)
+      const sw::Symbol* def = sw::doc::g_lib().find(child.symbolId);
+      const std::string label = sw::childReadableName(child, def ? def->name : child.symbolId);
+      if (ImGui::Checkbox(label.c_str(), &enabled)) {
+        child.snapshotGroupIndex = enabled ? 1 : 0;  // 0 = not relevant, 1 = used for snapshots
+        sw::doc::invalidateDirtyCache();  // authoring metadata write w/o bumpLibRevision (persisted)
+      }
+      char key[24];
+      std::snprintf(key, sizeof(key), "var_snapen_%d", child.id);
+      sw::eye::recordItem(key);
+      ImGui::PopID();
+    }
+  }
 
   // ── N-way weighted mix (per-snapshot weight sliders + Apply) ────────────────────────────────────
   ImGui::Separator();

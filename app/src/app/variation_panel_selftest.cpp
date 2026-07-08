@@ -20,6 +20,8 @@ namespace {
 constexpr float kTol = 1e-4f;
 
 // One composition "comp" with one child (id 1) instancing "Op" with one Float input "amount" (def 0).
+// The child is EnabledForSnapshots (snapshotGroupIndex=1) so captureLive tracks it (TiXL SymbolUi.Child
+// .cs:50-56 — 1 == used for snapshots). Golden D below exercises the 0-vs-1 filter explicitly.
 SymbolLibrary buildLib() {
   SymbolLibrary lib;
   Symbol op;
@@ -30,11 +32,38 @@ SymbolLibrary buildLib() {
   Symbol comp;
   comp.id = "comp"; comp.name = "comp"; comp.atomic = false;
   SymbolChild child; child.id = 1; child.symbolId = "Op";
+  child.snapshotGroupIndex = 1;  // EnabledForSnapshots (== used for snapshots)
   comp.children.push_back(child);
   comp.nextChildId = 2;
   lib.symbols["comp"] = comp;
   lib.rootId = "comp";
   return lib;
+}
+
+// Two children instancing "Op": child 1 is EnabledForSnapshots (snapshotGroupIndex==1), child 2 is NOT
+// (snapshotGroupIndex==enabledChild2 ? 1 : 0). Used by Golden D to prove captureLive honours the flag.
+SymbolLibrary buildLib2(bool enableChild2) {
+  SymbolLibrary lib = buildLib();  // reuses "Op" + child 1 (enabled)
+  Symbol& comp = lib.symbols["comp"];
+  SymbolChild child2; child2.id = 2; child2.symbolId = "Op";
+  child2.snapshotGroupIndex = enableChild2 ? 1 : 0;
+  comp.children.push_back(child2);
+  comp.nextChildId = 3;
+  return lib;
+}
+
+float readAmountChild(SymbolLibrary& lib, int childId) {
+  Symbol* s = lib.find("comp");
+  SymbolChild* c = s ? childById(*s, childId) : nullptr;
+  return c ? effectiveInput(lib, *c, "amount", -999.0f) : -999.0f;
+}
+void setAmountChild(SymbolLibrary& lib, int childId, float v) {
+  Symbol* s = lib.find("comp");
+  if (SymbolChild* c = childById(*s, childId)) c->overrides["amount"] = v;
+}
+void clearAmountChild(SymbolLibrary& lib, int childId) {
+  Symbol* s = lib.find("comp");
+  if (SymbolChild* c = childById(*s, childId)) c->overrides.erase("amount");
 }
 
 float readAmount(SymbolLibrary& lib) {
@@ -169,6 +198,53 @@ bool goldenCrossfade(bool injectBug) {
   return ok;
 }
 
+// GOLDEN D — captureLive honours EnabledForSnapshots (snapshotGroupIndex). TiXL VariationHandling.cs:159
+// (`if (!symbolChildUi.EnabledForSnapshots) continue;`) + SymbolUi.Child.cs:50-56 (EnabledForSnapshots
+// == SnapshotGroupIndex == 1): a snapshot captures ONLY snapshot-enabled children. Two children both
+// instancing "Op" (1 Float slot each): child 1 enabled (groupIndex=1), child 2 DISABLED (groupIndex=0).
+//   - GRAB slot 1 -> paramCount must be 1 (ONLY child 1's one Float slot; TiXL constant, NOT 2).
+//   - After clearing both to default + ACTIVATE: child 1 snaps back to its captured value (WAS captured);
+//     child 2 stays at default 0 (untracked -> skipped, NOT captured).
+// injectBug ENABLES child 2 (groupIndex 0->1) at the REAL captureLive input (a genuine data injection,
+// not a want-flip): captureLive then tracks child 2 too -> paramCount=2 and child 2 snaps to its captured
+// value (9) -> both fixed assertions (paramCount==1, readB==0) bite. NOTE: the FIXED green expectations
+// also require the filter to exist at all — if captureLive dropped the flag check, the GREEN leg's
+// paramCount would be 2 and readB would be 9, so the green leg itself would FAIL (the fix is load-bearing
+// for green), which is exactly the guard we want.
+bool goldenSnapshotEnabledFilter(bool injectBug) {
+  reset();
+  // injectBug corrupts the REAL cook input: it flips the disabled child to snapshot-enabled.
+  doc::g_lib() = buildLib2(/*enableChild2=*/injectBug);
+  SymbolLibrary& lib = doc::g_lib();
+
+  setAmountChild(lib, 1, 7.0f);   // enabled child's live value
+  setAmountChild(lib, 2, 9.0f);   // disabled child's live value (must NOT be captured)
+  const bool grabbed = grabSnapshot(lib, 1);
+
+  const auto after = slots();
+  const int paramCount = after[0].paramCount;
+  // TiXL constant: only child 1 (EnabledForSnapshots) contributes its single Float slot -> exactly 1.
+  const bool paramCountOk = paramCount == 1;
+
+  // Clear both live values to default, then ACTIVATE: the captured child snaps back, the uncaptured one
+  // stays at default (untracked-at-default -> skipped by buildBlendTowardsVariationCommand).
+  clearAmountChild(lib, 1);
+  clearAmountChild(lib, 2);
+  const bool activated = activateSnapshot(lib, 1);
+  const float readA = readAmountChild(lib, 1);  // WAS captured -> snaps to 7
+  const float readB = readAmountChild(lib, 2);  // NOT captured -> stays default 0
+
+  const bool aOk = std::fabs(readA - 7.0f) < kTol;   // enabled child captured & applied
+  const bool bOk = std::fabs(readB - 0.0f) < kTol;   // disabled child untouched (not in snapshot)
+
+  const bool ok = grabbed && paramCountOk && activated && aOk && bOk;
+  std::printf("[selftest-variation-panel] SNAPSHOT-ENABLED-FILTER paramCount=%d(want 1) readA=%.4f(want "
+              "7) readB=%.4f(want 0, disabled child) -> %s\n",
+              paramCount, readA, readB, ok ? "PASS" : "FAIL");
+  reset();
+  return ok;
+}
+
 }  // namespace
 }  // namespace sw::varpanel
 
@@ -184,6 +260,7 @@ int runVariationPanelSelfTest(bool injectBug) {
   ok = goldenGrabActivateDelete(injectBug) && ok;
   ok = goldenNWayMix(injectBug) && ok;
   ok = goldenCrossfade(injectBug) && ok;
+  ok = goldenSnapshotEnabledFilter(injectBug) && ok;
   doc::g_lib() = saved;
   doc::g_compositionPath = savedPath;
   reset();
