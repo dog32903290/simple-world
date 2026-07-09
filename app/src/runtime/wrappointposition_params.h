@@ -15,6 +15,7 @@
 //
 // Fork: UseCamera (needs camera matrix) baked to 0 (no camera in cook ctx).
 //       WriteLineBreaks baked to 0 (W edge-fade path only).
+//       z-NaN guard: all-3-axis check, S-audit (a) 2026-07-09, see .metal
 //
 // All Vector3 inputs X/Y/Z scalars; no packed_float3 trap. 16-byte aligned.
 #pragma once
@@ -40,7 +41,7 @@ struct WrapPointPositionParams {
 #endif
   float CenterX, CenterY, CenterZ;  // .cs Position port (renamed Center in .hlsl cbuffer)
   float _pad3;                       // -> 16 bytes
-  float SizeX, SizeY, SizeZ;        // .cs Size (Vector3), default (2,2,2)
+  float SizeX, SizeY, SizeZ;        // .cs Size (Vector3), .t3 DefaultValue=(1,1,1)
   float _pad4;                       // -> 16 bytes
 };
 

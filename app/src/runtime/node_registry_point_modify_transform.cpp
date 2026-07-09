@@ -157,7 +157,7 @@ static const PointModifyOp _reg_TransformSomePoints{
 // A count-preserving MODIFIER: CUBE FOLD wrap (offset-factor trick) — distinct from
 // WrapPoints (floored-mod torus). For each axis, if |p-center| > halfSize+padding,
 // apply offsetFactor ±1 -> wrappedP = p + Size * offsetFactor. W = edge-fade.
-// Defaults: Position/Center=(0,0,0), Size=(2,2,2) [TiXL default].
+// Defaults: Position/Center=(0,0,0), Size=(1,1,1) [TiXL .t3 DefaultValue, verified].
 // FORK: UseCamera baked 0 (no camera matrix in cook ctx).
 //       AddLineBreaks baked 0 (W edge-fade path only; line-break variant deferred).
 static const PointModifyOp _reg_WrapPointPosition{

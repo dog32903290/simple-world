@@ -9,9 +9,10 @@
 // TiXL ports:
 //   GPoints (BufferWithViews): input bag -> c.inputs[0]
 //   Position/Center (Vector3, default 0,0,0): box center
-//   Size (Vector3, default 2,2,2): box extents
+//   Size (Vector3, .t3 DefaultValue=1,1,1): box extents
 //   UseCameraPosition (bool): BAKED=0 (no camera matrix in cook ctx) -- NAMED FORK
 //   AddLineBreaks (bool): BAKED=0 (W edge-fade path; line-break variant deferred) -- NAMED FORK
+//   z-NaN guard: all-3-axis check, S-audit (a) 2026-07-09, see .metal
 //
 // Self-contained leaf: own capture vector + registerDrawOp.
 #include "runtime/point_ops.h"
@@ -50,7 +51,7 @@ void cookWrapPointPosition(PointCookCtx& c) {
   P.Count = c.count;
 
   float center[3] = {0.0f, 0.0f, 0.0f};
-  float size[3]   = {2.0f, 2.0f, 2.0f};  // TiXL WrapPointPosition default Size=(2,2,2)
+  float size[3]   = {1.0f, 1.0f, 1.0f};  // TiXL WrapPointPosition .t3 DefaultValue Size=(1,1,1)
   cookVecN(c, "Position", center, 3, center);  // .cs slot name is "Position" (box center)
   cookVecN(c, "Size",     size,   3, size);
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
