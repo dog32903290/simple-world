@@ -16,7 +16,7 @@
 //     bug) -> every pool reloads empty -> the restored/activate assertions bite.
 #include <cmath>
 #include <cstdio>
-#include <fstream>
+
 #include <string>
 #include <vector>
 
@@ -136,14 +136,8 @@ bool toothPoolRoundTrip(bool injectBug) {
   ok = ok && grabSnapshot(lib, 2);
   doc::truncateComposition(0);
 
-  // SAVE — the doSave body: libToJsonV2 + embedPoolsIntoDocJson, written to the real file.
-  {
-    const std::string withPools = embedPoolsIntoDocJson(libToJsonV2(lib));
-    std::ofstream f(path);
-    ok = ok && bool(f);
-    f << withPools;
-    ok = ok && f.good();
-  }
+  // SAVE — the exact doSave body: libToJsonV2 through writeProjectFileWithPools onto a real file.
+  ok = ok && writeProjectFileWithPools(path, libToJsonV2(lib));
 
   // RELOAD through the REAL doOpenPath (lib swap + panel reset + pool adopt). The bug leg makes the
   // adopt a no-op — the "loader forgot the variation section" corruption.

@@ -88,7 +88,7 @@ bool doSaveAs() {
   std::string path = outPath.get();
   if (path.size() < 7 || path.substr(path.size() - 7) != ".swproj") path += ".swproj";
   std::string json = sw::libToJsonV2(g_lib());
-  if (!sw::saveLibToFile(path, g_lib())) {
+  if (!sw::varpanel::writeProjectFileWithPools(path, json)) {  // snapshot 多池: pools ride the .swproj
     sw::showError("無法寫入：" + path);
     return false;
   }
@@ -119,7 +119,7 @@ bool doSave() {
     return true;
   }
   std::string json = sw::libToJsonV2(g_lib());
-  if (!sw::saveLibToFile(g_documentPath, g_lib())) {
+  if (!sw::varpanel::writeProjectFileWithPools(g_documentPath, json)) {  // snapshot 多池 hook
     sw::showError("無法寫入：" + g_documentPath);
     return false;
   }
@@ -153,6 +153,7 @@ bool doOpenPath(const std::string& path, bool quiet) {
   sw::g_commands.clear();
   sw::varlive::reset();  // a loaded doc has new child ids — the P1 slice target dangles otherwise
   sw::varpanel::reset();  // P2 pool snapshots capture child ids — a loaded doc dangles them too
+  sw::varpanel::adoptPoolsFromProjectFile(path);  // snapshot 多池: re-adopt persisted pools (post-reset)
   sw::midibind::reset();  // P3 bindings route by child id — a loaded doc dangles them too
   g_relayout = true;
   g_status = "loaded <- " + path;

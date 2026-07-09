@@ -133,15 +133,15 @@ void reset();
 // (SymbolVariationPool.cs:148-150); sw's document is a single .swproj, so every NON-EMPTY pool nests
 // under one additive "variationPools" root key (runtime/variation_pool_set.h owns the format).
 //
-// EMBED (save side, document_io doSave/doSaveAs hook): return `docJson` (a libToJsonV2 string) with
-// the "variationPools" key added. When no pool holds a snapshot, returns docJson UNCHANGED (a
-// pool-less project file stays byte-identical to the pre-multipool writer).
-std::string embedPoolsIntoDocJson(const std::string& docJson);
+// SAVE side (document_io doSave/doSaveAs hook): write `path` with `libJson` (a libToJsonV2 string)
+// plus the "variationPools" key embedded. When no pool holds a snapshot the file is byte-identical
+// to the pre-multipool writer (saveLibToFile). Returns false when the file cannot be written.
+bool writeProjectFileWithPools(const std::string& path, const std::string& libJson);
 
-// ADOPT (load side, document_io doOpenPath hook, called AFTER reset()): parse `docJson` (the raw
-// .swproj text) and adopt the "variationPools" section into the pool set. A file WITHOUT the key is
-// legal (向後相容 — pre-multipool project) and leaves the pools empty.
-void adoptPoolsFromDocJson(const std::string& docJson);
+// LOAD side (document_io doOpenPath hook, called AFTER reset()): read the raw .swproj at `path` and
+// adopt its "variationPools" section into the pool set. A file WITHOUT the key is legal (向後相容 —
+// pre-multipool project) and leaves the pools empty.
+void adoptPoolsFromProjectFile(const std::string& path);
 
 // ── Selftest seams (--selftest-variation-multipool 真注入; production never sets these) ─────────
 // Tooth 1 bug: the pool collection degenerates to a SINGLE pool — every composition reads/writes one
