@@ -15,12 +15,26 @@
 //   Rotation  = qSlerp(A.Rotation, B.Rotation, f)
 //   FX1/FX2/Color/Position = lerp(A.*,B.*,f);  THEN FX1 = f  (final overwrite, faithful)
 //
+// ALIGNED TO TiXL (no longer a fork): TiXL reads PointsB[i.x] with no bounds check (HLSL OOB
+//   StructuredBuffer read -> all-zero element, D3D SRV contract). We zero-fill B the same way
+//   (bIndex<countB ? PointsB[bIndex] : SwPoint{}) instead of clamping to the last element -- an
+//   earlier revision clamped, which diverged from TiXL whenever countB<countA; see
+//   selftests_mathv_blendpoints_probes.cpp's checkPairingCountsTooth for the confirming assertion
+//   (GPU now agrees with the CPU ref on every b-OOB row, no divergence left to record).
+//
 // NAMED FORKS:
-//   fork[b-count-guard]: TiXL reads PointsB[i.x] with no bounds check (HLSL OOB read -> 0).
-//     We clamp the B index to (CountB-1); when CountB==0 we synthesize a zero Point (matches
-//     HLSL's zero-read of an empty/undersized StructuredBuffer).
 //   fork[t-singular]: t = i.x/(resultCount-1) divides by zero when resultCount==1; we keep the
 //     exact float division (no special-case) to preserve byte-parity with the HLSL.
+//   fork[guard-off-by-one]: TiXL's dispatch guard is `if (i.x > resultCount) return;` (STRICT
+//     '>') -- itself a genuine off-by-one in the source: valid ResultPoints indices are only
+//     [0, resultCount-1], so a tail thread with i.x==resultCount slips PAST this guard and issues
+//     a real write one slot past the array -- silently discarded under D3D's RWStructuredBuffer
+//     OOB-write contract (same "OOB is a no-op" family the b-count-guard alignment above relies
+//     on). We guard `i >= resultCount` below instead: stricter than the HLSL text, but produces
+//     the SAME observable result for every real dispatch (the extra HLSL write, if it ran, would
+//     be discarded anyway) -- a defensive rewrite of an unreachable-in-practice source bug, not a
+//     math divergence. Probed directly by selftests_mathv_blendpoints_probes.cpp's
+//     checkOffByOneTooth (over-dispatch to idx==resultCount).
 //
 // SwPoint layout (tixl_point.h, 64B): Position@0 packed3 | FX1@12 | Rotation@16 f4 |
 //   Color@32 f4 | Scale@48 packed3 | FX2@60.  TiXL Point.W == SwPoint.FX1.
@@ -49,8 +63,8 @@ kernel void blendpoints(
   uint countA = P.CountA;
   uint countB = P.CountB;
 
-  // TiXL: if (i.x > resultCount) return;  (note: strict '>', so i==resultCount would run in
-  // HLSL, but the dispatch never reaches it; we guard i>=resultCount to keep Metal in-bounds.)
+  // fork[guard-off-by-one]: TiXL: if (i.x > resultCount) return; (strict '>', a genuine upstream
+  // off-by-one -- see NAMED FORKS above). We guard i>=resultCount to keep Metal in-bounds.
   if (i >= resultCount) return;
 
   uint aIndex = i;
@@ -69,14 +83,12 @@ kernel void blendpoints(
 
   SwPoint A = PointsA[aIndex];
 
-  // fork[b-count-guard]: clamp B index; empty B -> zero point (HLSL OOB read == 0).
-  SwPoint B;
-  if (countB == 0u) {
-    B = SwPoint{};  // all-zero (matches HLSL zero-read of an empty buffer)
-  } else {
-    uint bClamped = (bIndex < countB) ? bIndex : (countB - 1u);
-    B = PointsB[bClamped];
-  }
+  // b-count-guard, aligned to TiXL: HLSL's PointsB[bIndex] is an unclamped StructuredBuffer read;
+  // D3D's SRV OOB-read contract returns an all-zero element (never garbage, never a clamp to the
+  // last valid element). Zero-fill here reproduces that exactly -- this is no longer a NAMED FORK
+  // (an earlier revision clamped to PointsB[countB-1], which diverged from TiXL whenever
+  // countB < countA; see blendpoints_params.h's b-count-guard note for the alignment record).
+  SwPoint B = (bIndex < countB) ? PointsB[bIndex] : SwPoint{};
 
   float f = 0.0f;
   if (P.BlendMode < 0.5f) {

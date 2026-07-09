@@ -183,6 +183,7 @@ bool checkScatterTooth(const BlendPointsDispatch& disp);
 bool checkNoBlendNanTooth(const BlendPointsDispatch& disp);
 bool checkPairingCountsTooth(const BlendPointsDispatch& disp);
 bool checkOffByOneTooth(const BlendPointsDispatch& disp);
+bool checkMode4ScatterFoldTooth(const BlendPointsDispatch& disp);
 
 }  // namespace mathv_bp_shared
 }  // namespace sw

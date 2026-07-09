@@ -53,6 +53,9 @@ struct BlendPointsParams {
 
 namespace detail {
 
+// NOTE (low-risk, only reachable via fork[t-singular]): NaN fails both compares, so
+// hlslSaturate(NaN)==NaN (not clamped) -- matches HLSL/Metal saturate()'s NaN pass-through, so a
+// NaN `t` (resultCount==1 -> 0/0) propagates identically on both sides, no ref-vs-GPU risk.
 inline float hlslSaturate(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
 
 inline float hlslFrac(float x) { return x - std::floor(x); }  // HLSL frac()
@@ -165,12 +168,9 @@ inline SwPoint readPointOrZero(const SwPoint* buf, uint32_t count, uint32_t idx)
 inline bool blendPointsOne(const SwPoint* pointsA, uint32_t countA, const SwPoint* pointsB,
                             uint32_t countB, uint32_t resultCount, uint32_t idx,
                             const BlendPointsParams& prm, SwPoint& out) {
-  // :31-32 -- AMBIGUITY / genuine off-by-one, transcribed verbatim: the HLSL guard is `>`, NOT
-  // `>=`. A host array sized to exactly `resultCount` has no slot at index `resultCount`, so this
-  // edge (idx==resultCount slipping through as a REAL write, not just early-return junk) is
-  // documented but unreachable through mathvRefBlendPoints()'s loop (idx always < resultCount
-  // there). Unlike WrapPointPosition's over-dispatch note, this is a real bug in the source
-  // shader (valid indices are [0,resultCount-1]) -- not "fixed" here, only faithfully reproduced.
+  // :31-32 -- fork[guard-off-by-one] (blendpoints.metal / blendpoints_params.h NAMED-FORKS):
+  // transcribed verbatim, HLSL guard is `>` NOT `>=` -- a real source off-by-one, only reachable
+  // via a direct call (not mathvRefBlendPoints()'s loop). Not "fixed" -- the kernel's `>=` guard is.
   if (idx > resultCount) return false;
 
   // :34-35 -- aIndex/bIndex are raw i.x, NOT scaled to countA/countB. See NOTED-QUIRK below.
@@ -201,8 +201,10 @@ inline bool blendPointsOne(const SwPoint* pointsA, uint32_t countA, const SwPoin
         (static_cast<float>(aIndex) * static_cast<float>(resultCount)) / static_cast<float>(countA);
     float firstIxBf =
         (static_cast<float>(bIndex) * static_cast<float>(resultCount)) / static_cast<float>(countB);
-    uint32_t firstIxA = static_cast<uint32_t>(firstIxAf);  // :45
-    uint32_t firstIxB = static_cast<uint32_t>(firstIxBf);  // :46
+    // UB GUARD: countA/countB==0 -> firstIxAf/Bf +-inf/NaN; (uint)non-finite is C++ UB -- route to 0.
+    auto safeCastU32 = [](float v) -> uint32_t { return std::isfinite(v) ? static_cast<uint32_t>(v) : 0u; };
+    uint32_t firstIxA = safeCastU32(firstIxAf);  // :45
+    uint32_t firstIxB = safeCastU32(firstIxBf);  // :46
     uint32_t firstIx = firstIxA > firstIxB ? firstIxA : firstIxB;  // :48
 
     if (idx > firstIx) return false;  // :50-51 -- thread returns; out[idx] left untouched
@@ -225,15 +227,15 @@ inline bool blendPointsOne(const SwPoint* pointsA, uint32_t countA, const SwPoin
     // :76 MixWithSlidingRange -- see https://www.desmos.com/calculator/zxs1fy06uh
     f = 1.0f - detail::hlslSaturate((t - prm.blendFactor) / prm.width - prm.blendFactor + 1.0f);
   } else {
-    // :80-87 MixWithSlidingRangeSmooth -- fold BlendFactor%2 onto [0,1] via a mirrored t, then
-    // SmootherStep. HLSL `%` on floats == fmod (sign of the numerator), per HLSL language spec.
+    // :80-87 MixWithSlidingRangeSmooth -- fold BlendFactor%2, then SmootherStep. :84 `t = 1 - t`
+    // mutates the FUNCTION-SCOPE t, still live at :92's hash11(t) -- written back to the SAME t
+    // (an earlier revision used a throwaway `tt` copy that hid this from hash11(t): a transcription bug).
     float b = std::fmod(prm.blendFactor, 2.0f);  // :80
-    float tt = t;
     if (b > 1.0f) {  // :81-85
       b = 2.0f - b;
-      tt = 1.0f - tt;
+      t = 1.0f - t;  // :84 -- writes back to the shared `t`; see hash11(t) at :92 below
     }
-    f = 1.0f - detail::smootherStep(detail::hlslSaturate((tt - b) / prm.width - b + 1.0f));  // :87
+    f = 1.0f - detail::smootherStep(detail::hlslSaturate((t - b) / prm.width - b + 1.0f));  // :87
   }
 
   // :90-92 -- scatter jitter, weighted by a smoothstep falloff toward f==0.5 (center of the blend).

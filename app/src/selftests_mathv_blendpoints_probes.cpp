@@ -153,10 +153,11 @@ bool checkNoBlendNanTooth(const BlendPointsDispatch& disp) {
 // STRUCTURALLY (max() can only grow, never shrink, regardless of what firstIxB evaluates to even in
 // the countB==0 div-by-zero corner) -- the Adjust skip-gate `i>firstIx` (:63-68) can therefore NEVER
 // fire, for ANY countA/countB combo. Proof: dispatch identical inputs under PairingMode=0 vs 1 and
-// assert bit-identical GPU output. (2) fork[b-count-guard] confirmation (blendpoints_params.h:31-34
-// vs mathv_ref_blendpoints.h detail::readPointOrZero): countB<countA -> ref reads a ZERO B point for
-// i>=countB (D3D OOB==0) while sw clamps to B[countB-1] -- EXPECTED divergence, recorded as an
-// evidence pack, not a bug (both choices are separately, deliberately documented).
+// assert bit-identical GPU output. (2) b-count-guard agreement (blendpoints_params.h alignment note
+// vs mathv_ref_blendpoints.h detail::readPointOrZero): countB<countA -> BOTH sides now read a ZERO B
+// point for i>=countB (D3D OOB==0, the kernel zero-fills instead of clamping to B[countB-1]) -- this
+// used to be a documented, EXPECTED divergence; after the b-count-guard fix it is asserted as
+// AGREEMENT (rows all agree, no fork left to record).
 bool checkPairingCountsTooth(const BlendPointsDispatch& disp) {
   Rng rng(mathv::mathvSeed("blendpoints-pairing-counts"));
   bool ok = true;
@@ -203,40 +204,76 @@ bool checkPairingCountsTooth(const BlendPointsDispatch& disp) {
     mathv_ref::BlendPointsParams rprm = refParamsFrom(0.5f, 0.0f, 0.0f, 0.5f, 0.0f);
     std::vector<SwPoint> out;
     bool dispatched = disp.dispatch(hprm, A, B, out) && out.size() == countA;
-    int forkRows = 0, unexpectedRows = 0;
+    int agreeRows = 0, disagreeRows = 0;
     for (uint32_t i = 0; dispatched && i < countA; ++i) {
       SwPoint refOut{};
       mathv_ref::blendPointsOne(A.data(), countA, B.data(), countB, countA, i, rprm, refOut);
       bool bIsOob = (i >= countB);
       float gPos = out[i].Position.x, rPos = refOut.Position.x;
-      bool diverges = std::fabs(gPos - rPos) > 1e-4f;
+      bool agrees = std::fabs(gPos - rPos) < 1e-4f;
       if (bIsOob) {
-        float expectRefPos = A[i].Position.x + 0.5f * (0.0f - A[i].Position.x);           // ref: B=zero
-        float expectGpuPos = A[i].Position.x + 0.5f * (B[countB - 1].Position.x - A[i].Position.x);  // sw: clamp
-        bool matchesPredicted =
-            std::fabs(rPos - expectRefPos) < 1e-3f && std::fabs(gPos - expectGpuPos) < 1e-3f;
-        if (matchesPredicted && diverges) ++forkRows; else ++unexpectedRows;
-        printf("[mathv-blendpoints-pairing-counts]   b-oob i=%u ref=%.6f(zero-B) gpu=%.6f(clamp-B) "
-               "predicted=%s\n", i, rPos, gPos, matchesPredicted ? "yes" : "NO-UNEXPECTED");
-      } else if (diverges) {
-        ++unexpectedRows;  // in-bounds B -- both sides must agree here
+        // both sides now zero-fill B for i>=countB (D3D SRV OOB-read==0 contract), so ref and GPU
+        // must land on the SAME expected value -- no clamp-vs-zero divergence left to predict.
+        float expectPos = A[i].Position.x + 0.5f * (0.0f - A[i].Position.x);
+        bool matchesPredicted = std::fabs(rPos - expectPos) < 1e-3f && std::fabs(gPos - expectPos) < 1e-3f;
+        agrees = agrees && matchesPredicted;
+        printf("[mathv-blendpoints-pairing-counts]   b-oob i=%u ref=%.6f gpu=%.6f (both zero-B) "
+               "agrees=%s\n", i, rPos, gPos, agrees ? "yes" : "NO-UNEXPECTED");
       }
+      if (agrees) ++agreeRows; else ++disagreeRows;
     }
-    bool forkAsExpected = dispatched && unexpectedRows == 0 && forkRows == (int)(countA - countB);
-    printf("[mathv-blendpoints-pairing-counts] fork[b-count-guard] rows=%d/%u unexpected=%d -> %s\n",
-           forkRows, countA - countB, unexpectedRows,
-           forkAsExpected ? "CONFIRMED (documented fork, no bite)" : "RED -- undocumented divergence");
-    ok = ok && forkAsExpected;
+    bool allAgree = dispatched && disagreeRows == 0 && agreeRows == (int)countA;
+    printf("[mathv-blendpoints-pairing-counts] b-count-guard rows=%d/%u agree, disagree=%d -> %s\n",
+           agreeRows, countA, disagreeRows,
+           allAgree ? "ALL AGREE (aligned to TiXL, no fork)" : "RED -- unexpected divergence");
+    ok = ok && allAgree;
   }
   return ok;
 }
 
+// ── TOOTH MODE4-SCATTER-FOLD: BlendMode=4 (RangedSmooth) TOGETHER WITH Scatter!=0 -- the only
+// combination that exercises hash11(t) reading the POST-fold `t` (BlendPoints.hlsl:84 `t = 1 - t`
+// mutates the function-scope t that :92's hash11(t) subsequently reads). Neither existing tooth
+// covers this: checkBlendModeTooth (above) pins Scatter=0 for every mode; checkScatterTooth pins
+// BlendMode=Mix(0) for every scatter value. Anchor probe values: BlendFactor in {0.5 (b<=1, NO
+// fold taken), 1.5 (b>1, fold IS taken)}, Width=1, Scatter=1, N=11. BEFORE mathv_ref_blendpoints.h's
+// :84 fix (an earlier revision folded into a throwaway local `tt`, leaving hash11(t) reading the
+// UN-mirrored t while the GPU kernel mutates t in place) this tooth was RED on the bf=1.5 leg only
+// (bf=0.5 never takes the fold branch, so it was already GREEN even with the bug) -- AFTER the fix
+// both legs are GREEN.
+bool checkMode4ScatterFoldTooth(const BlendPointsDispatch& disp) {
+  Comparator cmp("mathv-blendpoints-mode4-scatter-fold", EpsSpec::transcendental(), 5);
+  Rng rng(mathv::mathvSeed("blendpoints-mode4-scatter-fold"));
+  const uint32_t N = 11;
+  const float blendFactors[2] = {0.5f, 1.5f};
+  const char* bfTags[2] = {"bf-0.5(b<=1,no-fold)", "bf-1.5(b>1,fold-taken)"};
+  bool dispatchOk = true;
+  for (int bi = 0; bi < 2; ++bi) {
+    std::vector<SwPoint> A(N), B(N);
+    for (uint32_t i = 0; i < N; ++i) { fillRandomPoint(rng, A[i]); fillRandomPoint(rng, B[i]); }
+    BlendPointsParams hprm = hostParamsFrom(blendFactors[bi], /*mode=*/4.0f, /*pairing=*/0.0f,
+                                             /*width=*/1.0f, /*scatter=*/1.0f);
+    mathv_ref::BlendPointsParams rprm =
+        refParamsFrom(blendFactors[bi], 4.0f, 0.0f, 1.0f, 1.0f);
+    std::vector<SwPoint> out;
+    if (!disp.dispatch(hprm, A, B, out) || out.size() != N) { dispatchOk = false; continue; }
+    for (uint32_t i = 0; i < N; ++i) {
+      SwPoint refOut{};
+      mathv_ref::blendPointsOne(A.data(), N, B.data(), N, N, i, rprm, refOut);
+      float in16[16]; packPoint(A[i], in16);
+      float g16[16], r16[16]; packPoint(out[i], g16); packPoint(refOut, r16);
+      for (int k = 0; k < 16; ++k) cmp.add(g16[k], r16[k], in16, 16, k, -1.0f, bfTags[bi]);
+    }
+  }
+  cmp.print();
+  return dispatchOk && cmp.verdict();
+}
+
 // ── TOOTH OFF-BY-ONE: over-dispatch idx==resultCount boundary. mathv_ref_blendpoints.h :168-174
 // documents the transcribed HLSL guard as strict `>` (idx==resultCount WOULD write) while
-// blendpoints.metal:52-54 guards `>=` (does NOT write). Neither file's NAMED-FORKS bullet list
-// registers this fix -- recorded here as a batch-tagged evidence pack (MATH_VERIFY_WORKFLOW.md §7
-// "無註記分岔" routing), NOT a build failure: sw's `>=` is a deliberate, memory-safe fix of a real
-// upstream off-by-one.
+// blendpoints.metal guards `>=` (does NOT write) -- registered as fork[guard-off-by-one] in both
+// files' NAMED-FORKS bullet lists. sw's `>=` is a deliberate, memory-safe fix of a real upstream
+// off-by-one; this tooth is the probe that confirms the fork behaves exactly as documented.
 bool checkOffByOneTooth(const BlendPointsDispatch& disp) {
   Rng rng(mathv::mathvSeed("blendpoints-off-by-one"));
   const uint32_t countA = 5;
@@ -276,9 +313,8 @@ bool checkOffByOneTooth(const BlendPointsDispatch& disp) {
   bool lastOk = dispatched && std::fabs(out[countA - 1].FX2 - refLast.FX2) < 1e-4f;
 
   bool asDocumented = dispatched && refWrote && refComputedReal && gpuUntouched && lastOk;
-  printf("[mathv-blendpoints-off-by-one] fork[strict > vs >=] (undocumented in either file's "
-         "NAMED-FORKS list -- batch-tag evidence pack, not a build failure): %s\n",
-         asDocumented ? "CONFIRMED as expected" : "RED -- unexpected shape");
+  printf("[mathv-blendpoints-off-by-one] fork[guard-off-by-one]: %s\n",
+         asDocumented ? "CONFIRMED as documented" : "RED -- unexpected shape");
   return asDocumented;
 }
 

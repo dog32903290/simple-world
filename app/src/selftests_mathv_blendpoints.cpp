@@ -31,16 +31,19 @@
 //     (firstIx=max(firstIxA,firstIxB)>=firstIxA==i whenever resultCount==CountA, which
 //     blendpoints.metal:48 HARDCODES — so the Adjust skip-gate `i>firstIx` structurally can never
 //     fire in the shipped system, for ANY count combo, stronger than the ref's own "resultCount>=
-//     max(...)" precondition) + fork[b-count-guard] (blendpoints_params.h:31-34) reproduced and
-//     confirmed as an EXPECTED divergence (ref=D3D-OOB-zero, sw=clamp-to-last-B), not a bug.
+//     max(...)" precondition) + b-count-guard agreement (blendpoints_params.h alignment note): the
+//     kernel now zero-fills B for i>=countB (D3D OOB==0), matching the ref exactly -- asserted as
+//     agreement on every row, not a divergence (an earlier clamp-to-last-B revision was a fork).
 //   TOOTH OFF-BY-ONE (probes) — over-dispatch idx==resultCount boundary. mathv_ref_blendpoints.h
 //     :168-174 documents the transcribed HLSL guard as strict `>` (idx==resultCount WOULD write in
-//     HLSL) while blendpoints.metal:52-54 guards `>=` (idx==resultCount does NOT write) — this fix
-//     is NOT in either file's enumerated NAMED-FORKS bullet list (only b-count-guard/t-singular are
-//     registered there), so this probe records it as a batch-tagged evidence pack per
-//     MATH_VERIFY_WORKFLOW.md §7's "無註記分岔" routing — NOT a build failure: sw's `>=` is a
-//     deliberate, memory-safe fix of a genuine upstream off-by-one (see the ref file's own
-//     AMBIGUITY note for why the ref does not "fix" the bug it transcribes verbatim).
+//     HLSL) while blendpoints.metal guards `>=` (idx==resultCount does NOT write) — registered as
+//     fork[guard-off-by-one] in both files' NAMED-FORKS bullet lists: sw's `>=` is a deliberate,
+//     memory-safe fix of a genuine upstream off-by-one (see the ref file's own comment for why the
+//     ref does not "fix" the bug it transcribes verbatim).
+//   TOOTH MODE4-SCATTER-FOLD (probes) — BlendMode=4 (RangedSmooth) x Scatter!=0 together: the only
+//     combo that exercises hash11(t) reading the POST-fold t (HLSL:84 `t = 1 - t` mutates the
+//     SAME t that :92's hash11(t) reads) -- a gap neither BLENDMODE (Scatter pinned 0) nor SCATTER
+//     (BlendMode pinned Mix) tooth covers. Anchor: BlendFactor={0.5,1.5}, Width=1, Scatter=1, N=11.
 //
 // ZONE: shell tier; crosses runtime only for SwPoint + the params ABI header.
 #include "selftests_mathv_blendpoints_shared.h"
@@ -226,6 +229,7 @@ int runMathvBlendPointsSelfTest(bool injectBug) {
   bool passNoBlend = mathv_bp_shared::checkNoBlendNanTooth(disp);
   bool passCounts = mathv_bp_shared::checkPairingCountsTooth(disp);
   bool passOffByOne = mathv_bp_shared::checkOffByOneTooth(disp);
+  bool passMode4ScatterFold = mathv_bp_shared::checkMode4ScatterFoldTooth(disp);
 
   ParityReport rep("selftest-mathv-blendpoints");
   rep.expectTrue("primary(position/rotation/color/scale/fx2/fx1, mix-mode fuzz)", passPrimary,
@@ -236,10 +240,12 @@ int runMathvBlendPointsSelfTest(bool injectBug) {
                  passBlendMode ? 1.0 : 0.0);
   rep.expectTrue("scatter(hash11(t) jitter, real idx/t)", passScatter, passScatter ? 1.0 : 0.0);
   rep.expectTrue("noBlendNan(isnan collapse, PINNED)", passNoBlend, passNoBlend ? 1.0 : 0.0);
-  rep.expectTrue("pairingCounts(countA!=countB matrix + b-count-guard fork)", passCounts,
-                 passCounts ? 1.0 : 0.0);
+  rep.expectTrue("pairingCounts(countA!=countB matrix + b-count-guard TiXL-aligned agreement)",
+                 passCounts, passCounts ? 1.0 : 0.0);
   rep.expectTrue("offByOne(idx==resultCount boundary probe)", passOffByOne,
                  passOffByOne ? 1.0 : 0.0);
+  rep.expectTrue("mode4ScatterFold(RangedSmooth fold + hash11(t) post-fold, bf={0.5,1.5})",
+                 passMode4ScatterFold, passMode4ScatterFold ? 1.0 : 0.0);
   return rep.finish();
 }
 

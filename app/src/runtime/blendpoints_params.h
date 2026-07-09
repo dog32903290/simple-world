@@ -28,13 +28,25 @@
 // from GetSRVProperties of PointsA (be16bd14 <- PointsA). => output count = countA. Locked via
 // the driver's countFromFirstPointsInput=true (SnapToPoints proves this seam).
 //
+// ALIGNED TO TiXL (no longer a fork): TiXL .hlsl reads PointsB[i.x] with no bounds check (HLSL
+//   OOB StructuredBuffer reads return an all-zero element, D3D SRV contract). The kernel
+//   zero-fills B the same way (bIndex<CountB ? PointsB[bIndex] : zero) instead of clamping to
+//   the last element -- an earlier revision clamped to (CountB-1), which diverged from TiXL
+//   whenever CountB<CountA; checkPairingCountsTooth (selftests_mathv_blendpoints_probes.cpp) now
+//   asserts GPU==ref agreement on every b-OOB row, not a documented divergence.
+//
 // NAMED FORKS:
-//   fork[b-count-guard]: TiXL .hlsl reads PointsB[i.x] with no bounds check (HLSL OOB
-//     StructuredBuffer reads return 0). To avoid Metal OOB we clamp the B index to
-//     (CountB-1) and, when CountB==0, treat B as a zero point (matches HLSL's zero-read).
 //   fork[t-singular]: TiXL computes t = i.x/(resultCount-1); when resultCount==1 this divides
 //     by zero (HLSL -> +inf/NaN, saturated away in the Ranged modes). We reproduce the exact
 //     float division (no special-casing) so byte-parity holds.
+//   fork[guard-off-by-one]: TiXL's dispatch guard is `if (i.x > resultCount) return;` (STRICT
+//     '>') -- itself a genuine off-by-one in the source (valid ResultPoints indices are only
+//     [0, resultCount-1], so i.x==resultCount slips past the guard and issues a real write one
+//     slot past the array, silently discarded under D3D's RWStructuredBuffer OOB-write
+//     contract). blendpoints.metal guards `i >= resultCount` instead: stricter than the HLSL
+//     text, same observable result for every real dispatch. See mathv_ref_blendpoints.h's
+//     blendPointsOne() for the CPU-side transcription of the strict `>` (kept verbatim, not
+//     "fixed", per the ref's provenance discipline).
 //
 // 16-byte aligned: 5 floats + 3 pad = 32 bytes.
 #pragma once
