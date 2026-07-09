@@ -179,6 +179,19 @@ bool pokeIllConditionedExempt(int tightOk, int candidates, bool envelopeOk) {
           [envelopeOk](float, float) { return envelopeOk; });
   return c.verdict();
 }
+// BRANCHY extension of the same exemption (orchestrator verdict 2026-07-10, SnapPointsToGrid
+// pilot #3 residual) — polarity BOTH ways. Each `candidate` is a hard miss (0 vs 1) at
+// branchDist=0.5, FAR beyond deltaBranch=1e-4, so the knife-edge path can NOT fire — only the new
+// envelope path can exempt it; the exempt total shares Branchy's existing <=exemptMax verdict cap.
+bool pokeBranchyIllCondExempt(int matches, int candidates, bool envelopeOk) {
+  Comparator c("mathv-core-poke", EpsSpec::branchy(), 0);
+  const float in = 0.0f;
+  for (int i = 0; i < matches; ++i) c.add(1.0f, 1.0f, &in, 1, 0, -1.0f, "poke");
+  for (int i = 0; i < candidates; ++i)
+    c.add(0.0f, 1.0f, &in, 1, 0, /*branchDist=*/0.5f, "poke",
+          [envelopeOk](float, float) { return envelopeOk; });
+  return c.verdict();
+}
 
 }  // namespace
 
@@ -237,6 +250,15 @@ int runMathvCoreSelfTest(bool injectBug) {
                  !pokeIllConditionedExempt(189, 11, /*envelopeOk=*/true), 1.0);
   rep.expectTrue("trans-illcond-exempt(envelope-fails, fails)",
                  !pokeIllConditionedExempt(199, 1, /*envelopeOk=*/false), 1.0);
+
+  // Branchy ill-conditioned exemption (extension, orchestrator verdict 2026-07-10) — polarity BOTH
+  // ways at branchDist=0.5 (knife-edge path unreachable, envelope path only).
+  rep.expectTrue("branchy-illcond-exempt(0.5%, envelope-ok, passes)",
+                 pokeBranchyIllCondExempt(199, 1, /*envelopeOk=*/true), 1.0);
+  rep.expectTrue("branchy-illcond-exempt(envelope-fails, fails)",
+                 !pokeBranchyIllCondExempt(199, 1, /*envelopeOk=*/false), 1.0);
+  rep.expectTrue("branchy-illcond-exempt(5.5% over-cap, fails)",
+                 !pokeBranchyIllCondExempt(189, 11, /*envelopeOk=*/true), 1.0);
 
   // Special-value semantics (§2, uniform across classes — poked on the Exact comparator).
   rep.expectTrue("nan-vs-nan(match)", pokeScalar(EpsSpec::exact(), kNaN, kNaN), 1.0);

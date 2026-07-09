@@ -31,23 +31,23 @@
 // snaptogrid.metal:107/:121-122/:126-127's safeGridSize+gridLenFloor. runZeroGridSizeDiagnostic()
 // (probes TU) now shows 0 mismatches across every exact-zero AND denormal row.
 //
-// ── RESIDUAL, NOT PART OF THE ABOVE FIX (found while verifying this work order, 2026-07-10):
-// after the zero/denormal guard closes, the main 3-layer fuzz (`passPos`) still shows ~506/201984
-// (0.25%) hard misses — but now every one is FINITE-vs-FINITE with small relative error (~1e-5 to
-// 4e-4), at branchDist far from any mod-wrap boundary (0.12-0.46, nowhere near deltaBranch=1e-4).
-// This is NOT a zero-gridSize/NaN-class issue and this work order's fix does not touch it: it is
-// SnapPointsToGrid's `pos/gridSize` division being numerically ill-conditioned whenever
-// finiteSpecials()'s blanket "huge"/"tiny" stress values (1e6, 1e-4, ...; injected for EVERY param
-// regardless of this op's own authored domain, which per the ParamDomain provenance above never
-// gets anywhere near 1e6 for GridStretch/GridScale) push gridSize far from ~1 -- ordinary CPU/GPU
-// ULP-level arithmetic disagreement (different instruction scheduling / FMA fusion) gets amplified
-// past the Branchy class's tight (atol=1e-6,rtol=1e-5, effectively Exact-class) default gate, and
-// mathv_compare.h's Branchy exemption ONLY forgives knife-edge branchDist<1e-4 misses -- it has no
-// magnitude-scaled escape hatch (unlike Transcendental's illConditionedEnvelope). Routing per §7
-// ("手推==ref≠GPU"): this is 【eps 太緊 / fp-physics tail beyond the current exemption reach】, an
-// S/production-level eps-policy call (extend Branchy with an ill-conditioned envelope, or accept as
-// a documented non-gating tail at the blanket stress magnitude) -- NOT a formula bug in either side,
-// and NOT dodged by narrowing this TU's own domain (would just be scope-gaming a green).
+// ── RESIDUAL TAIL, RESOLVED (orchestrator verdict 2026-07-10, following pilot #2 precedent):
+// after the zero/denormal guard closed, the main fuzz still showed 506/201984 (0.25%) hard misses —
+// every one FINITE-vs-FINITE with small relative error (~1e-5 to 4e-4), at branchDist far from any
+// mod-wrap boundary (0.12-0.46 vs deltaBranch=1e-4). Root cause: finiteSpecials()'s blanket ±1e6
+// stress value (injected for EVERY param regardless of this op's authored domain) drives
+// |gridSize| = |GridScale·GridStretch| (:32) to ~4e4-5.4e5, and SnapPointsToGrid's output chain
+// multiplies the mod-lookup result by gridSize (:39 centerPoint = pos - sf·gridSize/2, :69 lerp),
+// so CPU/GPU ULP-level scheduling/FMA drift in sf (:36-:38) is amplified by |gridSize|/2 into an
+// absolute error that exceeds the Branchy tight gate (atol=1e-6, rtol=1e-5) while remaining pure
+// fp-physics — not a formula bug on either side (hand-derivation matches both). RESOLUTION: the
+// ill-conditioned-lookup exemption (pilot #2's S-verdict mechanism) is now EXTENDED to the Branchy
+// class (mathv_compare.h Branchy arm) and this TU opts in via c.illConditionedEnvelope below —
+// candidacy = the sample's intrinsic fp-error floor (FLT_EPSILON · |noff| · |gridSize|, from the
+// :36-:39 amplification chain) exceeds the class gate; envelope = |out| ≤ |org| + |gridSize|/2
+// (from :38 |sf|<1, :68 ff∈[0,1] since Amount is .t3ui-clamped [0,1] and StrengthFactor=None).
+// The 1% exemptMax cap still gates globally (0.25% observed, 4× headroom) and the -bug leg still
+// bites (its ~37% miss rate blows the cap regardless of any per-sample exemption).
 //
 // ── QUIRK PROBES (selftests_mathv_snappointstogrid_probes.cpp) ── ref's applyGainAndBiasVec4()
 // NOTED-QUIRK: TiXL's SnapPointsToGrid.hlsl:61 calls the float4 ApplyGainAndBias overload
@@ -66,6 +66,7 @@
 
 #include "runtime/selftest_registry.h"
 
+#include <cfloat>  // FLT_MIN / FLT_EPSILON -- illConditionedEnvelope's guard + intrinsic-error floor
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -131,6 +132,44 @@ int runMathvSnapPointsToGridSelfTest(bool injectBug) {
   // measured: ff collapses to 0 for ~half of Amount∈[0,1] below snap-engagement knee;
   // nonIdentityFrac 0.626/0.672/0.689/0.889 across 4 seeds; floor 0.50 keeps >0.12 margin, still
   // catches ≥25% movement-loss regression.
+  //
+  // ill-conditioned-lookup exemption (Branchy extension, orchestrator verdict 2026-07-10 — see
+  // file-header RESIDUAL TAIL note + mathv_compare.h Branchy arm; AddNoise's envelope pattern).
+  // CANDIDACY (criterion 1's fine judgment; the comparator's own branchDist>=0 pre-gate rides
+  // modBranchDist above): the sample's intrinsic fp-error floor exceeds the class gate. From the
+  // HLSL chain — :36 norm = pos/gridSize, :37 noff = norm+0.5-Offset, :38 sf = (mod(noff,1)-.5)*2,
+  // :39 center = pos - sf*gridSize/2, :63-:68 strength = Amount (StrengthFactor=None), ff =
+  // (1-saturate(...))*strength so |ff| <= |Amount|, :69 out = org + ff*(center-org) — a 1-ULP
+  // drift in noff (CPU vs GPU FMA/scheduling) moves sf by ~2*eps*|noff|, and the biased/saturate
+  // chain contributes an eps-scale absolute drift in the (1-saturate(...)) factor; both are then
+  // AMPLIFIED by |Amount|*|gridSize|/2 through :39/:69's multiplies. intrinsic =
+  // 8*eps*max(|Amount|,1)*max(|gridSize|,1)*(|noff|+4). measured across the 506-miss corpus's two
+  // amplifier shapes: (a) GridScale/GridStretch=±1e6 rows (|gridSize|~4e4-5.4e5, Amount mid 0.37,
+  // |noff|~1.5): intrinsic 0.21-2.8 vs observed absErr 0.03-0.30 (headroom ~2-9x, accumulation
+  // seen ~2-4x); (b) Amount=±1e6 rows (|gridSize|~0.0216, |noff|~46): intrinsic ~48 vs observed
+  // 0.03-0.30 (looser there — the noff/saturate error terms are hard to split; the envelope+1% cap
+  // below carry the containment). Ordinary random-layer samples (|Amount|<=1, |gridSize|<=22.5)
+  // land at/below ~2e-4 vs gates >=1e-6+1e-5|out| — overwhelmingly non-candidates, and the -bug
+  // leg's ~37% miss rate blows the 1% cap regardless, so the bite is preserved. measured (final,
+  // seed 0x6a506f487de3fc82): no-bug leg miss=0 exempt=0.00252 (4x under cap) -> PASS; -bug leg
+  // miss=74640/201984 -> RED (bite), exit polarity 0/1 verified.
+  // ENVELOPE (criterion 3): |sf|<1 (:38 mod range) + |ff|<=|Amount| (:68) bound the output:
+  // |out| <= |org| + |Amount|*|gridSize|/2, with 1e-3 relative + 1.0 absolute slack.
+  c.illConditionedEnvelope = [](const std::vector<float>& P, const float* in, int lane, float gpu,
+                                float ref) {
+    float gs = P[7] * P[(size_t)lane];              // :32 gridSize for this lane
+    if (std::fabs(gs) < FLT_MIN) gs = 1.0f;          // same FTZ-equivalent guard both sides apply
+    const float ags = std::fabs(gs);
+    const float aAmt = std::fmax(std::fabs(P[3]), 1.0f);  // :63-:68 |ff| <= |Amount| amplifier
+    const float noff = in[lane] / gs + 0.5f - P[4 + (size_t)lane];  // :36-:37 lookup coordinate
+    if (!std::isfinite(noff)) return false;
+    const float intrinsic =
+        8.0f * FLT_EPSILON * aAmt * std::fmax(ags, 1.0f) * (std::fabs(noff) + 4.0f);
+    const float gate = 1e-6f + 1e-5f * std::fmax(std::fabs(gpu), std::fabs(ref));
+    if (intrinsic <= gate) return false;  // well-conditioned here: a miss stays a miss
+    const float bound = (std::fabs(in[lane]) + aAmt * ags * 0.5f) * 1.001f + 1.0f;
+    return std::fabs(gpu) <= bound && std::fabs(ref) <= bound;
+  };
   c.gpu = [&disp](const std::vector<float>& P, const std::vector<float>& in,
                   std::vector<float>& out) {
     std::vector<SwPoint> src(in.size() / 3), dst;
@@ -164,9 +203,9 @@ int runMathvSnapPointsToGridSelfTest(bool injectBug) {
   bool isoOk = mathv_snap_shared::checkBiasGainIsolationProbe(disp);
 
   ParityReport rep("selftest-mathv-snappointstogrid");
-  rep.expectTrue("position(3-layer fuzz, branchy) -- zero/denormal-gridSize guard CLOSED (XS "
-                 "verdict A); residual RED here (~0.25%) is the SEPARATE huge-magnitude fp-"
-                 "precision tail documented in the file header, not the resolved divergence",
+  rep.expectTrue("position(3-layer fuzz, branchy + ill-conditioned envelope) -- zero/denormal "
+                 "guard CLOSED (XS verdict A) + huge-magnitude tail exempted under the 1% cap "
+                 "(orchestrator verdict); RED here is a real formula bug",
                  passPos, passPos ? 1.0 : 0.0);
   rep.expectTrue("diag(zero-gridSize batch-tag confirms resolved parity)", diagOk,
                  diagOk ? 1.0 : 0.0);

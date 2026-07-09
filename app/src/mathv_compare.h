@@ -41,6 +41,11 @@
 //                    fp jitter flipping a cell at the knife edge is physics, a shifted threshold
 //                    is a bug. CPU refs for this class are FLOAT not double (a double oracle can
 //                    land on a DIFFERENT cell than the float GPU — tixl_noise_oracle.h:13-15).
+//                    The ILL-CONDITIONED-LOOKUP EXEMPTION above ALSO applies to this class
+//                    (orchestrator verdict 2026-07-10, SnapPointsToGrid pilot #3: huge-magnitude
+//                    params amplify CPU/GPU ULP-level scheduling drift past the tight gate far from
+//                    any branch boundary) — same five criteria, same envelopeOk channel, and the
+//                    exempt total shares the SAME ≤exemptMax cap as the knife-edge counter.
 //
 // SPECIAL-VALUE SEMANTICS (uniform across all classes, §2): NaN vs NaN = MATCH (class, not
 // payload); ±Inf must match in sign; +0 == −0; denormals are FTZ'd to the zero class on BOTH
@@ -167,6 +172,20 @@ class Comparator {
         if (err <= eps_.atol + eps_.rtol * scale) return;
         if (branchDist >= 0.0f && branchDist < eps_.deltaBranch) {
           ++exempt_;  // knife-edge cell flip — physics, if rare (≤ exemptMax)
+          return;
+        }
+        // ill-conditioned-lookup exemption, EXTENDED from Transcendental to Branchy (orchestrator
+        // verdict 2026-07-10, SnapPointsToGrid pilot #3 residual tail; pilot #2's S-verdict
+        // mechanism verbatim, same five criteria): (1) branchDist >= 0 — the TU's callback judged
+        // this (P,in,lane) a computable candidate; (2) both sides already classified Finite (this
+        // switch case is only reached after the NaN/Inf class gates above); (3) the TU's
+        // envelopeOk magnitude bound holds; (4) the GLOBAL exempt fraction stays <= exemptMax —
+        // for Branchy that cap is ALREADY the whole class verdict below, shared with the
+        // knife-edge counter, so no verdict() change is needed; (5) exempt= prints in the report
+        // line (Branchy already does). nullptr envelopeOk (every TU that doesn't opt in) => this
+        // path is dead code — bit-identical prior behavior.
+        if (branchDist >= 0.0f && envelopeOk && envelopeOk(g, r)) {
+          ++exempt_;
           return;
         }
         recordMiss(g, r, in, inDim, lane, branchDist, batch);
