@@ -127,8 +127,18 @@ bool checkNoBlendNanTooth(const BlendPointsDispatch& disp) {
     if (i == 3) {
       scaleOk = std::fabs(out[i].Scale.x - refOut.Scale.x) < 1e-4f;
     } else {
-      float expect = (i == 1) ? B[i].Scale.x : A[i].Scale.x;  // collapse selects A (f<0.5) or B (>=0.5)
-      scaleOk = std::fabs(out[i].Scale.x - expect) < 1e-4f && std::fabs(refOut.Scale.x - expect) < 1e-4f;
+      // collapse selects A (f<0.5) or B (>=0.5); for elem0 the selected side (A) IS the NaN-marked
+      // one, so `expect` is itself NaN there -- MEASURED (a first pass comparing via subtraction
+      // against a NaN `expect` always reads false, since x-NaN==NaN and NaN<1e-4f is false, even
+      // though both sides correctly produced NaN): the isnan-aware branch below is required, not an
+      // arbitrary relaxation.
+      float expect = (i == 1) ? B[i].Scale.x : A[i].Scale.x;
+      if (std::isnan(expect)) {
+        scaleOk = std::isnan(out[i].Scale.x) && std::isnan(refOut.Scale.x);
+      } else {
+        scaleOk =
+            std::fabs(out[i].Scale.x - expect) < 1e-4f && std::fabs(refOut.Scale.x - expect) < 1e-4f;
+      }
     }
     printf("[mathv-blendpoints-noblend-nan] %s gpuFinite=%s refFinite=%s scaleOk=%s\n", labels[i],
            gpuFin ? "yes" : "no", refFin ? "yes" : "no", scaleOk ? "yes" : "no");
@@ -163,9 +173,20 @@ bool checkPairingCountsTooth(const BlendPointsDispatch& disp) {
     bool d0 = disp.dispatch(p0, A, B, out0), d1 = disp.dispatch(p1, A, B, out1);
     bool identical = d0 && d1 && out0.size() == countA && out1.size() == countA;
     if (identical) {
+      // countA==1 makes resultCount==1 -> t=idx/(resultCount-1)==0/0==NaN (the documented
+      // singularity, mathv_ref_blendpoints.h :180-183); with Scatter==0 pinned, hash11(NaN)*0==NaN
+      // (NOT 0 -- NaN propagates through multiplication by zero in IEEE754), so BOTH PairingMode legs
+      // legitimately produce a NaN-poisoned f/output here. MEASURED (a first pass using raw `==`
+      // reported "pairing has an effect" for exactly this ONE combo, {1,3}): NaN!=NaN under `==`, so
+      // two independently-NaN-poisoned outputs read as "different" even though both sides are
+      // equally (and correctly) undefined -- the isnan-aware match below is required, not a
+      // relaxation of the dead-gate claim itself.
       for (uint32_t i = 0; i < countA; ++i) {
         float g0[16], g1[16]; packPoint(out0[i], g0); packPoint(out1[i], g1);
-        for (int k = 0; k < 16; ++k) identical = identical && (g0[k] == g1[k]);
+        for (int k = 0; k < 16; ++k) {
+          bool same = (g0[k] == g1[k]) || (std::isnan(g0[k]) && std::isnan(g1[k]));
+          identical = identical && same;
+        }
       }
     }
     printf("[mathv-blendpoints-pairing-counts] deadGate countA=%u countB=%u -> %s\n", countA, countB,

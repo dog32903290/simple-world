@@ -123,16 +123,50 @@ bool runPrimary(const BlendPointsDispatch& disp, bool injectBug) {
     mathv_ref::blendPointsOne(&A, 1, &B, 1, /*resultCount=*/2, /*idx=*/0, prm, res);
     packPoint(res, out);
   };
+  // Ill-conditioned-lookup exemption wiring (mathv_compare.h §A criteria; MATH_VERIFY_WORKFLOW.md §2
+  // 2b, same channel AddNoise's Frequency=+-1e6 finding rides). MEASURED (§4.3 rule 4 batch-tag
+  // instrumentation, not guessed): with BlendFactor at its own +-1e6 special-value grid row, ALL 162
+  // observed misses (of 581632 compared) are on lanes 4-7 (Rotation) and land EXACTLY on the P[0]==
+  // +-1e6 grid-param batches (confirmed by a temporary per-call P[0] print; every other special --
+  // 0,+-1e-4,+-0.5,+-1,lo(-1),hi(2),+-1e-40 -- has ZERO misses). Root cause: qSlerp's 3rd argument
+  // (`t` in hlslQSlerp/qSlerp, ::100/:117-127 above) IS BlendFactor in Mix mode (f=BlendFactor
+  // directly, :218) -- at t=+-1e6 the acos/sin branch (:191-207) evaluates sin(halfAngle*(1-t)) /
+  // sin(halfAngle*t) with an argument of magnitude ~1e6 while halfAngle is O(1): float32 ulp at 1e6
+  // is ~0.06, i.e. ~1% of sin's 2*pi period, so fast-math re-association of the multiply can legally
+  // land on a different point of the cycle -- the exact §2 2b "ill-conditioned lookup" shape, not a
+  // ref/MSL formula bug (BlendMode/Scatter/PairingCounts teeth below all use REAL per-thread idx/t
+  // and stay clean; this is isolated to PRIMARY's own BlendFactor-as-t special-value probe).
+  c.branchDist = [](const std::vector<float>& P, const float* /*in*/, int lane) {
+    if (lane < 4 || lane > 7) return -1.0f;  // only Rotation (qSlerp) lanes are candidates
+    float t = std::fabs(P[0]);
+    return t >= 4096.0f ? (t - 4096.0f) : -1.0f;
+  };
+  c.illConditionedEnvelope = [](const std::vector<float>& /*P*/, const float* /*in*/, int /*lane*/,
+                                float gpu, float ref) {
+    // qSlerp's output is either unit-normalized (the acos/sin path) or a raw pass-through of A/B (the
+    // cosHalfAngle>=1/<=-1 early-return, :180-183) -- bound generously at the fuzz domain's edge
+    // (PRIMARY inputs span [-4,4]) so a genuinely garbage sample (e.g. blown up to ~1e6) still fails.
+    const float bound = 4.5f;
+    return std::fabs(gpu) <= bound && std::fabs(ref) <= bound;
+  };
   return mathv::runMathvFuzz(c, injectBug);
 }
 
 // TOOTH IDENTITY-AB: BlendFactor={0,1} boundary hand-check (Mix mode, f=BlendFactor directly, :218):
 // Position/Color/Scale/FX2 must equal A (f=0) / B (f=1) exactly -- lerp with t=0 or t=1 is exact in
-// IEEE754 (a+0*(b-a)==a, a+1*(b-a)==b as literally written). Rotation needs genuinely-UNIT
-// quaternions for the identity claim to hold (qSlerp normalizes at the end). FX1_out is the
-// double-write quirk in action: it ALWAYS equals raw f (BlendFactor), NEVER A.FX1/B.FX1 (mirrors the
-// ref self-check case 1's proof, mathv_ref_blendpoints.h :342) -- asserted explicitly so a "cleaned
-// up" port (using the dead lerp instead of the final raw-f overwrite) would be caught here.
+// IEEE754 (a+0*(b-a)==a, a+1*(b-a)==b as literally written). FX1_out is the double-write quirk in
+// action: it ALWAYS equals raw f (BlendFactor), NEVER A.FX1/B.FX1 (mirrors the ref self-check case
+// 1's proof, mathv_ref_blendpoints.h :342) -- asserted explicitly so a "cleaned up" port (using the
+// dead lerp instead of the final raw-f overwrite) would be caught here.
+//
+// Rotation needs genuinely-UNIT quaternions for the identity claim to hold (qSlerp normalizes at the
+// end) AND a sign-aware check: at t=1 (bf=1.0), qSlerp folds B onto A's shorter arc whenever
+// cosHalfAngle<0 (:112-118 above / quat.metal.h:121-126) -- blendA=0,blendB=1 at t=1 regardless, so
+// the result is the FOLDED b (== -B_raw when cosHalfAngle<0), not bitwise B_raw. This is the
+// well-known quaternion double-cover ambiguity (q and -q represent the identical rotation), not a
+// bug -- MEASURED (a first pass asserting bitwise ==B_raw showed rOk=0 with out.Rotation==-expect.
+// Rotation component-for-component on 3/3 sampled elements, confirming the sign flip, not a garbled
+// result) -- so the check below accepts EITHER sign.
 bool runIdentityABTooth(const BlendPointsDispatch& disp) {
   Rng rng(mathv::mathvSeed("blendpoints-identity-ab"));
   const size_t N = 64;
@@ -149,16 +183,19 @@ bool runIdentityABTooth(const BlendPointsDispatch& disp) {
     const std::vector<SwPoint>& expect = (bf == 0.0f) ? A : B;
     auto near = [](float a, float b) { return std::fabs(a - b) < 2e-4f; };
     for (size_t i = 0; i < N; ++i) {
-      ok &= near(out[i].Position.x, expect[i].Position.x) &&
-            near(out[i].Position.y, expect[i].Position.y) &&
-            near(out[i].Position.z, expect[i].Position.z);
-      ok &= near(out[i].Color.x, expect[i].Color.x) && near(out[i].Color.w, expect[i].Color.w);
-      ok &= near(out[i].Scale.x, expect[i].Scale.x);
-      ok &= near(out[i].FX2, expect[i].FX2);
-      ok &= near(out[i].Rotation.x, expect[i].Rotation.x) &&
-            near(out[i].Rotation.w, expect[i].Rotation.w);
-      // double-write quirk: FX1_out is ALWAYS raw f == bf, never expect[i].FX1.
-      ok &= near(out[i].FX1, bf);
+      bool pOk = near(out[i].Position.x, expect[i].Position.x) &&
+                 near(out[i].Position.y, expect[i].Position.y) &&
+                 near(out[i].Position.z, expect[i].Position.z);
+      bool cOk = near(out[i].Color.x, expect[i].Color.x) && near(out[i].Color.w, expect[i].Color.w);
+      bool sOk = near(out[i].Scale.x, expect[i].Scale.x);
+      bool fx2Ok = near(out[i].FX2, expect[i].FX2);
+      bool rSamesign = near(out[i].Rotation.x, expect[i].Rotation.x) &&
+                        near(out[i].Rotation.w, expect[i].Rotation.w);
+      bool rFlipsign = near(out[i].Rotation.x, -expect[i].Rotation.x) &&
+                        near(out[i].Rotation.w, -expect[i].Rotation.w);
+      bool rOk = rSamesign || rFlipsign;  // double-cover: q and -q are the same rotation
+      bool fx1Ok = near(out[i].FX1, bf);
+      ok = ok && pOk && cOk && sOk && fx2Ok && rOk && fx1Ok;
     }
   }
   printf("[mathv-blendpoints-identity-ab] BlendFactor={0,1} boundary + FX1-double-write -> %s\n",
