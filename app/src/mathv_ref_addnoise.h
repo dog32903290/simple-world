@@ -172,8 +172,11 @@ inline detail::Vec3 getNoise(detail::Vec3 pos, detail::Vec3 variation, const Add
   detail::Vec3 noiseLookup = detail::vScale(phased, prm.frequency);
   // :32 return snoiseVec3(noiseLookup) * Amount / 10 * AmountDistribution;
   //     (shared oracle call — reused verbatim, not re-derived; see file header)
+  // MINOR-1 (mathv fixer S-verdict): HLSL evaluates left-to-right — `n*Amount/10` is `(n*Amount)/10`,
+  // NOT `n*(Amount/10)` (differ in fp ROUNDING, not just notation) — written literally to match.
   tixl_noise::V3 n = tixl_noise::snoiseVec3(noiseLookup);
-  detail::Vec3 scaled = detail::vScale(n, prm.amount / 10.0f);
+  detail::Vec3 scaled = {n.x * prm.amount / 10.0f, n.y * prm.amount / 10.0f,
+                         n.z * prm.amount / 10.0f};
   return detail::vMul(scaled, {prm.amountDistX, prm.amountDistY, prm.amountDistZ});
 }
 
