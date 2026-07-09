@@ -194,3 +194,11 @@ external/tixl 被清空）一律「寫回報不動手」——好幾隻獵物來
 全是零判斷機械活→下戰降 Sonnet＋收緊 rubric 試跑（有 9.3 校準閘兜底,降檔風險有限）。
 沒有 Fable 的對照：本戰審計員由 Fable 擔任;無 Fable 時審計員＝Sonnet(rubric 更細+校準閘)、
 親驗與 triage＝Opus——結構閘不變,品質預期同級,只是 orchestrator 親驗抽樣要從 top-3 提到 top-5。
+
+## 十、mathv 角色隊形指針（2026-07-10 工單4；數學驗證併入退場/port 工單後的派工用法）
+
+派 kernel 數學驗證（`--selftest-mathv-<op>`）相關工單前，先讀 **MATH_VERIFY_WORKFLOW.md §4.1**（R/D/S/X 四角色、隔離紀律）與 **§4.3**（量產隊形修訂：鏈式 worktree 復用、--bite 範圍化、按難度分流）。
+
+一行判準：**Tier-L**（exact/簡單 kernel：HLSL <60 行且無超越函式/無多分支）＝R(Sonnet)→D(Sonnet) 共用 worktree ＋ XS 合併位（Opus 兼語義稽核+對抗）＝3 agents；**Tier-H**（noise/quat/矩陣/多分支/transcendental-wrapping-branchy）＝全 R/D/S(Fable)/X 分開＝5 agents。
+
+不另開戰役：mathv 隨退場（`RETIREMENT_BATTLE_SPEC.md` R6）與 port 工單增量走，不獨立 fan-out。

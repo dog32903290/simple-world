@@ -27,6 +27,7 @@
 - **R4（2026-07-09 加，mesh+point 兩 lane 試壓實證）compute-stage kernel 已 ported**：R1-R3 只驗**結構**、不驗 cook。多數 flattened 是 GPU-compute 複合走 generic `ComputeShaderStage`，退場後要真 cook；kernel 未 port（`kernelNameFor()` `buffer_ops_computeshaderstage.cpp:57-67` 無列 + 無 `app/shaders/computeshaderstage_<op>.metal`）→ PSO miss → `if(!pso) return` → UAV 未寫 → ②parity RED。probe 須加 R4：任一 compute 子節點 kernel 未 ported → NOT-READY。**R4 必要非充分。**
 - **R5 production takeover cook 正確（超越 kernel 存在）**：TransformMesh 過 R4 卻卡 R5——golden 只靠 test-only PbrVertex stride 64→80 override(`SwVertex`80B/PbrVertex64B)+vec3-wire-lands-on-head fork 才 cook 對，production 無此 fork→退了溢位。修在 `t3_import_maps.cpp`＝「烤進 catalog asset vs 泛化進 importer」**架構分岔=柏為決策**。所有 mesh-compute 退場卡此。
 - **★★框架修正**：退場**非機械家族收割，它騎在 GPU-compute kernel porting 上**（見 memory `retire-gated-on-kernel-porting`）。真工＝逐顆 port kernel（＝GPU-compute 複合重放軌），port 完退場才 trivial。**別再盲派家族機械 sweep**（mesh+point 兩 lane 已證零產出）。可機械退殘量＝非 compute 純子圖 or kernel 已 ported，用 probe-with-R4 掃真 ready-set。2 pilot(CombineBuffers 非compute / TransformPoints kernel早port+point無stride)能退非通例。
+- **R6（mathv 五關綠，2026-07-10 工單4）kernel 數學已驗**：該 op 的 `--selftest-mathv-<op>` 在 main 全綠（五關=CPU ref/fuzz/語義稽核/refuter/陷阱清單，SSOT=MATH_VERIFY_WORKFLOW.md）。R4 驗 kernel 存在、R6 驗 kernel 數學正確；退場①-④閘前置。現況：WrapPointPosition/AddNoise/SnapPointsToGrid 三顆 R6 綠（pilot 1-3）。
 - **實作**：binary 加 `--probe-import <t3>` dump warnings headless 模式（或掃 catalog boot stderr `[catalog] X: …unmapped…`）。逐顆掃 `node_health --tsv | awk '$3=="flattened"'`。
 - **估量**：初期 ready ~15-40（卡 `swTypeForSymbolGuid` 今 87 guid 覆蓋率）；節奏=補 `t3_import_maps.cpp` 映射→ready 長→sweep 收割，**迭代非一次退 139**。
 
@@ -48,6 +49,7 @@
 | 各家族 leaf `*_ops_*.cpp`+`*_params.h`+registrar split+selftest 行 | **worktree 並行**（image/point/mesh/particle/field 各一 lane，registrar 已 split） |
 
 ## 5. harness（每退一顆四閘全綠，期望值一律 TiXL 常數非 sw 自輸出 P5）
+退場完整順序＝**mathv R6 綠 → ①接管 → ②parity(佈線焦點，期望值可呼叫已過關 `mathv_ref_<op>.h`) → ③引用 → ④排版**。
 1. **①接管閘**：`findSpec("X")` spec `evaluate==nullptr` + `lib.find(guidX)->atomic==false`+children 非空。injectBug=保留 flat atom registrar→sink 搶先命中 atom→diverge（證 name-fallback 真在最後、真被 atom 遮）。
 2. **②parity 閘**：`buildEvalGraph→cookResident` readback 對閉式，期望手推自 X 的 TiXL .cs/.hlsl 常數（引行號），probe 坐非恆等中段+跨層 override（咬 §1.3）。復用現成 oracle（TransformPoints host-matrix `t3import_transformpoints_golden.cpp:20-37`）。
 3. **③引用閘**：`makeNode("X")` 或載入引用 X 的 demo lib，斷言解析到複合+cook 正確。injectBug=`t3RecurseDisable()`→複合建不出→nullptr→diverge。
@@ -68,6 +70,8 @@
 2. **CombineBuffers**（point，11 行全裸純子圖，embed 現成，deps:1）：證機制非 TransformPoints 專屬。
 3. **一顆 safe/deps:0 point 純子圖**（§2 script 掃出 ready∩safe 首顆）：證零腳手架修改的資料驅動 sweep 路徑。
 pilot 全綠→開各家族 worktree 平行收割 139（扣 collapse-8）。collapse-8 不進 pilot/sweep。
+
+**mathv R6 pilot 已過（2026-07-10 工單4）**：WrapPointPosition（exact）/AddNoise（transcendental）/SnapPointsToGrid（branchy）三顆 `--selftest-mathv-<op>` 五關全綠，各代表一個 eps 類別（見 MATH_VERIFY_WORKFLOW.md §6）。三顆同時也是本節①-④閘的 op 候選——R6 綠即代表其 kernel 數學已驗，②parity 閘期望值可直接引 `mathv_ref_wrappointposition.h`/`mathv_ref_addnoise.h`/`mathv_ref_snappointstogrid.h`，不必重手推。
 
 ## Critical Files
 - `app/src/runtime/node_registry.cpp`（findSpec 加 name→compound fallback，機制主戰場）
