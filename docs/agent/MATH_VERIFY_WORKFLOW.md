@@ -48,6 +48,7 @@ app/src/selftests_mathv_<op>.cpp 關2 每 op fuzz TU（agent-D 寫）：域+disp
 
 1. **exact 類**（加減乘/mod/select/swizzle/仿射）：`|a−b| ≤ atol + rtol·max(|a|,|b|)`，atol=1e-6、rtol=1e-5，100% 樣本過。
 2. **transcendental 類**（sin/cos/exp/pow/noise/normalize/rsqrt）：rtol=1e-3；**雙層 fraction gate**：≥99% 過緊容差 + 100% 過寬容差(10×)。
+   - **2b. transcendental-wrapping-branchy 次類**（noise 類 op 的 lookup 座標 ill-conditioned；AddNoise 為首例，mathv 工單2 fixer S-verdict 2026-07-10）：wide-gate 仍 miss 時，五條判準缺一不可才豁免——① TU 的 `branchDist` 回呼（與 Branchy 同一通道，`mathv_compare.h` `Comparator::add`）對該樣本回傳 `>=0`（TU 判定該 transcendental 的 lookup 座標 ill-conditioned：座標量級大到自身 ulp ≈ 該函式的 cell/週期尺度，如 simplex noise cell 寬度 O(1)，fast-math 重結合因而可合法落到不同 cell），`<0`=不適用 ② 兩側已分類 Finite（NaN/Inf 已在更早處理，豁免不吃 class mismatch）③ TU 的 `envelopeOk(gpu,ref)` 回呼（從該樣本的 P/in 閉包出的輸出量級包絡，Comparator 本身看不到 P）為真 ④ 全域豁免率 ≤ `exemptMax`（同 Branchy 用的 1% 欄位），超帽即 RED（`verdict()` 內查核）。判準與落地見 `mathv_compare.h` 檔頭 + `app/src/selftests_mathv_addnoise.cpp`；`envelopeOk` 缺省 nullptr＝整條路徑死碼，既有 TU 行為不變。
 3. **branchy 類**（floor/step/simplex cell/閾值）：mismatch 印「距最近分支邊界距離」，僅 `dist < δ_branch`（~1e-4）豁免且豁免率 ≤1%。CPU ref 用 **float 不用 double**。
 
 特殊值語義（`mathv_compare.h` 全域一致）：NaN 兩邊皆 NaN=match（class 不比 payload；fast-math 下 NaN 輸入 probe 降級為「不 crash+可分類」，除非 HLSL 顯式處理如 Particle.BirthTime sentinel）；±Inf 符號一致；±0 相等；denormal 兩側 FTZ 歸 zero-class 再比（輸入仍生成 denormal 考下游分岔）。
@@ -118,7 +119,7 @@ fuzz 紅
 
 ## 9. 關5 已知陷阱清單（初版，S agent 逐項核；來源＝本倉已實證 fork）
 
-mul(m,v) 順序/row-vs-col-major（TransformPoints host 矩陣 v·M）｜Euler 順序 yaw/pitch/roll（cfypr 已證）｜floored vs truncated mod（wrappoints NAMED FORK）｜saturate/clamp NaN fast-math 行為｜整數除法截斷與 uint wrap｜HLSL 隱式截斷 vs MSL 顯式｜float3 packing/SW_PACKED3 對齊｜denormal FTZ｜fma 收縮改變捨入｜step/sign 在 0｜normalize(0)/rsqrt 精度｜quaternion 乘法約定（qMulD）｜lerp 參數順序｜frac/pow(neg)/atan2(0,0)｜asuint/asfloat 位技巧｜texture wrap/sRGB｜dispatch 邊界 `idx>=Count` 守衛｜stride 64(SwPoint)/80(SwVertex)｜NaN sentinel 依賴（Particle.BirthTime）｜Metal fast-math 可能把 `isnan()` 摺疊成恆 false——每顆帶 isnan 的 kernel 必須實測 NaN probe 活性（本倉 WrapPointPosition 實測 LIVE）。
+mul(m,v) 順序/row-vs-col-major（TransformPoints host 矩陣 v·M）｜Euler 順序 yaw/pitch/roll（cfypr 已證）｜floored vs truncated mod（wrappoints NAMED FORK）｜saturate/clamp NaN fast-math 行為｜整數除法截斷與 uint wrap｜HLSL 隱式截斷 vs MSL 顯式｜float3 packing/SW_PACKED3 對齊｜denormal FTZ｜fma 收縮改變捨入｜step/sign 在 0｜normalize(0)/rsqrt 精度｜quaternion 乘法約定（qMulD）｜lerp 參數順序｜frac/pow(neg)/atan2(0,0)｜asuint/asfloat 位技巧｜texture wrap/sRGB｜dispatch 邊界 `idx>=Count` 守衛｜stride 64(SwPoint)/80(SwVertex)｜NaN sentinel 依賴（Particle.BirthTime）｜Metal fast-math 可能把 `isnan()` 摺疊成恆 false——每顆帶 isnan 的 kernel 必須實測 NaN probe 活性（本倉 WrapPointPosition 實測 LIVE）｜transcendental 類 noise-lookup 座標 ill-conditioned（座標量級 ulp≈函式 cell/週期尺度，fast-math 重結合合法落不同 cell；判準見 §2 2b，AddNoise 首例：Frequency=±1e6 特殊值格觸發，denormal 格實測 0 貢獻，S 2026-07-10 拔格實驗 + X bisect 獨立確認）。
 
 ## Critical Files
 - `app/src/turbulence_parity_golden.cpp`（direct-dispatch + CPU-oracle 逐點比對 + 實測校準容差母版 :75-112/:204-256）
