@@ -20,7 +20,8 @@ void registerPolarTransformPointsOp();
 void registerWrapPointsOp();
 void registerBoundPointsOp();
 void registerTransformSomePointsOp();
-void registerWrapPointPositionOp();
+// (WrapPointPosition flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid 0814a593…)
+//  provides it now; mathv verifies the kernel, t3-wrappointposition-retire the takeover. §5.)
 // (SnapPointsToGrid flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid bc88304a…)
 //  provides it now; mathv verifies the kernel, t3-snappointstogrid-retire the takeover. §5.)
 void registerClearSomePointsOp();
@@ -64,7 +65,7 @@ void registerPointModifyPointOps() {
   registerWrapPointsOp();            // Points → Points (floored-mod box wrap, lane P, batch 16)
   registerBoundPointsOp();           // Points → Points (clamp into AABB, lane P, batch 16)
   registerTransformSomePointsOp();   // Points → Points (TRS weighted by W channel, lane P, batch 18)
-  registerWrapPointPositionOp();     // Points → Points (cube-fold box wrap, batch 19)
+  // WrapPointPosition flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   // SnapPointsToGrid flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerClearSomePointsOp();       // Points → Points (per-point hash kill, batch 20)
   registerReorientLinePointsOp();    // Points → Points (align rotation to line tangent, batch 21)

@@ -170,9 +170,10 @@ int runTransformSomePointsSelfTest(bool injectBug);
 // injectBug=true uses the old Z·Y·X reference -> mismatches the Y·X·Z shader -> FAIL (bite).
 int runTransformSomePointsParityProbe(bool injectBug);
 
-// WrapPointPosition MODIFIER golden (point_ops_wrappointposition.cpp): cube-fold box wrap.
-// injectBug = box size 20 (> input extent) -> no fold -> points stay outside unit box -> FAIL.
-int runWrapPointPositionSelfTest(bool injectBug);
+// (WrapPointPosition flat atom + its --selftest-wrappointposition RETIRED 2026-07-10, 廢棄節點退場 —
+//  the .t3 compound (guid 0814a593…) provides it now. Kernel math is mathv-verified
+//  (selftests_mathv_wrappointposition.cpp dispatches app/shaders/wrappointposition.metal), takeover in
+//  t3import_wrappointposition_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5.)
 // (SnapPointsToGrid flat atom + its --selftest-snaptogrid RETIRED 2026-07-10, 廢棄節點退場 — the .t3
 //  compound (guid bc88304a…) provides it now. Kernel math is mathv-verified (selftests_mathv_
 //  snappointstogrid.cpp dispatches app/shaders/snaptogrid.metal), takeover in

@@ -152,30 +152,16 @@ static const PointModifyOp _reg_TransformSomePoints{
        "point.transform"}
 };
 
-// ---- batch 19: point transform — WrapPointPosition --------------------------
-// TiXL parity: external/tixl .../point/transform/WrapPointPosition.cs + .hlsl
-// A count-preserving MODIFIER: CUBE FOLD wrap (offset-factor trick) — distinct from
-// WrapPoints (floored-mod torus). For each axis, if |p-center| > halfSize+padding,
-// apply offsetFactor ±1 -> wrappedP = p + Size * offsetFactor. W = edge-fade.
-// Defaults: Position/Center=(0,0,0), Size=(1,1,1) [TiXL .t3 DefaultValue, verified].
-// FORK: UseCamera baked 0 (no camera matrix in cook ctx).
-//       AddLineBreaks baked 0 (W edge-fade path only; line-break variant deferred).
-static const PointModifyOp _reg_WrapPointPosition{
-      {"WrapPointPosition",
-       "WrapPointPosition",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // cube-folded output bag (port 1)
-        // .cs slot "Position" = box center in world space
-        {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // .cs slot "Size" = box extents; .t3 DefaultValue=(1,1,1)
-        {"Size.x", "Size", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
-        {"Size.y", "Size.y", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
-        {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
-       nullptr,
-       "point.transform"}
-};
+// ---- batch 19: point transform — WrapPointPosition — RETIRED 2026-07-10 (廢棄節點退場) -------------
+// The flat WrapPointPosition NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by
+// the nested .t3 compound (assets/catalog_t3/WrapPointPosition.t3, guid 0814a593…). A human-name
+// reference to "WrapPointPosition" no longer hits this sink — it falls through findSpec's tail to the
+// compound's name alias (graph_bridge.cpp refreshCompoundSpecs). This compound is IN-PLACE (u0 UAV, no
+// SRV); the generic ComputeShaderStage's computestage-inplace-uav-no-srv extension cooks the ABI-repacked
+// computeshaderstage_wrappointposition.metal. Kernel math stays mathv-verified (selftests_mathv_
+// wrappointposition.cpp dispatches app/shaders/wrappointposition.metal); takeover in
+// t3import_wrappointposition_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5. (Leaf cook
+// point_ops_wrappointposition.cpp deleted; wrappointposition_params.h + .metal stay for mathv.)
 
 // ---- batch 19: point transform — SnapPointsToGrid — RETIRED 2026-07-10 (廢棄節點退場) --------------
 // The flat SnapPointsToGrid NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by
