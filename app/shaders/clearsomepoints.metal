@@ -12,12 +12,24 @@
 //   ResultPoints[i.x] = p;
 //
 // NAMED FORKS:
-//   1. Mod(val, repeat): TiXL's Mod (ClearSomePoints.hlsl lines 21-27) returns a
-//      non-negative remainder with integer semantics (x = val % repeat; if x<0 x+=repeat).
-//      MSL integer % can give negative results for negative val — we replicate the same
-//      correction. Resolution=0 makes the divisor 0; TiXL never guards this (the GPU
-//      behaviour is implementation-defined in HLSL too); we guard with a clamp to 1 to
-//      avoid UB in MSL and match the typical "no grouping" intent of Resolution=0.
+//   1. Mod(val, repeat) div/mod-by-zero (ClearSomePoints.hlsl lines 21-27, `Mod(i.x, Resolution)`
+//      called with Resolution<=0, i.e. a genuine `val % 0`): FORK RETIRED 2026-07-10. TiXL's HLSL
+//      text has no caller-side guard, but the D3D11 functional spec DEFINES integer div/mod by
+//      zero as returning 0xFFFFFFFF (all bits set) on real DX11 hardware -- that IS TiXL's actual
+//      ground-truth behavior, not an ambiguity (mathv_ref_clearsomepoints.h's hlslMod already pins
+//      this convention). This kernel used to short-circuit the whole `repeat<=0` range to a silent
+//      0 (an unverified same-repo fork); now only the true div-by-zero case (repeat==0) is pinned
+//      to the D3D 0xFFFFFFFF convention. Genuine negative Resolution (repeat<0 — a NONZERO divisor,
+//      not a div-by-zero case at all) takes the real signed-modulo path instead of being swept into
+//      that shortcut, matching HLSL's `int Mod(int val, int repeat)` (both operands signed)
+//      bit-for-bit; MSL integer % can give negative results for negative val — we replicate TiXL's
+//      `if x<0 x+=repeat` correction for both branches.
+//      Verified via --selftest-mathv-clearsomepoints's probeResolutionNonPositive: 16/16 agree with
+//      the HLSL-pinned CPU oracle after this fix (was 11/16, i.e. 5/16 diverge, under the old
+//      blanket short-circuit — see selftests_mathv_clearsomepoints.cpp). XS 2026-07-10 verification:
+//      Resolution's Min=1/ClampMin=true (ClearSomePoints.t3ui:13-22) is an Editor-UI-only guard;
+//      TiXL's Core eval path applies ZERO clamp, so Resolution<=0 (including the .t3-authored
+//      DEFAULT of 0) is a reachable value that flows straight into this kernel — not dead code.
 //   2. hash11u: TiXL uses an LCG from hash-functions.hlsl:
 //        x *= _PRIME0; x = ((x>>8)^x)*k; x = ((x>>8)^x)*k; return float(x)*(1/0xffffffff).
 //      MSL unsigned integer arithmetic wraps identically to HLSL, so this is verbatim.
@@ -43,10 +55,15 @@ inline float hash11u(uint x) {
 }
 
 // Mod(val, repeat) — TiXL's ClearSomePoints.hlsl lines 21-27.
-// Non-negative integer remainder; FORK: guards repeat<=0 -> returns 0 (avoids MSL UB).
+// Non-negative integer remainder. repeat==0 (the actual div-by-zero case): pinned to the D3D11
+// functional spec's defined div/mod-by-zero result, 0xFFFFFFFF (see NAMED FORK 1 above — FORK
+// RETIRED, this now matches TiXL's real DX11 behavior instead of silently returning 0). repeat<0
+// (a normal NONZERO divisor, not a div-by-zero case) takes the real signed-modulo path, matching
+// HLSL's `int Mod(int val, int repeat)` (both operands signed) bit-for-bit — `val` is cast to
+// `int` first so a negative `repeat` isn't bit-reinterpreted into a huge unsigned divisor.
 inline uint cwMod(uint val, int repeat) {
-    if (repeat <= 0) return 0u;
-    int x = (int)(val % (uint)repeat);
+    if (repeat == 0) return 0xFFFFFFFFu;
+    int x = (repeat > 0) ? (int)(val % (uint)repeat) : ((int)val % repeat);
     if (x < 0) x += repeat;
     return (uint)x;
 }

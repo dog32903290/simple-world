@@ -63,7 +63,13 @@ struct MathvCase {
   std::function<bool(const std::vector<float>& P, const std::vector<float>& in,
                      std::vector<float>& out)>
       gpu;
-  // CPU scalar reference (TiXL-transcribed): per element.
+  // CPU scalar reference (TiXL-transcribed): per element. IDX-CURSOR CONTRACT (for idx-DEPENDENT
+  // kernels, e.g. selftests_mathv_clearsomepoints.cpp's IDX BRIDGE): if `ref` needs to know each
+  // element's dispatch index (a kernel keyed on i.x, not just the element's own value), it must
+  // capture an external cursor that resets at the start of `gpu` and increments once per `ref`
+  // call — runCompare below guarantees exactly one `c.gpu(...)` call per batch followed by n
+  // sequential `c.ref(...)` calls in ascending element order (i=0..n-1), and that is the ONLY
+  // ordering guarantee this harness makes. Do not rely on any other calling shape.
   std::function<void(const std::vector<float>& P, const float* in, float* out)> ref;
   // Branchy class: distance from the nearest branch boundary for (P, element, out lane); return <0
   // for "unknown" (no exemption possible on that lane). Transcendental class REUSES this same

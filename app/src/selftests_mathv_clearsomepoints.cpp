@@ -5,9 +5,9 @@
 //
 // ParamDomain provenance (SHA 395c4c55): ClearSomePoints.t3:4-19 DEFAULTS (Ratio=0.0, Resolution=0,
 // Repeat=0, Seed=0); .t3ui:13-32 authors Min/ClampMin/ClampMax for Resolution(Min=1)/Repeat(Min=0)
-// only — Ratio/Seed use the §3.2 DefaultValue±4 fallback; Resolution/Repeat honor their authored
-// floor (paramTable() cites exact lines). Resolution<=0 / Repeat<0 sit OUTSIDE the swept domain on
-// purpose: QUIRK PROBES below, not main-domain fuzz.
+// only — Ratio/Seed use the §3.2 DefaultValue±4 fallback; Repeat honors its authored floor
+// (paramTable() cites exact lines); Resolution<=0/Repeat<0 sit OUTSIDE the swept domain on purpose
+// as QUIRK PROBES below (Resolution's paramTable() entry cites why — div-by-zero, not Min=1/ClampMin, per XS 2026-07-10).
 //
 // IDX BRIDGE (novel here — first idx-DEPENDENT kernel in this batch): unlike WrapPointPosition/
 // AddNoise/SnapPointsToGrid (idx-independent, ref hardcodes idx=0), this hash pipeline is keyed on
@@ -18,13 +18,12 @@
 // idx sequence the dispatch used — depends only on that documented calling order.
 //
 // QUIRK PROBES (5, from mathv_ref_clearsomepoints.h): 1. uint promotion wraparound (ref :101-113)
-// -> checkSeedWraparoundTooth (pinned GREEN). 2. Resolution==0 div-by-zero AMBIGUITY (ref :74-88)
-// -> probeResolutionNonPositive (non-gating: clearsomepoints.metal:14-20 already documents cwMod's
-// `repeat<=0->0` as a NAMED FORK vs the ref's HLSL-pinned -1 — recorded as evidence per §7, not
-// gated). 3. Repeat<0 huge modulus (ref :121-125) -> checkRepeatNegativeTooth (pinned GREEN).
-// 4. Repeat==1 collapse (ref :198-203) -> checkRepeatOneCollapseTooth (pinned GREEN). 5. no
-// idx>=pointCount guard in the HLSL (ref :135-137, dead locals) — sw DOES guard via P.Count
-// (clearsomepoints.metal:61); nothing to probe, noted only.
+// -> checkSeedWraparoundTooth (pinned GREEN). 2. Resolution<=0 div/mod-by-zero (ref :74-88) ->
+// probeResolutionNonPositive (FORK RETIRED 2026-07-10, see its own doc comment — now GATES on
+// 16/16, was non-gating 11/16). 3. Repeat<0 huge modulus (ref :121-125) -> checkRepeatNegativeTooth
+// (pinned GREEN). 4. Repeat==1 collapse (ref :198-203) -> checkRepeatOneCollapseTooth (pinned
+// GREEN). 5. no idx>=pointCount guard in the HLSL (ref :135-137, dead locals) — sw DOES guard via
+// P.Count (clearsomepoints.metal:61); nothing to probe, noted only.
 //
 // ZONE: shell tier (app/src/ root, mathv support). Crosses runtime only for SwPoint + params ABI.
 #include "mathv_harness.h"
@@ -140,8 +139,9 @@ const std::vector<ParamDomain>& paramTable() {
        "external/tixl ClearSomePoints.t3ui:23-32 Repeat Min=0 ClampMin=true (no Max authored) -> "
        "domain honors the authored floor with a finite window; Repeat<0 probed separately (quirk)"},
       {"Resolution", 1.0f, 32.0f, ParamDomain::Int,
-       "external/tixl ClearSomePoints.t3ui:13-22 Resolution Min=1 ClampMin=true (no Max authored) "
-       "-> domain honors the authored floor; Resolution<=0 probed separately (AMBIGUITY quirk)"},
+       "external/tixl ClearSomePoints.t3ui:13-22 Resolution Min=1 ClampMin=true is Editor-UI-only "
+       "(XS 2026-07-10: Core eval applies zero clamp, Resolution=0 default IS reachable) -- [1,32] "
+       "floor is NOT unreachable-<=0 but i.x%Resolution div-by-zero; probed separately (16/16-gated)"},
   };
   return t;
 }
@@ -278,9 +278,9 @@ bool checkClearingRateLiveness(const ClearDispatch& disp) {
   return ok;
 }
 
-// quirk 2 — Resolution<=0 (ref :74-88 AMBIGUITY; clearsomepoints.metal:14-20 NAMED FORK): HLSL's
-// div-by-zero is D3D-DEFINED (ref pins Mod(val,0)->-1); the shipped MSL short-circuits to modVal=0
-// instead (already-cited fork). NON-GATING: record both sides as an AMBIGUITY evidence pack (§7).
+// quirk 2 — Resolution<=0 (ref :74-88; clearsomepoints.metal NAMED FORK 1, RETIRED 2026-07-10):
+// D3D-DEFINED div-by-zero (ref pins Mod(val,0)->-1 i.e. 0xFFFFFFFF), now matched by MSL instead of
+// the old blanket `repeat<=0->0` shortcut. GATING: expect 16/16 agreement (was 11/16 pre-fix).
 double probeResolutionNonPositive(const ClearDispatch& disp) {
   const int32_t resolutions[] = {0, -1, -5, -1000};
   const int idxes[] = {0, 1, 7, 100};
@@ -301,10 +301,10 @@ double probeResolutionNonPositive(const ClearDispatch& disp) {
       bool rCleared = std::isnan(refOut.Scale.x);
       ++total;
       if (gCleared == rCleared) ++matched;
-      printf("[mathv-clearsomepoints-resolution-ambiguity] Resolution=%d idx=%d: gpu-cleared=%s "
+      printf("[mathv-clearsomepoints-resolution-divzero] Resolution=%d idx=%d: gpu-cleared=%s "
              "ref(HLSL-pinned)-cleared=%s %s\n",
              res, idxv, gCleared ? "yes" : "no", rCleared ? "yes" : "no",
-             (gCleared == rCleared) ? "(agree)" : "(DIVERGE, documented AMBIGUITY)");
+             (gCleared == rCleared) ? "(agree)" : "(MISMATCH — regression)");
     }
   }
   return total ? (double)matched / (double)total : 1.0;
@@ -388,8 +388,8 @@ int runMathvClearSomePointsSelfTest(bool injectBug) {
                  passSeedWrap ? 1.0 : 0.0);
   rep.expectTrue("clearingRate(real anti-hollow liveness, replaces NaN-blind generic check)",
                  passClearingRate, passClearingRate ? 1.0 : 0.0);
-  rep.expectTrue("quirk(Resolution<=0, documented AMBIGUITY, non-gating, see stdout evidence)",
-                 true, resAmbigFrac);
+  rep.expectTrue("quirk(Resolution<=0, D3D div/mod-by-zero convention pinned — RED=regression)",
+                 resAmbigFrac >= 1.0, resAmbigFrac);
   return rep.finish();
 }
 

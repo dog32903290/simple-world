@@ -14,8 +14,11 @@
 //   - count: NOT changed; output buffer size = input bag count.
 //
 // Named forks (see clearsomepoints.metal):
-//   FORK-A: Resolution=0 guard (integer divisor 0 UB in MSL) → cwMod returns 0 (TiXL GPU
-//           behaviour is implementation-defined for div-by-zero; our guard matches intent).
+//   FORK-A RETIRED 2026-07-10: Resolution<=0 div/mod-by-zero used to blanket-shortcut cwMod to 0;
+//           now pinned to the D3D11 functional spec's defined div/mod-by-zero result (0xFFFFFFFF)
+//           for the true Resolution==0 case, and real signed modulo for Resolution<0 (a nonzero
+//           divisor, not a div-by-zero case) — matches TiXL's actual DX11 behavior, verified 16/16
+//           against the HLSL-pinned CPU oracle (--selftest-mathv-clearsomepoints).
 //   FORK-B: NAN representation: MSL NAN constant = quiet NaN (same IEEE754 as HLSL NAN).
 //
 // Self-contained leaf: own capture vector + registerDrawOp.
