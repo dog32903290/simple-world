@@ -82,6 +82,7 @@ const char* const kName = "SnapPointsToGrid";
 // boundary input def guids (compound Inputs) — the 骨7 injection keys.
 const char* const kInAmount      = "3e1dbc97-76d9-47da-a12e-1aefa384cf81";
 const char* const kInGridScale   = "4d7f1f34-ca1b-43ee-803f-cbc14bcc8679";
+const char* const kInScatter     = "a7d80f3e-298d-4eb5-9751-ec432cda4065";  // direct scalar — inject for alignment
 const char* const kInGridStretch = "eacc6bf8-1e12-44fb-8541-91ac4a557745";  // vec3 → Value.x head
 // .t3ui pins (④): Amount input / Points input / Output — verbatim from SnapPointsToGrid.t3ui.
 const char* const kPinAmount = "3e1dbc97-76d9-47da-a12e-1aefa384cf81";
@@ -160,10 +161,17 @@ int runT3SnapPointsToGridParity(bool injectBug) {
   Symbol* sym = const_cast<Symbol*>(lib.find(rootId));
   if (!sym) { printf("[snap-retire] ②parity FAIL: no root symbol\n"); g_fixture = nullptr; pool->release(); return 1; }
 
-  // Repoint the Points boundary→GetBufferComponents wire at the fixture producer.
+  // Repoint the Points boundary→GetBufferComponents wire at the fixture producer. Require the dst child to
+  // be a GetBufferComponents (BOTH GBC.BufferWithViews AND ExecuteBufferUpdate.BufferToUpdate map to the sw
+  // slot name "BufferWithViews" — the fixture must feed the GBC that drives the SRV, not ExecuteBufferUpdate).
+  auto childSym = [&](int id) -> std::string {
+    for (const SymbolChild& c : sym->children) if (c.id == id) return c.symbolId;
+    return std::string();
+  };
   const int gbc = [&]{
     for (const SymbolConnection& w : sym->connections)
-      if (w.srcChild == kSymbolBoundary && w.dstSlot == "BufferWithViews") return w.dstChild;
+      if (w.srcChild == kSymbolBoundary && w.dstSlot == "BufferWithViews" &&
+          childSym(w.dstChild) == "GetBufferComponents") return w.dstChild;
     return 0; }();
   if (!gbc) { printf("[snap-retire] ②parity FAIL: no Points→GetBufferComponents wire\n"); g_fixture = nullptr; pool->release(); return 1; }
   const int fixtureId = sym->nextChildId++;
@@ -180,11 +188,17 @@ int runT3SnapPointsToGridParity(bool injectBug) {
   // keeps the clean kAmount → the readback must DIVERGE. This is the §8 佈線 tooth: it proves the injected
   // boundary value actually flows through FloatsToBuffer into the kernel cbuffer (if injection were dead,
   // changing Amount would leave the output unchanged → oracle(kAmount) would still match → NO-BITE).
+  // Inject ALL direct-boundary scalars up to GridScale, INCLUDING Scatter=0: a direct scalar we skip has its
+  // FloatsToBuffer wire drop, closing the gap and shifting every LATER float (Mode, GainAndBias) to the
+  // wrong cbuffer slot. GridStretch/GridOffset/GainAndBias ride Vector*Components (X/Y/Z→FloatsToBuffer wires
+  // always present → their slots stay filled at 0). b0 = [GridStretch.xyz, Amount, GridOffset.xyz, GridScale,
+  // Scatter, Mode, GainAndBias.xy] (SnapPointsToGrid.hlsl :9-17).
   const float amtInjected = injectBug ? 0.20f : kAmount;
   std::map<std::string, std::vector<float>> boundaryFloatInputs;
-  boundaryFloatInputs[kInAmount]      = {amtInjected};
-  boundaryFloatInputs[kInGridScale]   = {kGridScale};
-  boundaryFloatInputs[kInGridStretch] = {kGridStretchX};
+  boundaryFloatInputs[kInAmount]      = {amtInjected};    // b0[3]
+  boundaryFloatInputs[kInGridScale]   = {kGridScale};     // b0[7]
+  boundaryFloatInputs[kInScatter]     = {0.0f};           // b0[8] — inject to keep Mode/GainAndBias aligned
+  boundaryFloatInputs[kInGridStretch] = {kGridStretchX};  // b0[0] (Vector3Components.x)
 
   ResidentEvalGraph g = buildEvalGraph(lib, rootId, boundaryFloatInputs);
   initResidentCache(g);
