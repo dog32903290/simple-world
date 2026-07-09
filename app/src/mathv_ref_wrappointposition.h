@@ -58,6 +58,8 @@ struct WrapPointPositionParams {
 
 namespace detail {
 inline float hlslSaturate(float x) {  // HLSL saturate(): clamp to [0,1] (:83)
+  // DX saturate(NaN)=0; this oracle returns NaN — only reachable via the forked-away TiXL
+  // quirk path (z-alone-NaN in the :56 branch above), so this divergence is inert in practice.
   return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
 }
 inline float sqrtNegOne() {  // HLSL `sqrt(-1)` (:50, :78): IEEE sqrt of a negative -> NaN.
@@ -101,13 +103,12 @@ inline void wrapPointPositionOne(const SwPoint& in, SwPoint& out, uint32_t idx, 
   float py = in.Position.y - centerY;
   float pz = in.Position.z - centerZ;
 
-  // :56-60 -- NOTED-QUIRK, transcribed verbatim (not "fixed"): the HLSL guard reads
-  //   isnan(p.x + p.y + p.x)
-  // i.e. it sums p.x TWICE and never looks at p.z. A NaN in p.z alone will NOT trip this guard on
-  // the real TiXL kernel, and a matching sw port must reproduce that exact asymmetry for mathv
-  // parity to mean anything (the whole point of transcription is to catch a divergent port, not
-  // to pre-correct the thing being tested).
-  if (std::isnan(px + py + px)) {
+  // :56 -- NAMED FORK (pinned to sw semantics, S-audit verdict (a) 2026-07-09): the HLSL literally
+  // reads `isnan(p.x + p.y + p.x)` (p.x twice, p.z never) — an unambiguous hand-slip (unique idiom
+  // in TiXL's points tree; recovery :58 is axis-symmetric). sw's port checks all three axes and
+  // this oracle pins the sw semantics; the TiXL literal branch is NOT modeled (reproducing it
+  // faithfully would also require modeling DX saturate(NaN)=0 on the escaped path).
+  if (std::isnan(px + py + pz)) {
     out.Position.x = centerX - prm.sizeX * 0.2f;  // :58 center - Size * 0.2
     out.Position.y = centerY - prm.sizeY * 0.2f;
     out.Position.z = centerZ - prm.sizeZ * 0.2f;

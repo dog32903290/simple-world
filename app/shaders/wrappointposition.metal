@@ -33,6 +33,14 @@
 // NAMED FORK:
 //   UseCamera baked to 0 (no camera matrix in cook ctx; center = CenterXYZ from params).
 //   WriteLineBreaks baked to 0 (W edge-fade path only; NaN line-break variant deferred).
+//   z-NaN guard: TiXL HLSL :56 literally reads `isnan(p.x + p.y + p.x)` — p.x summed twice,
+//   p.z never inspected. Unambiguous hand-slip (sole such idiom in TiXL's points shaders;
+//   unchanged since file creation 2021-11-07; the recovery it guards (:58) is axis-symmetric).
+//   sw checks all three axes: isnan(p.x + p.y + p.z). Divergence reachable ONLY on corrupted
+//   input (NaN in z alone, or opposing +/-Inf involving z): TiXL passes such a point through
+//   (Position.z=NaN, W=0 via DX saturate(NaN)=0 -> culled/invisible); sw recovers it to the
+//   visible sentinel exactly as TiXL does for x/y-NaN. S-audit verdict (a) 2026-07-09:
+//   fix kept, quirk not reproduced; ref + comparator pin sw semantics.
 #include <metal_stdlib>
 #include "tixl_point.h"               // SwPoint (64B layout)
 #include "wrappointposition_params.h" // WrapPointPositionParams, WrapPointPositionBinding

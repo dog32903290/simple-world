@@ -28,15 +28,14 @@
 // carries ONLY Position (inDim=outDim=3); the W/FX1 edge-fade channel and the isnan-quirk edge case
 // need their own direct probes:
 //   TOOTH FX1      — direct FX1 (edge-fade) parity across the random Position/Size domain.
-//   TOOTH NAN-AXIS — mathv_ref_wrappointposition.h:104-109 NOTED-QUIRK: TiXL's HLSL guard reads
-//     isnan(p.x+p.y+p.x) (p.x summed TWICE, p.z NEVER inspected). wrappointposition.metal:57 instead
-//     reads isnan(p.x+p.y+p.z) (all three axes, the "obviously correct" form). This UNNAMED
-//     divergence (not documented anywhere in the sw port's own comments, unlike the UseCamera/
-//     WriteLineBreaks bakes above) predicts the two sides pick a DIFFERENT branch when NaN sits in
-//     z alone. This tooth is a DISCOVERY PROBE (§7 routing table): it reports the measured GPU
-//     behavior against the ref's literal transcription as evidence for S/X, it does not silently
-//     force a green by loosening eps or special-casing the input — a RED here is a valid pilot
-//     result, not a driver bug.
+//   TOOTH NAN-AXIS — S-audit verdict (a) 2026-07-09 (docs/agent/ mathv pilot ledger): TiXL's HLSL
+//     guard literally reads isnan(p.x+p.y+p.x) (p.x summed TWICE, p.z NEVER inspected) — an
+//     unambiguous hand-slip (sole such idiom in TiXL's points shaders; recovery :58 is
+//     axis-symmetric). sw deliberately does NOT reproduce the hand-slip: wrappointposition.metal:57
+//     checks all three axes (isnan(p.x+p.y+p.z)), and mathv_ref_wrappointposition.h's oracle now
+//     pins that same 3-axis sw semantics (NAMED FORK, not a NOTED-QUIRK). This tooth is therefore a
+//     REGULAR PINNED-PARITY tooth, not a discovery probe: it must be GREEN on every axis (x/y/z
+//     NaN alone all recover identically); a RED here is a real regression against the pinned fork.
 //
 // ZONE: shell tier (app/src/ root, mathv support — MATH_VERIFY_WORKFLOW.md §1.1). Crosses runtime
 // only for the SwPoint layout + the kernel's params ABI header (data layout, not math).
@@ -177,9 +176,11 @@ bool checkFx1Tooth(const WrapDispatch& disp, float inLo, float inHi) {
   return fx1.verdict();
 }
 
-// ── TOOTH NAN-AXIS: discovery probe for the isnan-quirk asymmetry (see header). One case per axis
-// (NaN placed alone in x / y / z, Center=(0,0,0) Size=(10,10,10) — matches
-// mathv_ref_wrappointposition.h's own hand-derived self-check convention) ──────────────────────────
+// ── TOOTH NAN-AXIS: pinned parity for the NaN-recovery branch, all three axes (see header —
+// S-audit verdict (a) 2026-07-09). One case per axis (NaN placed alone in x / y / z,
+// Center=(0,0,0) Size=(10,10,10) — matches mathv_ref_wrappointposition.h's own hand-derived
+// self-check convention). Expected: all three axes recover identically (GPU == ref exactly);
+// RED = regression. ──────────────────────────────────────────────────────────────────────────
 bool checkNanAxisTooth(const WrapDispatch& disp) {
   Comparator cmp("mathv-wrappointposition-nan-axis", EpsSpec::exact(), 5);
   const std::vector<float> P = {0.0f, 0.0f, 0.0f, 10.0f, 10.0f, 10.0f};
@@ -264,7 +265,7 @@ int runMathvWrapPointPositionSelfTest(bool injectBug) {
   ParityReport rep("selftest-mathv-wrappointposition");
   rep.expectTrue("position(3-layer fuzz, exact)", passPos, passPos ? 1.0 : 0.0);
   rep.expectTrue("fx1(direct random parity, exact)", passFx1, passFx1 ? 1.0 : 0.0);
-  rep.expectTrue("nanAxis(isnan-quirk discovery probe — RED is a valid pilot result, see header)",
+  rep.expectTrue("nanAxis(pinned parity, all 3 axes, S-audit (a) 2026-07-09 — RED=regression)",
                  passNanAxis, passNanAxis ? 1.0 : 0.0);
   return rep.finish();
 }
