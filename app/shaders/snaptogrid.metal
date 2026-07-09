@@ -20,7 +20,10 @@
 //   biasedSnap = ApplyGainAndBias(snapAmount.xyzz, GainAndBias).xyz
 //     ApplyGainAndBias (bias-functions.hlsl, lines 26-49): gain=GainAndBias.x, bias=GainAndBias.y.
 //     g<0.5 -> bias THEN schlick ; g>=0.5 -> schlick THEN bias (see applyGainAndBias below).
-//     NOTE: TiXL's float4 ApplyGainAndBias matches the scalar form; we port the scalar verbatim.
+//   NAMED FORK (ApplyGainAndBias): TiXL:61 calls the float4 overload whose 'return v4;'
+//     (bias-functions.hlsl:89) drops the intended hi/lo clamp -- a shipped hand-slip. We port the
+//     SCALAR overload's clamped early-out (the author's documented intent). Divergence
+//     corpus-unreachable (bias-iso nanMiss=finMiss=0 x4 seeds, XS 2026-07-10).
 //   strength = Amount * 1.0  (StrengthFactor=None baked)
 //   ff = (1 - saturate(biasedSnap - Amount*2 + 1)) * strength
 //   p.Position = lerp(orgPosition, centerPoint, ff)
@@ -29,6 +32,10 @@
 //   Scatter baked to 0 (hash-jitter deferred).
 //   StrengthFactor=None baked (strength=1).
 //   UseWAsWeight / UseSelection baked to 0.
+//   NAMED FORK (zero-gridSize guard): TiXL SnapPointsToGrid.hlsl:36 divides pos/gridSize
+//     unguarded -> GridScale==0 or any GridStretch axis==0 (authored-reachable) yields
+//     Inf->NaN->cloud invisible. We substitute gridSize=1 + floor length ratio at 1e-6.
+//     Observable ONLY at scale=0.
 //
 // NOTE on mod: MSL fmod() is truncated (C semantics). TiXL uses GLSL floored mod.
 // We define floorMod() for correctness on negative inputs (same formula as wrappoints.metal).
@@ -103,7 +110,7 @@ kernel void snaptogrid(
     float3 orgPosition = p.Position;
     float3 pos = orgPosition;
 
-    // Guard zero gridSize to avoid NaN (TiXL doesn't explicitly guard but scatter=0 & non-zero defaults)
+    // NAMED FORK (zero-gridSize guard) -- see file header NAMED FORKS list.
     float3 safeGridSize = select(float3(1.0f), gridSize, gridSize != float3(0.0f));
 
     float3 normalizedPosition     = pos / safeGridSize;

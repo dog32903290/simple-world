@@ -40,7 +40,7 @@ struct SnapToGridParams {
 #ifdef __METAL_VERSION__
   uint  Count;    // inherited from input bag
   float Amount;   // .cs Amount (Single), default 1.0 — snap blend strength
-  float GridScale; // .cs GridScale (Single), default 1.0
+  float GridScale; // .cs GridScale (Single), default 0.5 (.t3 true value; was stale 1.0 here)
   float Mode;     // .cs Mode enum (0=CenterDistance,1=CornersDistance,2=AxisCenterDistance,3=AxisEdgeDistance)
 #else
   uint32_t Count;
