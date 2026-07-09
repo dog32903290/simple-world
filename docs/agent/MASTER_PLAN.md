@@ -15,18 +15,20 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 41585ba
-DIRTY: clean
+HEAD: c94f490
+DIRTY: 1 files
 CENSUS: 610 / 749 done
 BITE: 711 PASS | FAILED=[0] | NO-BITE=[0]
-STAMP_AT: 2026-07-09T19:55
+STAMP_AT: 2026-07-09T20:35
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**★★★現行 Active Lane（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md` 已上鏈）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
+**⏸ LOOP 已收尾（柏為 2026-07-09 20:33 令「這個任務結束後先收尾」，mathv pilot #1 結帳後停）。main 乾淨（HEAD 見機器塊）、711/0/0、過閘綠、未 push（領先 origin 兩天份 commit——要推等柏為授權）。worktree 已全清（28→1 只剩 main，branch 保留可撈）。無 active lane、無未合 WIP。**
+
+**★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
 - **snapshot 軸2 Lane B DONE 合流（`67f2d8a`，多池+持久化）**：per-composition-symbol 池（`variation_pool_set.h`，TiXL VariationHandling.cs:76/89 錨）+ .swproj additive 持久化（舊檔容忍）+ 真 RED baseline 牙 `--selftest-variation-multipool`。3 named fork：doc-vocab sibling 格式/.swpkg 未接/**follow-up：照 TiXL 補 grab 即存 hook**（TiXL 每 capture 即寫 .var）。軸2 剩 Preset 子系統（下一棒）。
 - **★mathv pilot #1 WrapPointPosition DONE（HEAD 機器塊 `41585ba`，711/0/0 親驗）＝五關全鏈第一次走通且抓到魚**：R 直譯（TiXL 兩 quirk 忠實保留）→ D fuzz 163k 比對 0 miss + **抓到 z-NaN 無註記分岔**（TiXL `isnan(p.x+p.y+p.x)` 手滑 vs sw 順手修正沒記帳——人工 review 漏、mathv 第一顆抓到）→ S(Fable) 19 項陷阱 verdict + 裁決 (a) 保留修正+NAMED FORK+pin sw 語義（git -L 證 TiXL 該行 2021 初建未改=手滑鐵證）→ X(Opus) GO+2 caveats（FX1 通道升等強度已修 rot 三態證/injectBug 連續依賴原則已入 doc §1.5）→ fixer 落地 + 雙 rot 演練。**S 新增陷阱已入 §9**：fast-math 可能摺疊 isnan 恆 false，每顆帶 isnan 的 kernel 必實測 NaN probe 活性。
