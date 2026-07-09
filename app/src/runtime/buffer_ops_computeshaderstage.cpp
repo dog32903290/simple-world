@@ -64,6 +64,12 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_transformmesh";  // 骨8: mesh family compute-transform (SwVertex 80B)
   if (src.find("mesh/mesh-LegacyNoiseDisplace.hlsl") != std::string::npos)
     return "computeshaderstage_displacemeshnoise";  // 骨9: mesh mixed-slot MultiInput noise displace (SwVertex 80B)
+  if (src.find("points/modify/WrapPointPosition.hlsl") != std::string::npos)
+    return "computeshaderstage_wrappointposition";  // 退場: point cube-fold (IN-PLACE UAV, no SRV)
+  if (src.find("points/modify/AddNoise.hlsl") != std::string::npos)
+    return "computeshaderstage_addnoise";  // 退場: point simplex-noise displace (SRV+UAV)
+  if (src.find("points/_internal/SnapPointsToGrid.hlsl") != std::string::npos)
+    return "computeshaderstage_snaptogrid";  // 退場: point grid-snap (SRV+UAV)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 
@@ -87,13 +93,18 @@ void cookComputeShaderStage(BufferCookCtx& c) {
       else if (p == "Uavs") uavs.push_back(b);
     }
   }
-  if (uavs.empty() || srvs.empty()) return;  // .cs:42 (_uavs.Length==0) → no dispatch; also need an SRV to size
+  if (uavs.empty()) return;  // .cs:42 (_uavs.Length==0) → no dispatch
 
   MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, kernel.c_str());
   if (!pso) return;
 
-  // Dispatch bound = the FIRST SRV's element count (the input Point buffer's N). = GetDimensions(numStructs).
-  const uint32_t numStructs = srvs.front()->elementCount;
+  // Dispatch bound / count source. TiXL's .hlsl reads it via GetDimensions on whichever buffer the kernel
+  // owns: SourcePoints (t0) for SRV+UAV kernels (e.g. TransformPoints/AddNoise/SnapPointsToGrid), or the
+  // in-place UAV (u0) for IN-PLACE kernels that declare no SRV at all (e.g. WrapPointPosition's
+  // `RWStructuredBuffer ResultPoints : u0` — the input GPoints buffer is wired straight onto Uavs, no
+  // ShaderResources). Size from the SRV when present, else from the (in-place) UAV. NAMED extension
+  // computestage-inplace-uav-no-srv — backward-compatible: SRV+UAV compounds sized exactly as before.
+  const uint32_t numStructs = srvs.empty() ? uavs.front()->elementCount : srvs.front()->elementCount;
   if (numStructs == 0) { *c.output = *uavs.front(); return; }  // nothing to do; still forward the (empty) UAV
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();

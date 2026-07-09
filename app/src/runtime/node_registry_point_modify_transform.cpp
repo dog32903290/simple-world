@@ -177,37 +177,16 @@ static const PointModifyOp _reg_WrapPointPosition{
        "point.transform"}
 };
 
-// ---- batch 19: point transform — SnapPointsToGrid ---------------------------
-// TiXL parity: external/tixl .../point/transform/SnapPointsToGrid.cs + .hlsl
-// A count-preserving MODIFIER: lerps each point's position toward the nearest
-// grid-cell center with blend Amount, shaped by Mode (4 modes) + GainAndBias.
-// Defaults from SnapPointsToGrid.t3: Amount=1.0, GridScale=1.0, GridStretch=1,1,1,
-//   GridOffset=0,0,0, Mode=CenterDistance(0), BiasAndGain=0.5,0.5.
-// FORK: Scatter baked 0 (hash jitter deferred); StrengthFactor=None baked;
-//       UseWAsWeight/UseSelection baked 0.
-static const PointModifyOp _reg_SnapPointsToGrid{
-      {"SnapPointsToGrid",
-       "SnapPointsToGrid",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // snapped output bag (port 1)
-        {"Amount", "Amount", "Float", true, 0.5f, 0.0f, 2.0f},
-        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
-         {"CenterDistance", "CornersDistance", "AxisCenterDistance", "AxisEdgeDistance"}},
-        {"GridScale", "GridScale", "Float", true, 0.5f, 0.01f, 10.0f},
-        // GridStretch (TiXL Vector3, default 1,1,1) — per-axis grid cell scale
-        {"GridStretch.x", "GridStretch", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"GridStretch.y", "GridStretch.y", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"GridStretch.z", "GridStretch.z", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // GridOffset (TiXL Vector3, default 0,0,0) — phase offset within grid
-        {"GridOffset.x", "GridOffset", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
-        {"GridOffset.y", "GridOffset.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"GridOffset.z", "GridOffset.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // BiasAndGain (TiXL Vector2, default 0.5,0.5) — shapes the snap blend curve
-        {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
-        {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr,
-       "point.transform"}
-};
+// ---- batch 19: point transform — SnapPointsToGrid — RETIRED 2026-07-10 (廢棄節點退場) --------------
+// The flat SnapPointsToGrid NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by
+// the nested .t3 compound (assets/catalog_t3/SnapPointsToGrid.t3, guid bc88304a…). A human-name
+// reference to "SnapPointsToGrid" (makeNode / .swproj) no longer hits this sink — it falls through
+// findSpec's tail to the compound's name alias (graph_bridge.cpp refreshCompoundSpecs). The kernel math
+// stays mathv-verified (selftests_mathv_snappointstogrid.cpp dispatches app/shaders/snaptogrid.metal);
+// the generic ComputeShaderStage cooks the ABI-repacked computeshaderstage_snaptogrid.metal after
+// retirement; takeover is proven in t3import_snappointstogrid_retire_golden.cpp. See
+// RETIREMENT_BATTLE_SPEC §5. (The leaf cook point_ops_snaptogrid.cpp is deleted; snaptogrid_params.h +
+// snaptogrid.metal stay for mathv.)
 
 // ---- batch 24 (lane point_modify): OffsetPoints ----------------------------
 // TiXL parity: external/tixl .../point/_internal/_OffsetPoints.cs (.cs ports lines 10-17) +

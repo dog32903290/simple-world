@@ -173,9 +173,10 @@ int runTransformSomePointsParityProbe(bool injectBug);
 // WrapPointPosition MODIFIER golden (point_ops_wrappointposition.cpp): cube-fold box wrap.
 // injectBug = box size 20 (> input extent) -> no fold -> points stay outside unit box -> FAIL.
 int runWrapPointPositionSelfTest(bool injectBug);
-// SnapPointsToGrid MODIFIER golden (point_ops_snaptogrid.cpp): lerp points to grid centers.
-// injectBug = Amount=0 (no snap) -> radial positions not integer -> FAIL.
-int runSnapToGridSelfTest(bool injectBug);
+// (SnapPointsToGrid flat atom + its --selftest-snaptogrid RETIRED 2026-07-10, 廢棄節點退場 — the .t3
+//  compound (guid bc88304a…) provides it now. Kernel math is mathv-verified (selftests_mathv_
+//  snappointstogrid.cpp dispatches app/shaders/snaptogrid.metal), takeover in
+//  t3import_snappointstogrid_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5.)
 // HexGridPoints GENERATOR golden (point_ops_hexgridpoints.cpp): hex tiling grid.
 // injectBug = Size=0 -> all points collapse to center -> no distinct X values -> FAIL.
 int runHexGridPointsSelfTest(bool injectBug);

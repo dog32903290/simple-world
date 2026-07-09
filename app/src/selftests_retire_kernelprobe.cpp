@@ -27,6 +27,12 @@ std::string probeResolveComputeKernel(const std::string& src) {
     return "computeshaderstage_transformmesh";
   if (src.find("mesh/mesh-LegacyNoiseDisplace.hlsl") != std::string::npos)
     return "computeshaderstage_displacemeshnoise";
+  if (src.find("points/modify/WrapPointPosition.hlsl") != std::string::npos)
+    return "computeshaderstage_wrappointposition";
+  if (src.find("points/modify/AddNoise.hlsl") != std::string::npos)
+    return "computeshaderstage_addnoise";
+  if (src.find("points/_internal/SnapPointsToGrid.hlsl") != std::string::npos)
+    return "computeshaderstage_snaptogrid";
   return src;  // unmapped path → unported
 }
 
@@ -99,10 +105,12 @@ int runProbeR4Golden(bool injectBug) {
   check(probeComputeKernelMetalExists(
             probeResolveComputeKernel("Lib:shaders/points/modify/TransformPoints.hlsl")),
         "ported TransformPoints.hlsl misclassified (unmapped or .metal missing)");
-  const std::string snap =
-      probeResolveComputeKernel("Lib:shaders/points/_internal/SnapPointsToGrid.hlsl");
-  check(snap.find(".hlsl") != std::string::npos && !kernelPorted(snap),
-        "unported SnapPointsToGrid.hlsl misclassified as ported");
+  // A still-unported point compute kernel (SnapPointsToGrid was the prior example; it is now ported for
+  // the retirement sweep, so this uses MapPointAttributes — matching the UnportedCompute.t3 fixture).
+  const std::string unported =
+      probeResolveComputeKernel("Lib:shaders/points/modify/MapPointAttributes.hlsl");
+  check(unported.find(".hlsl") != std::string::npos && !kernelPorted(unported),
+        "unported MapPointAttributes.hlsl misclassified as ported");
 
 #ifdef SW_CATALOG_T3_DIR
   const std::string cat = SW_CATALOG_T3_DIR;

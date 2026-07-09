@@ -56,7 +56,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"transformsomepoints", runTransformSomePointsSelfTest},
     {"xfsomeprobe", runTransformSomePointsParityProbe},
     {"wrappointposition", runWrapPointPositionSelfTest},
-    {"snaptogrid", runSnapToGridSelfTest},
+    // (--selftest-snaptogrid RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound provides SnapPointsToGrid
+    //  now; kernel math in --selftest-mathv-snappointstogrid, takeover in t3-snappointstogrid-retire.)
     {"hexgridpoints", runHexGridPointsSelfTest},
     {"doylespiral", runDoyleSpiralPointsSelfTest},
     {"clearsomepoints", runClearSomePointsSelfTest},
@@ -163,6 +164,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-layout", runT3LayoutGolden},  // ★.t3ui LAYOUT keystone (柏為 07-08 "鑽入複合子節點全擠在原點"): real TransformPoints.t3+.t3ui → every child/boundary-pin x,y matches the .t3ui Position constants; -bug (t3LayoutDisable) reverts every position to 0,0 → RED
     {"t3-transformpoints-retire", runT3TransformPointsRetireGates},  // ★廢棄節點退場 PILOT: retired flat TransformPoints atom → references auto-taken-over by .t3 compound (①takeover polarity ③reference reachability ②parity ④layout, all four teeth under one -bug)
     {"t3-combinebuffers-retire", runT3CombineBuffersRetireGates},  // ★廢棄節點退場 PILOT #2: retired flat CombineBuffers atom → references auto-taken-over by .t3 compound (guid 4dd8a618…) — proves the seam is NOT TransformPoints-specific (①takeover ③reference ②parity ④layout under one -bug)
+    {"t3-snappointstogrid-retire", runT3SnapPointsToGridRetireGates},  // ★廢棄節點退場: retired flat SnapPointsToGrid atom → .t3 compound (guid bc88304a…) takeover; ②parity is COOK-DRIVEN vs the mathv oracle (computeshaderstage_snaptogrid kernel) — ①takeover ③reference ②parity ④layout under one -bug
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
     {"t3-blend", runT3BlendParity},  // ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) through the SAME collapse → Normal-blend oracle; proves not HSE-only
     {"t3-bubblezoom", runT3BubbleZoomParity},  // ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 with GradientsToTexture ELIDED onto the atom's Gradient port (2×Vector2Components kept) → closed-form gradient oracle; -bug drops the Gradient wire → RED. Unlocks gradient-fed image-fx
