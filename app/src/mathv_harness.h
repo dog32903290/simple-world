@@ -52,6 +52,12 @@ struct MathvCase {
   size_t randomElems = 4096;               // input elements per random batch (§3 default)
   int maxEvidence = 5;                     // mismatch evidence rows printed per comparator
   bool quiet = false;                      // suppress comparator detail when GREEN (meta-tests)
+  // Per-op override of the mid-segment liveness floor (mathv_input.h Liveness::pass's default
+  // 0.90 threshold). Leave at default for every op whose corpus naturally lands >=90% non-identity;
+  // set lower ONLY with a measured comment justifying the actual observed fraction (see
+  // selftests_mathv_snappointstogrid.cpp for the first user) -- this is a per-op escape hatch, not a
+  // blanket relaxation, so every override must cite its own measurement.
+  float minLivenessFrac = 0.90f;
 
   // GPU dispatch adapter: (params P, inputs N*inDim) -> outputs N*outDim. false = dispatch failed.
   std::function<bool(const std::vector<float>& P, const std::vector<float>& in,
@@ -219,7 +225,8 @@ inline bool runMathvFuzz(const MathvCase& c, bool injectBug) {
     rep.expectTrue("identity(sentinel==input)", idShapeOk && idCmp.verdict(),
                    (double)idCmp.total());
   rep.expectTrue("liveness(variance>0)", live.variance() > 0.0, live.variance());
-  rep.expectTrue("liveness(nonIdentity>=90%)", !live.dimsMatch || live.nonIdentityFrac() >= 0.90,
+  rep.expectTrue("liveness(nonIdentity>=floor)",
+                 !live.dimsMatch || live.nonIdentityFrac() >= c.minLivenessFrac,
                  live.nonIdentityFrac());
 
   const bool pass = rep.pass();

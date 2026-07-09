@@ -118,6 +118,33 @@ MathvCase floorCase(const char* name, float shift) {
   return c;
 }
 
+// ── synthetic op 4 (MathvCase.minLivenessFrac probe): y=x when x>=threshold (identity), y=x+5
+// otherwise (non-identity). gpu and ref run the IDENTICAL x-only formula (no index/param
+// dependence), so the compare gate always passes trivially — only nonIdentityFrac moves, letting
+// this isolate the liveness-floor override from every other gate. threshold=0 splits the
+// inputLo/Hi=[-4,4] domain ~50/50 (nonIdentityFrac≈0.5); threshold=-3.2 pins the bottom ~10% of
+// the domain to non-identity (nonIdentityFrac≈0.1) — both deterministic from the fixed per-op seed.
+MathvCase thresholdIdentityCase(const char* name, float threshold) {
+  MathvCase c;
+  c.opName = name;
+  c.params = {{"unused", 0.0f, 1.0f, ParamDomain::Linear, "synthetic (probe ignores params)"}};
+  c.inDim = c.outDim = 1;
+  c.eps = EpsSpec::exact();
+  c.noIdentityReason = "synthetic liveness-floor probe: deliberately mixed identity/non-identity op";
+  c.quiet = true;
+  c.maxEvidence = 1;
+  auto fn = [threshold](const float* in, float* out) {
+    out[0] = (in[0] >= threshold) ? in[0] : (in[0] + 5.0f);
+  };
+  c.ref = [fn](const std::vector<float>&, const float* in, float* out) { fn(in, out); };
+  c.gpu = [fn](const std::vector<float>&, const std::vector<float>& in, std::vector<float>& out) {
+    out.resize(in.size());
+    for (size_t i = 0; i < in.size(); ++i) fn(&in[i], &out[i]);
+    return true;
+  };
+  return c;
+}
+
 // ── direct Comparator pokes (single scalars / synthetic populations) ────────────────────────────
 bool pokeScalar(const EpsSpec& eps, float g, float r, float dist = -1.0f) {
   Comparator c("mathv-core-poke", eps, /*maxEvidence=*/0);
@@ -245,6 +272,21 @@ int runMathvCoreSelfTest(bool injectBug) {
       return true;
     };
     rep.expectTrue("liveness-identity-op(fails)", !mathv::runMathvFuzz(c, false), 1.0);
+  }
+
+  // MathvCase.minLivenessFrac override (Part C, XS verdict 2026-07-10): a per-op floor lower than
+  // the 0.90 default must (a) PASS an op whose actual nonIdentityFrac sits below 0.90 but at/above
+  // the custom floor, and (b) still FAIL the same custom floor when the actual fraction undercuts
+  // IT too — proving the override changes the gate's threshold, not just disables it.
+  {
+    MathvCase c = thresholdIdentityCase("core-liveness-customfloor-pass", 0.0f);  // ~0.5 actual
+    c.minLivenessFrac = 0.30f;
+    rep.expectTrue("liveness-customfloor(0.5>=0.30 passes)", mathv::runMathvFuzz(c, false), 1.0);
+  }
+  {
+    MathvCase c = thresholdIdentityCase("core-liveness-customfloor-fail", -3.2f);  // ~0.1 actual
+    c.minLivenessFrac = 0.30f;
+    rep.expectTrue("liveness-customfloor(0.1<0.30 fails)", !mathv::runMathvFuzz(c, false), 1.0);
   }
 
   // Identity sentinel (§3 layer 3): an op whose kernel IGNORES its params compares clean against a
