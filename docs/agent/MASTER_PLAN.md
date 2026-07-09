@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 9c943fa
-DIRTY: clean
+HEAD: 5feb5ac
+DIRTY: 1 files
 CENSUS: 610 / 749 done
-BITE: 712 PASS | FAILED=[0] | NO-BITE=[0]
-STAMP_AT: 2026-07-10T00:59
+BITE: 713 PASS | FAILED=[0] | NO-BITE=[0]
+STAMP_AT: 2026-07-10T03:01
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -33,7 +33,8 @@ STAMP_AT: 2026-07-10T00:59
 - **snapshot 軸2 Lane B DONE 合流（`67f2d8a`，多池+持久化）**：per-composition-symbol 池（`variation_pool_set.h`，TiXL VariationHandling.cs:76/89 錨）+ .swproj additive 持久化（舊檔容忍）+ 真 RED baseline 牙 `--selftest-variation-multipool`。3 named fork：doc-vocab sibling 格式/.swpkg 未接/**follow-up：照 TiXL 補 grab 即存 hook**（TiXL 每 capture 即寫 .var）。軸2 剩 Preset 子系統（下一棒）。
 - **★mathv pilot #1 WrapPointPosition DONE（HEAD 機器塊 `41585ba`，711/0/0 親驗）＝五關全鏈第一次走通且抓到魚**：R 直譯（TiXL 兩 quirk 忠實保留）→ D fuzz 163k 比對 0 miss + **抓到 z-NaN 無註記分岔**（TiXL `isnan(p.x+p.y+p.x)` 手滑 vs sw 順手修正沒記帳——人工 review 漏、mathv 第一顆抓到）→ S(Fable) 19 項陷阱 verdict + 裁決 (a) 保留修正+NAMED FORK+pin sw 語義（git -L 證 TiXL 該行 2021 初建未改=手滑鐵證）→ X(Opus) GO+2 caveats（FX1 通道升等強度已修 rot 三態證/injectBug 連續依賴原則已入 doc §1.5）→ fixer 落地 + 雙 rot 演練。**S 新增陷阱已入 §9**：fast-math 可能摺疊 isnan 恆 false，每顆帶 isnan 的 kernel 必實測 NaN probe 活性。
 - **★mathv pilot #2 AddNoise DONE（HEAD 機器塊 `9c943fa` 系，712/0/0 親驗）＝四方獨立力學實戰證明**：R（共享 oracle 復用+抓 NaN 陷阱 AMBIGUITY）→ D（誠實暴露主牙 RED 25/198912 但**誤診 denormal**）→ **S+X 獨立推翻 D 誤診**（X bisect：拔 denormal 仍 25、拔 ±1e6→0；S batch-tag 儀器化：25/25 全落 Frequency=±1e6→ill-conditioned lookup=陷阱#9 fma 重結合）→ fixer 落地 S 五判準豁免（25→0 miss、exempt 0.013%≪1% 帽、meta-rows 雙向極性）+ NaN pin 牙（可達性鐵證：t3ui clamp 只活編輯器 UI）+ 誤診註解重寫。**kernel+ref 語義等價成立**（break 演練+4 seed+隨機層 0/98304）。**新次類已入 §2b**：transcendental-wrapping-branchy（每顆 noise op 都會撞）。**量產教訓**：D 工單須加「miss 歸因必須儀器化（batch tag 參數層）不准猜」。
-- **下一根＝workflow token/速度檢討（柏為 00:42 令）→ pilot #3 SnapPointsToGrid（branchy，用改良後隊形驗省了多少）→ 工單4 制度化 → 退場三顆點 op「mathv→四閘」全鏈**。已知痛點：pilot 實耗 690-900k/顆超藍圖估、每 agent 重複 STEP-0 build×5、kick-背景-sweep 卡死 5+ 次、每 agent 全量 --bite、S/X 部分重疊。改進候選：鏈式 worktree 復用（R→D→fixer 共用）、按難度分流（exact 類 S+X 合併）、R/D 批次化同家族 3-5 顆、--bite 範圍化、D 儀器化紀律入模板。**S 場外觀察待路由**：AddLineBreaks 預設場景分岔（line-break 變體優先級上調）。
+- **★mathv pilot #3 SnapPointsToGrid DONE（HEAD 機器塊 `5feb5ac` 系，713/0/0 親驗）＝三 pilot 全收官+Tier-L 隊形試金石過**：R（抓到 TiXL ApplyGainAndBias `return v4;` shipped bug+7 quirk）→ D（**首次全程儀器化零猜測**，batch-tag 100% 釘死 zero-guard 無註記分岔+抓 liveness 62.6% 結構發現）→ XS 合併位（Opus 一人扛稽核+對抗，三裁+自己反駁自己初始假設+雙 rot 演練）→ fixer（zero-guard pin 含 subnormal FTZ 邊界/假註解改 NAMED FORK/per-op `minLivenessFrac`/Branchy 豁免延伸[orchestrator 裁,pilot#2 前例]）。**隊形定稿（§4.3 已修）**：Tier-L=R→D→fixer 共用 worktree+XS 合併位（保留 build，S-唯讀對合併位致命）＝3 agents 2 worktrees；實測 R+D ~425k（比 pilot#2 同階段省 ~35%）。**mathv 基建至此三 eps 類別全實戰**：exact/transcendental(+2b ill-conditioned 豁免通道 Transcendental+Branchy 通用)/branchy。
+- **下一根＝工單4 制度化**：①RETIREMENT_BATTLE_SPEC §2 加 R6（kernel 數學已驗=mathv 五關綠）②/sw-node-batch 波次掛 mathv 角色 checklist ③隊形/判準已在 MATH_VERIFY_WORKFLOW.md §4.3 定稿。**然後＝退場三顆點 op（WrapPointPosition/AddNoise/SnapPointsToGrid——mathv 已全綠！）正式走「①接管→②parity(佈線)→③引用→④排版」四閘退場**（kernel 搬進 computeshaderstage_<op>.metal ABI 重包 ≈30-60 行/顆+四閘 harness，CombineBuffers/TransformPoints recipe）。**S 場外觀察待路由**：AddLineBreaks 預設場景分岔（line-break 變體優先級上調）。
 - **同日柏為三拍板**：㈠ R5「64→80 通則」誤框不存在（64=點/80=網格兩貨幣，stride 每 .t3 資料驅動；「一律轉」會毀點複合）㈡ 退場成本已定案=搬已驗數學改 ABI ≈30-60 行/顆（範本 `computeshaderstage_transformpoints.metal`），「屏蔽不刪」不可行（alias 極性互斥）㈢ snapshot=**多池+Preset 一起做**（軸2 Lane B 解鎖）。
 - **舊框架修正記錄（01:30）**：退場騎在 kernel porting 上、probe R4 已落地（[[retire-gated-on-kernel-porting]] 含 17:14 成本修正）。
 - **overnight 批1 DONE 合流（2026-07-09 02:25，HEAD 見機器塊 `c859d28`，--bite 708/0/0，各條親手 cherry-pick+重建復驗）**：① crash-fix `parseChildTimeClips` OOB（`d5e37df`，crude_json const op[] 懸空參照；DrawMesh/FindClosestPointsOnMesh 現 probe 乾淨）② snapshot 軸2 Lane A（`19c90a4`，captureLive 讀 snapshotGroupIndex，UI 觸點在 Variation 面板 `[待柏為簽收位置]`）③ probe R4-fix（`81f8797`，親測全 12 kernel-未port 顆由假 READY→NOT-READY(R4)，TransformPoints/CombineBuffers/TransformMesh 正確留 READY）④ 軸3 tool-fix（`c859d28`，比對器誠實化，假陽性 294→263、240 真漂移 byte-identical 保留）。

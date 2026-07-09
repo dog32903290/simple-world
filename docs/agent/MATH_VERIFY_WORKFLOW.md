@@ -80,7 +80,7 @@ R 與 D **不同 session/worktree**（防同錯互證）；S、X 各自獨立。
 簡單 op ≈180k/顆；重 op（noise/矩陣/quat）≈300-400k/顆；302 顆 ≈60-100M，**攤進退場與新建工單不獨立成戰役**：143 退場顆併退場工單（先 mathv 後四閘）；137 未 port 顆併 port 工單（port 本要讀 HLSL，R 成本均攤，但 R≠port 作者）；7 真原子 + 已 port 136 未退場殘量＝低優先 backfill（每波 5-8 顆按數學風險排序 noise/quat/矩陣>純仿射）；15 非NodeSpec 等 spec 化。
 
 ### 4.3 量產隊形修訂（2026-07-10 柏為令 token/速度檢討；兩 pilot 實測 690k/1.18M 遠超 4.2 估算）
-1. **鏈式 worktree 復用**：R→D→fixer 序列**共用一個 worktree**（R≠D 隔離＝不同 session 作者、非檔案系統；P5 判準③照樣可稽）。X 保留獨立 worktree（要 rot 演練）。**S 唯讀化**：不建 worktree 不 build，基線實測由 D 回報提供、需補測時引 X。每顆 5 個 setup+build → 2 個。
+1. **鏈式 worktree 復用**：R→D→fixer 序列**共用一個 worktree**（R≠D 隔離＝不同 session 作者、非檔案系統；P5 判準③照樣可稽）。X 保留獨立 worktree（要 rot 演練）。**S 唯讀化只適用 Tier-H**（那裡 X 另有 worktree 實測補位）；**Tier-L 的 XS 合併位必須保留 worktree+build**——pilot #3 實證：三個承重結論（AGB 反證探針/Metal saturate(NaN)=0 硬體實測/liveness 跨 seed 量化）全靠親手 build+注 bug 拿到，唯讀只能 pattern-猜＝pilot #2 誤診坑。每顆 5 個 setup+build → 2 個（Tier-L：R-D-fixer 鏈 1 + XS 1）。
 2. **--bite 範圍化**：agent 只跑 `--selftest-mathv-<op>`(+`-bug`) + `--selftest-mathv-core`；全量 sweep 只在 orchestrator 合流時跑。（附帶根治「kick 背景 sweep 卡死」：agent 無長 sweep 可跑。工單模板頂仍放硬警語：**所有命令一律前景跑到底**。）
 3. **按難度分流**：**Tier-L**（exact/簡單 kernel：HLSL <60 行且無超越函式/無多分支）＝R(Sonnet)→D(Sonnet) 共用 worktree + **XS 合併位**（一個 Opus 兼語義稽核+對抗）＝3 agents。**Tier-H**（noise/quat/矩陣/多分支/transcendental-wrapping-branchy）＝全 R/D/S(Fable)/X＝5 agents。
 4. **D 儀器化紀律（硬性入工單）**：miss 歸因**必須 batch-tag 儀器化**（取樣層×參數×值 分佈表），不准從 pattern 猜（pilot#2 denormal 誤診＝S+X 各花一輪推翻的教訓）。
