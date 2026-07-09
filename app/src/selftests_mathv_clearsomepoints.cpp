@@ -1,44 +1,32 @@
 // selftests_mathv_clearsomepoints.cpp — --selftest-mathv-clearsomepoints (D role, fuzz driver).
-// MATH_VERIFY_WORKFLOW.md 量產鏈 Tier-L: fuzz the GPU "clearsomepoints" kernel
-// (app/shaders/clearsomepoints.metal) against the R-authored CPU oracle
-// (app/src/mathv_ref_clearsomepoints.h, TRANSCRIBED from external/tixl HLSL) via the shared mathv
-// harness (direct-kernel dispatch, §1.3 — NOT buildEvalGraph).
+// MATH_VERIFY_WORKFLOW.md 量產鏈 Tier-L: fuzz GPU "clearsomepoints" (app/shaders/clearsomepoints.metal)
+// vs the R-authored CPU oracle (mathv_ref_clearsomepoints.h, TRANSCRIBED from external/tixl HLSL)
+// via the shared mathv harness (direct-kernel dispatch, §1.3 — NOT buildEvalGraph).
 //
-// ── ParamDomain provenance (external/tixl SHA 395c4c55) ──────────────────────────────────────────
-// ClearSomePoints.t3:4-19 authors DEFAULTS (Ratio=0.0, Resolution=0, Repeat=0, Seed=0);
-// ClearSomePoints.t3ui:13-32 authors Min/ClampMin/ClampMax for Resolution (Min=1) and Repeat
-// (Min=0) only — Ratio/Seed have NO Min/Max. Per §3.2 ("無 Min/Max 用 DefaultValue 鄰域 ×[-4,+4]")
-// Ratio/Seed use the DefaultValue±4 fallback; Resolution/Repeat honor their authored floor with a
-// finite window (see paramTable() below for exact cites). Resolution<=0 and Repeat<0 sit OUTSIDE
-// the authored/swept domain on purpose — they are QUIRK PROBES (see below), not main-domain fuzz.
+// ParamDomain provenance (SHA 395c4c55): ClearSomePoints.t3:4-19 DEFAULTS (Ratio=0.0, Resolution=0,
+// Repeat=0, Seed=0); .t3ui:13-32 authors Min/ClampMin/ClampMax for Resolution(Min=1)/Repeat(Min=0)
+// only — Ratio/Seed use the §3.2 DefaultValue±4 fallback; Resolution/Repeat honor their authored
+// floor (paramTable() cites exact lines). Resolution<=0 / Repeat<0 sit OUTSIDE the swept domain on
+// purpose: QUIRK PROBES below, not main-domain fuzz.
 //
-// ── IDX BRIDGE (novel for this op — first idx-DEPENDENT kernel in the mathv batch) ────────────────
-// Unlike WrapPointPosition/AddNoise/SnapPointsToGrid (whose per-point math is idx-independent, so
-// their ref lambdas hardcode idx=0), ClearSomePoints' entire hash pipeline is keyed on `i.x` (the
-// GPU thread's buffer position) — mathv_ref_clearsomepoints.h's computePointU() takes idx as a
-// first-class argument. But MathvCase::ref's signature (P, in-element-pointer, out) carries NO idx.
-// Bridge: mathv_harness.h's runCompare calls `c.gpu(...)` EXACTLY ONCE per batch (building ONE real
-// n-point buffer, dispatched so GPU thread i really computes at i.x==i) and THEN calls `c.ref(...)`
-// n times in ascending order — see mathv_harness.h runCompare. `refIdxCursor` (captured by
-// reference in both lambdas below) is reset to 0 inside `c.gpu` — the only place a new batch
-// boundary is visible — and incremented once per `c.ref` call, so it always reproduces the SAME
-// idx sequence 0..n-1 the GPU dispatch actually used for that call. This depends on nothing but the
-// documented gpu-then-ref calling contract already fixed by the shared harness.
+// IDX BRIDGE (novel here — first idx-DEPENDENT kernel in this batch): unlike WrapPointPosition/
+// AddNoise/SnapPointsToGrid (idx-independent, ref hardcodes idx=0), this hash pipeline is keyed on
+// `i.x`, but MathvCase::ref's signature carries no idx. Bridge: mathv_harness.h's runCompare calls
+// `c.gpu(...)` ONCE per batch (one real n-point buffer, thread i computes at i.x==i) THEN calls
+// `c.ref(...)` n times ascending — `refIdxCursor` (captured by reference below) resets to 0 inside
+// `c.gpu` (the only visible batch boundary) and increments per `c.ref` call, reproducing the SAME
+// idx sequence the dispatch used — depends only on that documented calling order.
 //
-// ── QUIRK PROBES (5, from mathv_ref_clearsomepoints.h) ────────────────────────────────────────────
-//   1. uint promotion wraparound (ref :101-113)        -> checkSeedWraparoundTooth (pinned, GREEN)
-//   2. Resolution==0 div-by-zero AMBIGUITY (ref :74-88) -> probeResolutionNonPositive (non-gating)
-//   3. Repeat<0 huge modulus (ref :121-125)              -> checkRepeatNegativeTooth (pinned, GREEN)
-//   4. Repeat==1 collapse (ref :198-203)                 -> checkRepeatOneCollapseTooth (pinned, GREEN)
-//   5. no idx>=pointCount guard in the HLSL (ref :135-137, dead `GetDimensions` locals only) — the
-//      sw kernel DOES guard via P.Count (clearsomepoints.metal:61); nothing to probe, noted only.
-// probeResolutionNonPositive is the ONE non-gating probe: clearsomepoints.metal:14-20 already
-// documents cwMod's `repeat<=0 -> 0` guard as a NAMED FORK against the ref's HLSL-pinned
-// div-by-zero convention (-1) — a real, already-cited divergence, not a fuzz discovery, so it is
-// recorded as evidence rather than gated red/green (§7 "sw NAMED FORK -> pin 引註").
+// QUIRK PROBES (5, from mathv_ref_clearsomepoints.h): 1. uint promotion wraparound (ref :101-113)
+// -> checkSeedWraparoundTooth (pinned GREEN). 2. Resolution==0 div-by-zero AMBIGUITY (ref :74-88)
+// -> probeResolutionNonPositive (non-gating: clearsomepoints.metal:14-20 already documents cwMod's
+// `repeat<=0->0` as a NAMED FORK vs the ref's HLSL-pinned -1 — recorded as evidence per §7, not
+// gated). 3. Repeat<0 huge modulus (ref :121-125) -> checkRepeatNegativeTooth (pinned GREEN).
+// 4. Repeat==1 collapse (ref :198-203) -> checkRepeatOneCollapseTooth (pinned GREEN). 5. no
+// idx>=pointCount guard in the HLSL (ref :135-137, dead locals) — sw DOES guard via P.Count
+// (clearsomepoints.metal:61); nothing to probe, noted only.
 //
-// ZONE: shell tier (app/src/ root, mathv support). Crosses runtime only for the SwPoint layout +
-// the kernel's params ABI header (data layout, not math).
+// ZONE: shell tier (app/src/ root, mathv support). Crosses runtime only for SwPoint + params ABI.
 #include "mathv_harness.h"
 #include "mathv_ref_clearsomepoints.h"
 #include "runtime/clearsomepoints_params.h"
@@ -63,6 +51,11 @@ using mathv::MathvCase;
 using mathv::ParamDomain;
 using mathv::Rng;
 
+// nonfinite-smoke (mathv_harness.h §1) feeds NaN/Inf into every param slot incl. Seed/Repeat/
+// Resolution — `(int32_t)NaN` is UB (UBSan-caught); land on a defined, classifiable int32 instead
+// (smoke only asserts no-crash, so the exact fallback value doesn't matter).
+int32_t safeParamInt(float v) { return std::isfinite(v) ? (int32_t)v : 0; }
+
 // direct-kernel dispatch adapter (turbulence_parity_golden.cpp:75-112 shape). `P` = the 4 fuzz
 // scalars {Ratio, Seed, Repeat, Resolution} in that order (matches paramTable() below).
 struct ClearDispatch {
@@ -80,9 +73,7 @@ struct ClearDispatch {
     fn->release();
     ok = pso != nullptr;
   }
-  ~ClearDispatch() {
-    if (pso) pso->release();
-  }
+  ~ClearDispatch() { if (pso) pso->release(); }
   ClearDispatch(const ClearDispatch&) = delete;
 
   // Real sequential dispatch: buffer slot i is computed by GPU thread i.x==i (production shape),
@@ -100,9 +91,9 @@ struct ClearDispatch {
     ClearSomePointsParams params{};
     params.Count = n;
     params.Ratio = P[0];
-    params.Seed = (int32_t)P[1];
-    params.Repeat = (int32_t)P[2];
-    params.Resolution = (int32_t)P[3];
+    params.Seed = safeParamInt(P[1]);
+    params.Repeat = safeParamInt(P[2]);
+    params.Resolution = safeParamInt(P[3]);
     MTL::CommandBuffer* cmd = queue->commandBuffer();
     MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
     enc->setComputePipelineState(pso);
@@ -125,17 +116,23 @@ struct ClearDispatch {
 mathv_ref::ClearSomePointsParams refParamsFrom(const std::vector<float>& P) {
   mathv_ref::ClearSomePointsParams p{};
   p.ratio = P[0];
-  p.seed = (int32_t)P[1];
-  p.repeat = (int32_t)P[2];
-  p.resolution = (int32_t)P[3];
+  p.seed = safeParamInt(P[1]);
+  p.repeat = safeParamInt(P[2]);
+  p.resolution = safeParamInt(P[3]);
   return p;
 }
 
 const std::vector<ParamDomain>& paramTable() {
   static const std::vector<ParamDomain> t = {
-      {"Ratio", -4.0f, 4.0f, ParamDomain::Linear,
+      // measured (batch-tag): the mechanical §3.2 ±4 fallback ([-4,4]) made -bug (B[0]+=1e-2) fail
+      // to trip (miss=0) — Ratio only feeds a `hash<=Ratio` THRESHOLD (ref :162-171), so a 0.01
+      // shift only flips draws inside a 0.01-wide band, and width-8 puts most draws outside
+      // hash11u's proven [0,1] range (ref :150-154) where the shift never matters. Narrowed to
+      // [-1,2] (cites that same proven bound) so >=1/3 of draws land engaged — confirmed by rerun.
+      {"Ratio", -1.0f, 2.0f, ParamDomain::Linear,
        "external/tixl ClearSomePoints.t3:4-7 Ratio DefaultValue 0.0, no Min/Max in "
-       "ClearSomePoints.t3ui -> MATH_VERIFY_WORKFLOW.md §3.2 DefaultValue±4 fallback"},
+       "ClearSomePoints.t3ui; narrowed from the §3.2 DefaultValue±4 fallback to cite "
+       "mathv_ref_clearsomepoints.h's own proven hash11u∈[0,1] bound (measured -bug reliability)"},
       {"Seed", -4.0f, 4.0f, ParamDomain::Int,
        "external/tixl ClearSomePoints.t3:16-19 Seed DefaultValue 0, no Min/Max authored -> §3.2 "
        "DefaultValue±4 fallback"},
@@ -150,8 +147,8 @@ const std::vector<ParamDomain>& paramTable() {
 }
 
 // Single-point parity check pinned at buffer position `idxv` (buffer padded to idxv+1 slots so GPU
-// thread i.x==idxv really executes — the production dispatch shape, distinct from the generic
-// layer's reset-cursor IDX BRIDGE above, which only needs idx to start at 0 per call).
+// thread i.x==idxv really executes — distinct from the generic layer's reset-cursor IDX BRIDGE
+// above, which only needs idx to start at 0 per call).
 void oneAt(const ClearDispatch& disp, Comparator& cmp, float ratio, int32_t seed, int32_t repeat,
            int32_t resolution, uint32_t idxv, const char* batch) {
   std::vector<float> P = {ratio, (float)seed, (float)repeat, (float)resolution};
@@ -160,8 +157,7 @@ void oneAt(const ClearDispatch& disp, Comparator& cmp, float ratio, int32_t seed
   std::vector<SwPoint> dst;
   if (!disp.dispatch(P, buf, dst) || dst.size() != buf.size()) return;
   mathv_ref::ClearSomePointsParams prm = refParamsFrom(P);
-  SwPoint refIn{};
-  refIn.Scale = {1.0f, 2.0f, 3.0f};
+  SwPoint refIn{}; refIn.Scale = {1.0f, 2.0f, 3.0f};
   SwPoint refOut{};
   mathv_ref::clearSomePointsOne(refIn, refOut, idxv, prm);
   const SwPoint& g = dst[(size_t)idxv];
@@ -171,9 +167,9 @@ void oneAt(const ClearDispatch& disp, Comparator& cmp, float ratio, int32_t seed
   cmp.add(g.Scale.z, refOut.Scale.z, in3, 3, 2, -1.0f, batch);
 }
 
-// ── TOOTH PASSTHROUGH: every non-Scale channel (Position/FX1/Rotation/Color/FX2) is untouched by
-// this kernel REGARDLESS of the clear decision (:44 ResultPoints[i.x]=p carries the whole point;
-// only Scale is ever conditionally overwritten, ref :140/:170). Exact eps — plain copy-through. ──
+// TOOTH PASSTHROUGH: non-Scale channels (Position/FX1/Rotation/Color/FX2) are untouched REGARDLESS
+// of the clear decision (:44 ResultPoints[i.x]=p carries the whole point; only Scale is ever
+// conditionally overwritten, ref :140/:170). Exact eps — plain copy-through.
 bool checkPassthroughTooth(const ClearDispatch& disp) {
   Comparator cmp("mathv-clearsomepoints-passthrough", EpsSpec::exact(), 5);
   Rng rng(mathv::mathvSeed("clearsomepoints-passthrough"));
@@ -207,8 +203,7 @@ bool checkPassthroughTooth(const ClearDispatch& disp) {
   return cmp.verdict();
 }
 
-// quirk 4 — Repeat==1 collapse (ref :198-203): divisor==1 -> pointU==0 for ANY idx/Seed/Resolution
-// -> hash11u(0)==0.0 exactly -> Ratio=0.0 clears (inclusive <=). PINNED PARITY: GREEN expected.
+// quirk 4 — Repeat==1 collapse (ref :198-203): pointU==0 always -> Ratio=0.0 clears. GREEN expected.
 bool checkRepeatOneCollapseTooth(const ClearDispatch& disp) {
   Comparator cmp("mathv-clearsomepoints-repeat1-collapse", EpsSpec::exact(), 5);
   const int idxes[] = {0, 1, 7, 100};
@@ -224,12 +219,13 @@ bool checkRepeatOneCollapseTooth(const ClearDispatch& disp) {
 }
 
 // quirk 3 — Repeat<0 huge modulus (ref :121-125): a negative Repeat bit-reinterprets to a huge
-// uint32 BEFORE the outer modulo, identically on both the ref (divisorSigned/divisor) and the
-// shader (`(uint)(P.Repeat==0?999999999:P.Repeat)`, clearsomepoints.metal:68). Symmetric port, not
-// an ambiguity — PINNED PARITY: GREEN expected.
+// uint32 identically on ref and shader (clearsomepoints.metal:68). Symmetric port, not an
+// ambiguity — PINNED PARITY: GREEN expected.
 bool checkRepeatNegativeTooth(const ClearDispatch& disp) {
   Comparator cmp("mathv-clearsomepoints-repeat-negative", EpsSpec::exact(), 5);
-  const int32_t repeats[] = {-1, -5, -1000, -2000000000};
+  // -2147483648==-2^31 round-trips EXACTLY through float (1-bit mantissa) — see
+  // checkSeedWraparoundTooth's note on the shared float-P-vector precision ceiling.
+  const int32_t repeats[] = {-1, -5, -1000, -2147483648};
   const int idxes[] = {0, 5, 100};
   const int32_t seeds[] = {0, -3, 7};
   const int32_t resolutions[] = {1, 4, 17};
@@ -241,11 +237,10 @@ bool checkRepeatNegativeTooth(const ClearDispatch& disp) {
   return cmp.verdict();
 }
 
-// quirk 1 — uint promotion wraparound (ref :101-113): Seed(int32) bit-reinterprets to uint32
-// BEFORE the *_PRIME1 multiply. Values stay exactly float-representable (+/-2^24 ceiling): the
-// shared MathvCase P-vector round-trips every param through `float`, and INT32_MIN/MAX would
-// silently corrupt through that round-trip (2147483647 has no exact float representation) instead
-// of exercising the kernel — so this probe deliberately avoids them. PINNED PARITY: GREEN expected.
+// quirk 1 — uint promotion wraparound (ref :101-113): Seed(int32) bit-reinterprets to uint32.
+// Values stay exactly float-representable (+/-2^24): the shared P-vector round-trips every param
+// through `float`, and INT32_MIN/MAX would silently corrupt through that instead of exercising the
+// kernel — deliberately avoided. PINNED PARITY: GREEN expected.
 bool checkSeedWraparoundTooth(const ClearDispatch& disp) {
   Comparator cmp("mathv-clearsomepoints-seed-wraparound", EpsSpec::exact(), 5);
   const int32_t seeds[] = {-1, 1, -2, 2, -16777216, 16777215, -8388608, 8388607};
@@ -260,10 +255,32 @@ bool checkSeedWraparoundTooth(const ClearDispatch& disp) {
   return cmp.verdict();
 }
 
+// DEDICATED LIVENESS (replaces the generic nonIdentityFrac — see c.minLivenessFrac comment below):
+// Liveness::add() only counts a lane non-identity when BOTH in/out are finite; a cleared point
+// (Scale->NaN, all 3 lanes) is finite on neither side, so it's silently SKIPPED — structurally
+// blind to whether clearing happens at all. REAL anti-hollow check: Ratio=0.5/Resolution=1 gives
+// each point an independent-ish hash draw, ~50% should clear; assert a loose 10-90% band (same
+// band point_ops_clearsomepoints.cpp's Tooth 4 already uses).
+bool checkClearingRateLiveness(const ClearDispatch& disp) {
+  const uint32_t N = 4096;
+  std::vector<float> P = {0.5f, 7.0f, 0.0f, 1.0f};
+  std::vector<SwPoint> src(N), dst;
+  if (!disp.dispatch(P, src, dst) || dst.size() != N) {
+    printf("[mathv-clearsomepoints-clearing-rate] FAIL: dispatch failed\n"); return false;
+  }
+  uint32_t cleared = 0;
+  for (const SwPoint& p : dst)
+    if (std::isnan(p.Scale.x)) ++cleared;
+  const double frac = (double)cleared / (double)N;
+  const bool ok = frac >= 0.10 && frac <= 0.90;
+  printf("[mathv-clearsomepoints-clearing-rate] Ratio=0.5 Resolution=1 N=%u cleared=%u frac=%.4f "
+         "(need 0.10-0.90) -> %s\n", N, cleared, frac, ok ? "ok" : "RED");
+  return ok;
+}
+
 // quirk 2 — Resolution<=0 (ref :74-88 AMBIGUITY; clearsomepoints.metal:14-20 NAMED FORK): HLSL's
-// div-by-zero is D3D-DEFINED (ref pins Mod(val,0)->-1); the shipped MSL guards the SAME condition
-// by short-circuiting to modVal=0 instead (an already-cited fork, not a fuzz discovery). NON-GATING:
-// record both sides verbatim as an AMBIGUITY evidence pack (§7 "HLSL 本體歧義").
+// div-by-zero is D3D-DEFINED (ref pins Mod(val,0)->-1); the shipped MSL short-circuits to modVal=0
+// instead (already-cited fork). NON-GATING: record both sides as an AMBIGUITY evidence pack (§7).
 double probeResolutionNonPositive(const ClearDispatch& disp) {
   const int32_t resolutions[] = {0, -1, -5, -1000};
   const int idxes[] = {0, 1, 7, 100};
@@ -276,8 +293,7 @@ double probeResolutionNonPositive(const ClearDispatch& disp) {
       std::vector<SwPoint> dst;
       if (!disp.dispatch(P, buf, dst) || dst.size() != buf.size()) continue;
       mathv_ref::ClearSomePointsParams prm = refParamsFrom(P);
-      SwPoint refIn{};
-      refIn.Scale = {1.0f, 2.0f, 3.0f};
+      SwPoint refIn{}; refIn.Scale = {1.0f, 2.0f, 3.0f};
       SwPoint refOut{};
       mathv_ref::clearSomePointsOne(refIn, refOut, (uint32_t)idxv, prm);
       const SwPoint& g = dst[(size_t)idxv];
@@ -316,16 +332,15 @@ int runMathvClearSomePointsSelfTest(bool injectBug) {
   c.inDim = c.outDim = 3;                // Scale — the only channel this kernel ever writes
   c.eps = EpsSpec::exact();              // integer hash + one float compare, no transcendentals
   c.inputLo = -4.0f; c.inputHi = 4.0f;   // Scale magnitude domain (irrelevant to the kill decision)
-  // identity sentinel: Ratio=-1 is BELOW hash11u's provable min of 0.0 (ref self-check case 5) ->
-  // hash<=-1 is false for every hash -> Scale passes through unchanged for ANY idx/Seed/Repeat/Res.
+  // identity: Ratio=-1 is <= hash11u's provable min 0.0 only when hash==0 (ref case 5 uses -1.0
+  // strictly-below); hash<=-1 is false for every hash -> Scale passes through unchanged always.
   c.identityParams = {{-1.0f, 2.0f, 5.0f, 3.0f}};
-  // measured (seed printed at run time, SW_MATHV_SEED unset): Ratio's domain is [-4,4] but only
-  // Ratio∈[0,1) partially clears / Ratio>=1 fully clears / Ratio<0 never clears (ref self-check
-  // cases 4/5) — with a domain this wide, roughly half of the 8 random-layer param draws land
-  // Ratio<0 (0% nonIdentity for that whole 4096-element batch), so the corpus does NOT naturally
-  // clear >=90% of elements. Measured nonIdentityFrac ~0.40-0.55 across seeds (see build/run log);
-  // floor set below with headroom under that measurement, not at the framework default.
-  c.minLivenessFrac = 0.20f;
+  // measured: nonIdentityFrac()==0.00000 EXACTLY, every run — NOT a dead corpus. A cleared point
+  // sets all 3 Scale lanes to NaN; Liveness::add() only counts a lane non-identity when BOTH
+  // in/out are finite, silently excluding NaN from both buckets: STRUCTURALLY 0.0 whether clearing
+  // works or is broken. floor=0.0 is the true ceiling (variance()>0 still holds);
+  // checkClearingRateLiveness() below is the REAL anti-hollow proof (~50% clear at Ratio=0.5).
+  c.minLivenessFrac = 0.0f;
   c.gpu = [&disp, &refIdxCursor](const std::vector<float>& P, const std::vector<float>& in,
                                  std::vector<float>& out) -> bool {
     refIdxCursor = 0;  // batch boundary: the ONE place a new dispatch starts (IDX BRIDGE, header).
@@ -357,6 +372,7 @@ int runMathvClearSomePointsSelfTest(bool injectBug) {
   bool passRepeat1 = checkRepeatOneCollapseTooth(disp);
   bool passRepeatNeg = checkRepeatNegativeTooth(disp);
   bool passSeedWrap = checkSeedWraparoundTooth(disp);
+  bool passClearingRate = checkClearingRateLiveness(disp);
   double resAmbigFrac = probeResolutionNonPositive(disp);
 
   ParityReport rep("selftest-mathv-clearsomepoints");
@@ -370,6 +386,8 @@ int runMathvClearSomePointsSelfTest(bool injectBug) {
                  passRepeatNeg ? 1.0 : 0.0);
   rep.expectTrue("quirk(Seed uint-wraparound, pinned parity — RED=regression)", passSeedWrap,
                  passSeedWrap ? 1.0 : 0.0);
+  rep.expectTrue("clearingRate(real anti-hollow liveness, replaces NaN-blind generic check)",
+                 passClearingRate, passClearingRate ? 1.0 : 0.0);
   rep.expectTrue("quirk(Resolution<=0, documented AMBIGUITY, non-gating, see stdout evidence)",
                  true, resAmbigFrac);
   return rep.finish();
