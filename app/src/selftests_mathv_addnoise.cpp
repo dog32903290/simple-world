@@ -4,35 +4,25 @@
 // HLSL) via the shared mathv harness (direct-kernel dispatch, §1.3). AddNoise is the §2
 // TRANSCENDENTAL pilot (sin/normalize/rsqrt): EpsSpec::transcendental() everywhere below.
 // ── ParamDomain provenance (external/tixl SHA 395c4c55, AddNoise.t3/.t3ui) ─────────────────────
-//   Strength(Amount) t3ui:31-40 Min=0.0 Max=2.0 -> authored range verbatim. RotationLookupDistance
-//     t3ui:58-68 Min=0.001 ClampMin=true, Max unauthored -> lo=authored Min (not Default-4:
-//     ClampMin forbids negative), hi=Default(0.25)+4 (§3.2 fallback). Frequency/Phase/
-//     AmountDistribution/NoiseOffset: no Min/Max -> §3.2 Default±4 fallback (t3:25-27 Freq=1.0,
-//     t3:36-39 Phase=0.0, t3:41-47 AmountDist=(1,1,1), t3:9-14 NoiseOffset=0). Variation (t3:5-7
-//     Default=0.0, ±4) and StrengthFactor (t3:28-31 Default=0, .cs:11-35 FModes
-//     enum{None=0,F1=1,F2=2}) are NOT in the 10-param PRIMARY table — see SCOPE below.
+//   Amount t3ui:31-40 Min=0.0 Max=2.0 verbatim. RotationLookupDistance t3ui:58-68 Min=0.001
+//   ClampMin=true (lo=Min, hi=Default(0.25)+4). Frequency/Phase/AmountDistribution/NoiseOffset: no
+//   Min/Max -> §3.2 Default±4 fallback. Variation/StrengthFactor NOT in the 10-param PRIMARY table.
 // ── SCOPE split across FIVE teeth ───────────────────────────────────────────────────────────────
-// The generic 3-layer harness (mathv_harness.h) feeds `c.ref` (params, one-element-in) with NO
-// per-element index — it cannot replicate AddNoise.hlsl:119's per-THREAD `hash41u(idx).xyz *
-// Variation` (idx==buffer position==GPU thread id), nor carry a 2nd input channel (Rotation, FX1,
-// FX2) alongside Position while keeping inDim==outDim for the identity layer. Same discipline as
-// pilot #1 (WrapPointPosition's FX1/NaN-axis "beyond the generic harness" teeth): every axis the
-// generic case can't structurally carry gets its own EQUAL-STRENGTH direct-dispatch tooth.
-//   PRIMARY (generic 3-layer) — Position(3). Rotation input PINNED identity, StrengthMode PINNED 0
-//     (weight=1), Variation PINNED 0 (hash41u(idx)*0==0 regardless of idx -> the harness's
-//     idx-less `ref` lambda is faithful here; the ONLY injectBug tooth).
-//   TOOTH ROTATION — direct dispatch, Rotation(4), random UNIT quaternion; RotationLookupDistance
-//     now load-bearing (a no-op for Position).
-//   TOOTH VARIATION/IDX — direct dispatch, N=257 spans 5 threadgroups (one partial); validates
-//     hash41u(idx) wiring end to end.
-//   TOOTH STRENGTHMODE — StrengthFactor {0,1,2} (§3.3 exhaustive) + {-1,5} (ref's documented
-//     fallthrough-to-FX2 bonus), FX1/FX2 varied per point.
-//   PROBE NAN-TRAP (discovery, §7, NOT a P1 gate) — RotationLookupDistance=0 (ref's AMBIGUITY /
-//     self-check case 2: normalize(0,0,0)->NaN slips past the degeneracy guard, NaN comparisons
-//     always false). Unmeasured until run; CLASS agreement recorded as-is.
-// Position/Rotation are the only two channels the kernel writes (Color/Scale pass through
-// unchanged) — no third channel to cover. ZONE: shell tier; crosses runtime only for SwPoint +
-// the params ABI header.
+// The generic 3-layer harness has no per-element index (can't replicate AddNoise.hlsl:119's
+// per-THREAD `hash41u(idx)`) and no 2nd input channel alongside Position — every axis it can't
+// structurally carry gets its own EQUAL-STRENGTH direct-dispatch tooth (pilot #1 discipline):
+//   PRIMARY (3-layer) — Position(3). Rotation/StrengthMode/Variation all PINNED (their own teeth);
+//     the ONLY injectBug tooth.
+//   TOOTH ROTATION — Rotation(4), random UNIT quaternion; RotationLookupDistance load-bearing.
+//   TOOTH VARIATION/IDX — N=257 spans 5 threadgroups; validates hash41u(idx) end to end.
+//   TOOTH STRENGTHMODE — {0,1,2} exhaustive + {-1,5} fallthrough-to-FX2 bonus.
+//   TOOTH NAN-TRAP (mathv fixer pilot #2 S/X verdict — promoted from discovery probe to a REGULAR
+//     PINNED tooth): RotationLookupDistance=0 hand-proven all-NaN Rotation (ref self-check case 2,
+//     NOTED-QUIRK, not a NAMED-FORK). REACHABLE despite t3ui's `Min=0.001 ClampMin=true` (S-audit:
+//     that clamp is editor-UI-only; a curve/connection can still feed 0). Both sides now MUST agree.
+// KNOWN LOW-RISK GAP (X channel-coverage note): Color/Scale/FX1/FX2 are struct-copy passthrough,
+// never explicitly asserted by any tooth above. Flagged, not gated — deferred.
+// ZONE: shell tier; crosses runtime only for SwPoint + the params ABI header.
 #include "mathv_harness.h"
 #include "mathv_ref_addnoise.h"
 #include "runtime/addnoise_params.h"
@@ -112,18 +102,15 @@ struct AddNoiseDispatch {
 const std::vector<ParamDomain>& paramTable() {
   static const std::vector<ParamDomain> t = {
       {"Amount", 0.0f, 2.0f, ParamDomain::Linear, "AddNoise.t3ui:31-40 Strength Min=0.0 Max=2.0"},
-      {"Frequency", -3.0f, 5.0f, ParamDomain::Linear,
-       "AddNoise.t3:25-27 Default=1.0, no Min/Max -> Default±4 fallback"},
-      {"Phase", -4.0f, 4.0f, ParamDomain::Linear,
-       "AddNoise.t3:36-39 Default=0.0, no Min/Max -> Default±4 fallback"},
+      {"Frequency", -3.0f, 5.0f, ParamDomain::Linear, "AddNoise.t3:25-27 Default=1.0 -> Default±4"},
+      {"Phase", -4.0f, 4.0f, ParamDomain::Linear, "AddNoise.t3:36-39 Default=0.0 -> Default±4"},
       {"AmountDistributionX", -3.0f, 5.0f, ParamDomain::Linear,
-       "AddNoise.t3:41-47 Default=(1,1,1), no Min/Max -> Default±4 fallback"},
+       "AddNoise.t3:41-47 Default=(1,1,1) -> Default±4"},
       {"AmountDistributionY", -3.0f, 5.0f, ParamDomain::Linear, "ditto"},
       {"AmountDistributionZ", -3.0f, 5.0f, ParamDomain::Linear, "ditto"},
       {"RotationLookupDistance", 0.001f, 4.25f, ParamDomain::Linear,
-       "AddNoise.t3ui:58-68 Min=0.001 ClampMin=true, Max unauthored -> lo=Min, hi=Default(0.25)+4"},
-      {"NoiseOffsetX", -4.0f, 4.0f, ParamDomain::Linear,
-       "AddNoise.t3:9-14 Default=(0,0,0), no Min/Max -> Default±4 fallback"},
+       "AddNoise.t3ui:58-68 Min=0.001 ClampMin=true -> lo=Min, hi=Default(0.25)+4"},
+      {"NoiseOffsetX", -4.0f, 4.0f, ParamDomain::Linear, "AddNoise.t3:9-14 Default=0 -> Default±4"},
       {"NoiseOffsetY", -4.0f, 4.0f, ParamDomain::Linear, "ditto"},
       {"NoiseOffsetZ", -4.0f, 4.0f, ParamDomain::Linear, "ditto"},
   };
@@ -175,10 +162,8 @@ SW_PACKED3 randomPos3(Rng& rng) {
   return SW_PACKED3{rng.uniform(-4.0f, 4.0f), rng.uniform(-4.0f, 4.0f), rng.uniform(-4.0f, 4.0f)};
 }
 
-// Shared direct-dispatch compare core for the three "beyond the generic harness" teeth: dispatch
-// `src` once, compare Position(3)+Rotation(4)=7 lanes/element against mathv_ref::addNoiseOne
-// called with the MATCHING idx (==buffer position==GPU thread id, addnoise.metal:105 `i.x`) and
-// count==src.size() (addnoise.metal:106 guard). False on dispatch failure (visible, not skipped).
+// Shared direct-dispatch compare core: dispatch `src` once, compare Position(3)+Rotation(4)=7
+// lanes/element against mathv_ref::addNoiseOne (idx==buffer position==GPU thread id).
 bool compareBatch(const AddNoiseDispatch& disp, Comparator& cmp, const HostParams& hprm,
                    const mathv_ref::AddNoiseParams& rprm, const std::vector<SwPoint>& src,
                    const char* batchTag) {
@@ -199,13 +184,10 @@ bool compareBatch(const AddNoiseDispatch& disp, Comparator& cmp, const HostParam
   return true;
 }
 
-// ── TOOTH ROTATION: random Position + random UNIT-quaternion Rotation, RotationLookupDistance
-// now load-bearing. StrengthMode/Variation still pinned 0 (own teeth). NOTE on identity:
-// qFromMatrix3Precise recovers a quaternion up to a GLOBAL SIGN (q vs -q, same rotation matrix;
-// Shepperd's method picks the branch's canonical sign from the matrix trace/diagonal, independent
-// of the INPUT quaternion's sign) — so "Rotation_out==Rotation_in" is NOT a valid identity claim
-// for ARBITRARY random rotations. It IS valid, hand-verified, at ref's self-check case 1
-// (Rotation_in==(0,0,0,1) canonical identity, no sign flip possible) — checked GPU-side below too.
+// ── TOOTH ROTATION: random Position + random UNIT-quaternion Rotation, RotationLookupDistance now
+// load-bearing. NOTE: qFromMatrix3Precise recovers q up to a GLOBAL SIGN (Shepperd's method), so
+// "Rotation_out==Rotation_in" is only a valid identity claim at ref self-check case 1 (canonical
+// identity input, no sign-flip ambiguity) — checked GPU-side below.
 bool checkRotationTooth(const AddNoiseDispatch& disp) {
   Comparator cmp("mathv-addnoise-rotation", EpsSpec::transcendental(), 5);
   Rng rng(mathv::mathvSeed("addnoise-rotation"));
@@ -242,11 +224,8 @@ bool checkRotationTooth(const AddNoiseDispatch& disp) {
   return dispatchOk && cmp.verdict() && case1Ok;
 }
 
-// ── TOOTH VARIATION/IDX: N=257 spans 5 threadgroups of 64 (incl. one partial group, idx 256 valid
-// / 257..319 guarded off by addnoise.metal:106) — exercises hash41u(idx) across a real multi-group
-// dispatch, which the generic harness's idx-less `ref` lambda cannot. compareBatch's per-i ref
-// call already threads idx==buffer-position==GPU-thread-id, so this tooth's job is just: build a
-// Variation!=0 buffer and let compareBatch prove the idx chain end to end.
+// ── TOOTH VARIATION/IDX: N=257 spans 5 threadgroups of 64 (one partial, addnoise.metal:106
+// guarded) — exercises hash41u(idx) across a real multi-group dispatch end to end.
 bool checkVariationIdxTooth(const AddNoiseDispatch& disp) {
   Comparator cmp("mathv-addnoise-variation-idx", EpsSpec::transcendental(), 5);
   Rng rng(mathv::mathvSeed("addnoise-variation-idx"));
@@ -264,9 +243,8 @@ bool checkVariationIdxTooth(const AddNoiseDispatch& disp) {
   return dispatchOk && cmp.verdict();
 }
 
-// ── TOOTH STRENGTHMODE: {0,1,2} = §3.3 exhaustive enum sweep (AddNoise.cs FModes); {-1,5} = ref's
-// documented "not clamped, falls through to the FX2 arm exactly like modes>=2" fidelity bonus
-// (mathv_ref_addnoise.h :276-277). FX1/FX2 vary per point so weight selection is actually live.
+// ── TOOTH STRENGTHMODE: {0,1,2} = §3.3 exhaustive enum sweep; {-1,5} = ref's documented
+// fallthrough-to-FX2 fidelity bonus (mathv_ref_addnoise.h :276-277). FX1/FX2 vary per point.
 bool checkStrengthModeTooth(const AddNoiseDispatch& disp) {
   Comparator cmp("mathv-addnoise-strengthmode", EpsSpec::transcendental(), 5);
   Rng rng(mathv::mathvSeed("addnoise-strengthmode"));
@@ -290,12 +268,12 @@ bool checkStrengthModeTooth(const AddNoiseDispatch& disp) {
   return dispatchOk && cmp.verdict();
 }
 
-// ── PROBE NAN-TRAP (discovery — §7 route, not a P1 gate): RotationLookupDistance=0, Amount=0,
-// same point as ref self-check case 2. ref is HAND-PROVEN all-NaN Rotation (AMBIGUITY note:
-// normalize(0,0,0)->NaN slips past `all(abs(ez)<1e-6)`, NaN comparisons always false). Whether
-// Metal fast-math preserves that is unmeasured until run. We record the observed CLASS match
-// as-is; a disagreement is a fast-math/HLSL-ambiguity finding for S/X (§7), not papered over here.
-bool checkNanTrapProbe(const AddNoiseDispatch& disp) {
+// ── TOOTH NAN-TRAP (REGULAR PINNED-PARITY tooth, see file header) — RotationLookupDistance=0,
+// Amount=0, ref self-check case 2 (mathv_ref_addnoise.h :368-385): normalize(0,0,0)->NaN slips past
+// the degeneracy guard. Both sides MUST agree (all-NaN Rotation + Position passthrough); a RED means
+// a real regression against the pinned NOTED-QUIRK fork, not a §7 discovery route anymore.
+bool checkNanTrapTooth(const AddNoiseDispatch& disp) {
+  Comparator cmp("mathv-addnoise-nan-trap", EpsSpec::exact(), 5);
   DualParams dp = makeParams(0.0f, 1.3f, 0.7f, 0.4f, 1.0f, 1.0f, 1.0f, /*rld=*/0.0f, 0.0f, 0.0f,
                               0.0f, /*strengthMode=*/0);
   SwPoint in{}, refOut{};
@@ -309,15 +287,18 @@ bool checkNanTrapProbe(const AddNoiseDispatch& disp) {
   };
   bool refIsNan = allNan(refOut.Rotation);
   bool gpuIsNan = dispatched && allNan(dst[0].Rotation);
-  printf("[mathv-addnoise-nan-trap] ref.Rotation=(%.6g,%.6g,%.6g,%.6g)[NaN=%s] gpu=%s[NaN=%s]\n",
-         refOut.Rotation.x, refOut.Rotation.y, refOut.Rotation.z, refOut.Rotation.w,
-         refIsNan ? "yes" : "no", dispatched ? "dispatched" : "DISPATCH-FAILED",
-         gpuIsNan ? "yes" : "no");
-  bool consistent = dispatched && (refIsNan == gpuIsNan);
-  printf("[mathv-addnoise-nan-trap] verdict: %s\n",
-         consistent ? "CONSISTENT -> pin candidate for a future regular tooth"
-                    : "DIVERGENT -> evidence pack, route to S/X per §7 (not an eps/ref fix here)");
-  return consistent;
+  printf("[mathv-addnoise-nan-trap] ref NaN=%s gpu NaN=%s dispatched=%s\n", refIsNan ? "yes" : "no",
+         gpuIsNan ? "yes" : "no", dispatched ? "yes" : "no");
+  // pinned assertions (NOTED-QUIRK, not a NAMED-FORK): ref+gpu Rotation both all-NaN, AND Position
+  // untouched (offset stayed exactly 0 on both sides — Amount=0 -> GetNoise==(0,0,0) regardless).
+  float posIn[3] = {in.Position.x, in.Position.y, in.Position.z};
+  cmp.add(dst[0].Position.x, refOut.Position.x, posIn, 3, 0, -1.0f, "nan-trap-position");
+  cmp.add(dst[0].Position.y, refOut.Position.y, posIn, 3, 1, -1.0f, "nan-trap-position");
+  cmp.add(dst[0].Position.z, refOut.Position.z, posIn, 3, 2, -1.0f, "nan-trap-position");
+  cmp.print();
+  bool pinned = dispatched && refIsNan && gpuIsNan && cmp.verdict();
+  printf("[mathv-addnoise-nan-trap] verdict: %s\n", pinned ? "PINNED" : "RED -- regression");
+  return pinned;
 }
 
 }  // namespace
@@ -366,34 +347,54 @@ int runMathvAddNoiseSelfTest(bool injectBug) {
     mathv_ref::addNoiseOne(pin, pout, /*idx=*/0, /*numStructs=*/1, dp.r);
     out[0] = pout.Position.x; out[1] = pout.Position.y; out[2] = pout.Position.z;
   };
+  // Ill-conditioned-lookup exemption wiring (mathv_compare.h §A criteria; MATH_VERIFY_WORKFLOW.md §2
+  // 2b). branchDist doubles as the Transcendental candidate flag (criterion 1): PRIMARY's sole live
+  // GetNoise() call has variationOffset==(0,0,0) (Variation pinned 0) so noiseLookup ==
+  // (0.91*(Position+NoiseOffset)+Phase)*Frequency exactly (AddNoise.hlsl:31). P layout here is
+  // {Amount,Frequency,Phase,AmountDist.xyz,RotationLookupDistance,NoiseOffset.xyz}: P[1]=Frequency,
+  // P[2]=Phase, P[7..9]=NoiseOffset.xyz. >=4096 -> ulp there is macroscopic next to a simplex cell's
+  // O(1) width -> fast-math re-association can legally pick a different cell.
+  c.branchDist = [](const std::vector<float>& P, const float* in, int /*lane*/) {
+    float maxAbs = 0.0f;
+    for (int axis = 0; axis < 3; ++axis) {
+      float noiseLookup = (0.91f * (in[axis] + P[7 + axis]) + P[2]) * P[1];
+      maxAbs = std::fmax(maxAbs, std::fabs(noiseLookup));
+    }
+    return maxAbs >= 4096.0f ? (maxAbs - 4096.0f) : -1.0f;  // >=0 candidate / <0 not, shared channel
+  };
+  // Envelope (criterion 3): both sides consume the bit-identical Position_in, so `gpu/ref - in[lane]`
+  // recovers each side's noise OFFSET (what getNoise()'s formula actually bounds — the raw
+  // Position_out is dominated by Position_in, domain [-4,4], and is not what this bounds). weight==1
+  // pinned in PRIMARY; 2.0 is headroom over snoise's ordinary ~[-1,1] range.
+  c.illConditionedEnvelope = [](const std::vector<float>& P, const float* in, int lane, float gpu,
+                                float ref) {
+    float bound = std::fabs(P[0] / 10.0f) * std::fabs(P[3 + lane]) * /*weight=*/1.0f * 2.0f;
+    return std::fabs(gpu - in[lane]) <= bound && std::fabs(ref - in[lane]) <= bound;
+  };
 
-  // KNOWN FINDING (measured, two seeds): PRIMARY is RED on the no-bug leg. mathv_harness.h's own
-  // grid layer unconditionally probes denormal params (±1e-40, mathv_input.h finiteSpecials())
-  // regardless of domain; GPU FTZ vs this ref's gradual-underflow on a denormal param nudges the
-  // snoise lookup enough to flip a simplex cell at a small FIXED subset of grid positions: 25-31/
-  // 198912 scalars miss (~0.013-0.016%), ALL in "grid-param", ZERO across the 32768-sample RANDOM
-  // layer (both seeds) — the denormal-input "downstream divergence" mathv_compare.h's own doc
-  // anticipates, not a ref/kernel bug. Comparator's Transcendental class has no per-sample
-  // exemption (only Branchy consults branchDist); extending it is shared infra, out of scope
-  // here. Left RED with full evidence (cmp.print() inside runMathvFuzz) for S/X triage.
+  // KNOWN FINDING, RESOLVED (S-verdict 2026-07-10): PRIMARY's earlier RED (25-31/198912 scalars,
+  // ALL "grid-param", ZERO across the RANDOM layer) root-causes to Frequency=±1e6 (mathv_input.h's
+  // own special value) driving the noise-lookup coordinate ill-conditioned, NOT the denormal-param
+  // probe originally suspected (S: 0 misses isolating the denormal alone; X bisect independently
+  // confirmed Frequency=±1e6 as sole trigger). Not a ref/MSL bug — the exemption above now bounds it.
   bool passPos = mathv::runMathvFuzz(c, injectBug);
   if (injectBug) return mathv::mathvVerdictToExit(passPos, true, "addnoise");
 
   bool passRotation = checkRotationTooth(disp);
   bool passVariation = checkVariationIdxTooth(disp);
   bool passStrength = checkStrengthModeTooth(disp);
-  bool nanConsistent = checkNanTrapProbe(disp);
+  bool nanPinned = checkNanTrapTooth(disp);
 
   ParityReport rep("selftest-mathv-addnoise");
   rep.expectTrue("position(3-layer fuzz)", passPos, passPos ? 1.0 : 0.0);
   rep.expectTrue("rotation(direct random-quat)", passRotation, passRotation ? 1.0 : 0.0);
   rep.expectTrue("variationIdx(idx-threaded hash41u)", passVariation, passVariation ? 1.0 : 0.0);
   rep.expectTrue("strengthMode(enum 0/1/2 + fallthrough)", passStrength, passStrength ? 1.0 : 0.0);
-  rep.expectTrue("nanTrapProbe(RLD=0 discovery, §7)", nanConsistent, nanConsistent ? 1.0 : 0.0);
+  rep.expectTrue("nanTrap(pinned parity, RLD=0 — RED=regression)", nanPinned, nanPinned ? 1.0 : 0.0);
   return rep.finish();
 }
 
-// order 1002: appends right after mathv-wrappointposition (1001).
+// order 1002: appends after mathv-wrappointposition (1001).
 REGISTER_SELFTESTS(/*orderBase=*/1002, {"mathv-addnoise", runMathvAddNoiseSelfTest});
 
 }  // namespace sw
