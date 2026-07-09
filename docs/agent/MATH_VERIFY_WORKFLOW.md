@@ -42,7 +42,7 @@ app/src/selftests_mathv_<op>.cpp 關2 每 op fuzz TU（agent-D 寫）：域+disp
 每 TU 100-250 行天然 <400；大依賴閉包（noise/quat）獨立成共享 oracle header 一份多 op 引用（`tixl_noise_oracle.h` 首例；未來 `mathv_ref_shared_quat.h`），每份 <400。
 
 ### 1.5 injectBug（P1-safe 咬合）
-`-bug` 腿在**送 GPU 的 params 上**注入微擾（第一個 float +1e-2），CPU ref 收原值 → 必然分岔 → 比對器必翻紅才算牙活。腐蝕真 dispatch 路徑非 want-flip；did-not-trip `return 0`。
+`-bug` 腿在**送 GPU 的 params 上**注入微擾（第一個 float +1e-2），CPU ref 收原值 → 必然分岔 → 比對器必翻紅才算牙活。腐蝕真 dispatch 路徑非 want-flip；did-not-trip `return 0`。擾動參數必須選輸出**連續依賴**的（勿選僅經離散分支影響輸出的參數，如 wrap 的 Center——會咬合 margin 趨零）。
 
 ## 2. epsilon 策略（每顆 `MathvCase::EpsSpec`，調整必附實測推導註記——turbulence :227-233 是範本）
 
@@ -118,7 +118,7 @@ fuzz 紅
 
 ## 9. 關5 已知陷阱清單（初版，S agent 逐項核；來源＝本倉已實證 fork）
 
-mul(m,v) 順序/row-vs-col-major（TransformPoints host 矩陣 v·M）｜Euler 順序 yaw/pitch/roll（cfypr 已證）｜floored vs truncated mod（wrappoints NAMED FORK）｜saturate/clamp NaN fast-math 行為｜整數除法截斷與 uint wrap｜HLSL 隱式截斷 vs MSL 顯式｜float3 packing/SW_PACKED3 對齊｜denormal FTZ｜fma 收縮改變捨入｜step/sign 在 0｜normalize(0)/rsqrt 精度｜quaternion 乘法約定（qMulD）｜lerp 參數順序｜frac/pow(neg)/atan2(0,0)｜asuint/asfloat 位技巧｜texture wrap/sRGB｜dispatch 邊界 `idx>=Count` 守衛｜stride 64(SwPoint)/80(SwVertex)｜NaN sentinel 依賴（Particle.BirthTime）。
+mul(m,v) 順序/row-vs-col-major（TransformPoints host 矩陣 v·M）｜Euler 順序 yaw/pitch/roll（cfypr 已證）｜floored vs truncated mod（wrappoints NAMED FORK）｜saturate/clamp NaN fast-math 行為｜整數除法截斷與 uint wrap｜HLSL 隱式截斷 vs MSL 顯式｜float3 packing/SW_PACKED3 對齊｜denormal FTZ｜fma 收縮改變捨入｜step/sign 在 0｜normalize(0)/rsqrt 精度｜quaternion 乘法約定（qMulD）｜lerp 參數順序｜frac/pow(neg)/atan2(0,0)｜asuint/asfloat 位技巧｜texture wrap/sRGB｜dispatch 邊界 `idx>=Count` 守衛｜stride 64(SwPoint)/80(SwVertex)｜NaN sentinel 依賴（Particle.BirthTime）｜Metal fast-math 可能把 `isnan()` 摺疊成恆 false——每顆帶 isnan 的 kernel 必須實測 NaN probe 活性（本倉 WrapPointPosition 實測 LIVE）。
 
 ## Critical Files
 - `app/src/turbulence_parity_golden.cpp`（direct-dispatch + CPU-oracle 逐點比對 + 實測校準容差母版 :75-112/:204-256）
