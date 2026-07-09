@@ -249,6 +249,7 @@ add_executable(simple_world
   src/app/variation_panel_selftest.cpp  # L1 (Variation): P2 panel-wiring golden (--selftest-variation-panel)
   src/app/variation_mix_selftest.cpp        # L1 (Variation): N-way per-type Mix golden (--selftest-variation-mix)
   src/app/variation_pool_json_selftest.cpp  # L1 (Variation): JSON pool round-trip golden (--selftest-variation-pool-json)
+  src/app/variation_multipool_selftest.cpp  # L1 (Variation): per-composition multi-pool + .swproj persistence teeth (--selftest-variation-multipool)
   src/app/midi_bind.cpp        # Lane L5->cook (P3): live MIDI/OSC binding registerIoLiveSources + cook-side tick + MIDI learn
   src/app/midi_bind_selftest.cpp  # L5 (P3): live-control pipe loopback golden (--selftest-midi-bind)
   src/app/animation_commands.cpp

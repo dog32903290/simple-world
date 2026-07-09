@@ -123,9 +123,33 @@ void tickCrossfade(SymbolLibrary& lib);
 // The damped weight the crossfade spring is at (0 = left, 1 = right). For the UI readout / golden.
 float crossfadeWeight();
 
-// Reset ALL panel state (pool, weights, crossfader). Called on New / Open (document swap) — a loaded
-// doc has new child ids, so the captured snapshots dangle.
+// Reset ALL panel state (pools, weights, crossfader). Called on New / Open (document swap) — a loaded
+// doc has new child ids, so the captured snapshots dangle. Open re-adopts persisted pools AFTER this
+// via adoptPoolsFromDocJson (the persisted pools were captured against the loaded doc, so they hold).
 void reset();
+
+// ── Multi-pool persistence (snapshot 多池, TiXL parity) ─────────────────────────────────────────
+// TiXL keeps ONE pool PER composition symbol and serializes each as variations/{symbolId}.var
+// (SymbolVariationPool.cs:148-150); sw's document is a single .swproj, so every NON-EMPTY pool nests
+// under one additive "variationPools" root key (runtime/variation_pool_set.h owns the format).
+//
+// EMBED (save side, document_io doSave/doSaveAs hook): return `docJson` (a libToJsonV2 string) with
+// the "variationPools" key added. When no pool holds a snapshot, returns docJson UNCHANGED (a
+// pool-less project file stays byte-identical to the pre-multipool writer).
+std::string embedPoolsIntoDocJson(const std::string& docJson);
+
+// ADOPT (load side, document_io doOpenPath hook, called AFTER reset()): parse `docJson` (the raw
+// .swproj text) and adopt the "variationPools" section into the pool set. A file WITHOUT the key is
+// legal (向後相容 — pre-multipool project) and leaves the pools empty.
+void adoptPoolsFromDocJson(const std::string& docJson);
+
+// ── Selftest seams (--selftest-variation-multipool 真注入; production never sets these) ─────────
+// Tooth 1 bug: the pool collection degenerates to a SINGLE pool — every composition reads/writes one
+// shared pool key, so composition A's snapshots bleed into B's grid (混池).
+void debugForceSinglePoolKeyForTest(bool on);
+// Tooth 2 bug: load SKIPS the variation section — adoptPoolsFromDocJson becomes a no-op, so a saved
+// project reloads with every pool empty.
+void debugSkipPoolAdoptForTest(bool on);
 
 // Headless RED→GREEN proof of the panel wiring (--selftest-variation-panel):
 //   (1) GRAB captures the live Float values; ACTIVATE applies them as a readable graph override;

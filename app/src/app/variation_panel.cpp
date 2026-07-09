@@ -288,4 +288,10 @@ void reset() {
   g_xfade = CrossfadeState{};
 }
 
+// ── Multi-pool persistence (stage-1 stubs: RED measurement baseline) ────────────────────────────
+std::string embedPoolsIntoDocJson(const std::string& docJson) { return docJson; }
+void adoptPoolsFromDocJson(const std::string& docJson) { (void)docJson; }
+void debugForceSinglePoolKeyForTest(bool on) { (void)on; }
+void debugSkipPoolAdoptForTest(bool on) { (void)on; }
+
 }  // namespace sw::varpanel
