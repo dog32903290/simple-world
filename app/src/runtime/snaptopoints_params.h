@@ -9,8 +9,8 @@
 //
 // TiXL cbuffer (SnapToPoints.hlsl register b0):
 //   float BlendFactor;   // smoothstep edge threshold  (default 0.0)
-//   float Distance;      // snap radius                (default 1.0)
-//   float MaxAmount;     // scale the blend factor     (default 1.0)
+//   float Distance;      // snap radius                (default 0.0 -- SnapToPoints.t3:12-15, NOT 1.0)
+//   float MaxAmount;     // scale the blend factor     (default 0.0 -- SnapToPoints.t3:16-19, NOT 1.0)
 //
 // NAMED FORKS:
 //   count-guard: TiXL .hlsl assumes Points1 and Points2 are equal length (no OOB guard).
