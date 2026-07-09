@@ -139,6 +139,19 @@ bool pokeTightFrac(int tight, int beyondTight) {
   for (int i = 0; i < beyondTight; ++i) c.add(1.004f, 1.0f, &in, 1, 0, -1.0f, "poke");
   return c.verdict();
 }
+// Transcendental ill-conditioned-lookup exemption (mathv_compare.h §A criteria) — polarity BOTH
+// ways. `tightOk` healthy samples pad the tightFrac gate; each `candidate` sample is a HARD miss
+// (gpu=100 vs ref=1, beyond the wide gate) with branchDist>=0 (criterion-1 flag) and `envelopeOk`
+// controlling criterion 3. exemptMax stays at its class default (0.01) throughout — no override.
+bool pokeIllConditionedExempt(int tightOk, int candidates, bool envelopeOk) {
+  Comparator c("mathv-core-poke", EpsSpec::transcendental(), 0);
+  const float in = 0.0f;
+  for (int i = 0; i < tightOk; ++i) c.add(1.0f, 1.0f, &in, 1, 0, -1.0f, "poke");
+  for (int i = 0; i < candidates; ++i)
+    c.add(100.0f, 1.0f, &in, 1, 0, /*branchDist=*/0.0f, "poke",
+          [envelopeOk](float, float) { return envelopeOk; });
+  return c.verdict();
+}
 
 }  // namespace
 
@@ -189,6 +202,14 @@ int runMathvCoreSelfTest(bool injectBug) {
   rep.expectTrue("branchy-rate(4.8% exempt fails)", !pokeExemptRate(200, 10), 1.0);
   rep.expectTrue("branchy-far-mismatch(fails)",
                  !pokeScalar(EpsSpec::branchy(), 0.0f, 1.0f, /*dist=*/0.5f), 1.0);
+
+  // Transcendental ill-conditioned-lookup exemption (mathv_compare.h §A) — polarity BOTH ways.
+  rep.expectTrue("trans-illcond-exempt(0.5%, envelope-ok, passes)",
+                 pokeIllConditionedExempt(199, 1, /*envelopeOk=*/true), 1.0);
+  rep.expectTrue("trans-illcond-exempt(5.5% over-cap, fails)",
+                 !pokeIllConditionedExempt(189, 11, /*envelopeOk=*/true), 1.0);
+  rep.expectTrue("trans-illcond-exempt(envelope-fails, fails)",
+                 !pokeIllConditionedExempt(199, 1, /*envelopeOk=*/false), 1.0);
 
   // Special-value semantics (§2, uniform across classes — poked on the Exact comparator).
   rep.expectTrue("nan-vs-nan(match)", pokeScalar(EpsSpec::exact(), kNaN, kNaN), 1.0);
