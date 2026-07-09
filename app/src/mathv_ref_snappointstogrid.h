@@ -55,6 +55,7 @@
 // app/src/runtime/tixl_point.h is included, for the SwPoint host struct (data layout, not math).
 #include "runtime/tixl_point.h"
 
+#include <cfloat>  // FLT_MIN -- FTZ-equivalent zero check (see safeGridSize NAMED FORK below)
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -92,14 +93,15 @@ struct SnapPointsToGridParams {
 namespace detail {
 
 inline float hlslSaturate(float x) {  // HLSL saturate(): clamp to [0,1] (:46,:50,:68 scalar uses).
-  // Same divergence documented in mathv_ref_wrappointposition.h: DX saturate(NaN)=0 on real
-  // hardware, this oracle returns NaN unchanged (neither x<0 nor x>1 is true for NaN). UNLIKE that
-  // file's WrapPointPosition case (where the divergence was inert, only reachable via a dead
-  // branch), here it IS load-bearing — see the ApplyGainAndBias NOTED-QUIRK below and self-check
-  // case 3, which manufactures a real NaN through the ordinary (non-degenerate-input) math path.
-  // AMBIGUITY: whether real Metal/DX hardware clamps this NaN to 0 or propagates it is unresolved
-  // by this ref and should be probed on real hardware (S/X role) the same way the WrapPointPosition
-  // isnan() guard was probed for fast-math-fold-to-false liveness.
+  // NAMED FORK pinned to sw semantics (XS verdict small-D, 2026-07-10): earlier revisions of this
+  // ref left saturate(NaN) unclamped (neither x<0 nor x>1 is true for NaN, so it fell through as
+  // NaN). checkSaturateNanQuirk() (selftests_mathv_snappointstogrid.cpp) measured real Metal
+  // hardware's saturate(NaN) == 0; DX saturate(NaN) is documented as 0 too. This ref's old
+  // NaN-propagating behavior was NOT a faithful transcription of either real platform, so it is
+  // corrected here to match both (measured, not assumed). Load-bearing at self-check case 3 below
+  // (the ApplyGainAndBias NOTED-QUIRK), where this fix changes the manufactured-NaN outcome from
+  // NaN-propagation to a finite result that happens to agree with sw's early-out clamp.
+  if (std::isnan(x)) return 0.0f;
   return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
 }
 
@@ -203,15 +205,39 @@ inline void snapPointsToGridOne(const SwPoint& in, SwPoint& out, uint32_t idx,
   const float gridSizeY = prm.gridScale * prm.gridStretchY;
   const float gridSizeZ = prm.gridScale * prm.gridStretchZ;
 
+  // NAMED FORK pinned to sw semantics (XS verdict A 2026-07-10): TiXL :36 divides pos/gridSize
+  // unguarded -> authored-reachable zero grid (GridScale==0 or any GridStretch axis==0) yields a
+  // NaN cascade; sw guards (snaptogrid.metal:107 safeGridSize select). Per-axis substitution
+  // gridSize==0 -> 1.
+  //
+  // MEASURED (runZeroGridSizeDiagnostic(), selftests_mathv_snappointstogrid_probes.cpp): a
+  // bit-exact `==0.0f` check is NOT enough. At the denormal-boundary special value (1e-40f,
+  // literally injected by every param's finiteSpecials() grid sweep) the GPU comes back FULLY
+  // FINITE -- exactly the substituted-safeGridSize=1 shape -- while a bit-exact-only ref guard
+  // still divides by the true (nonzero) 1e-40 and NaN-cascades. Root cause: Apple GPU ALUs flush
+  // SUBNORMAL float results to zero (FTZ) before any hardware `!=0` compare ever sees them; the
+  // CPU ref does full IEEE754 subnormal arithmetic unless told otherwise. This is the SAME
+  // "denormals collapse to the zero class on the GPU, may not on the CPU" reality
+  // mathv_compare.h's classify()/FTZ convention already documents for OUTPUT comparison -- here
+  // it's load-bearing on an INPUT (gridSize), so the guard itself must be FTZ-equivalent, not
+  // bit-exact: `fabs(x) < FLT_MIN` (FLT_MIN = smallest positive NORMAL float) catches {0} ∪
+  // {every subnormal}, leaving ordinary tiny-but-normal values (e.g. the 1e-6 diagnostic row)
+  // untouched. Confirmed inert for every genuinely-normal nonzero grid (diagnostic 1e-6/1
+  // control rows: 0 mismatches).
+  const float safeGridSizeX = (std::fabs(gridSizeX) < FLT_MIN) ? 1.0f : gridSizeX;
+  const float safeGridSizeY = (std::fabs(gridSizeY) < FLT_MIN) ? 1.0f : gridSizeY;
+  const float safeGridSizeZ = (std::fabs(gridSizeZ) < FLT_MIN) ? 1.0f : gridSizeZ;
+
   // :33 -- float3 orgPosition = p.Position;  :35 -- float3 pos = orgPosition;  (pos/orgPosition are
   // the same value throughout main() — TiXL never mutates `pos` after this alias, so one set of
   // locals suffices).
   const float orgX = in.Position.x, orgY = in.Position.y, orgZ = in.Position.z;
 
-  // :36 -- float3 normalizedPosition = pos / gridSize;
-  const float normX = orgX / gridSizeX;
-  const float normY = orgY / gridSizeY;
-  const float normZ = orgZ / gridSizeZ;
+  // :36 -- float3 normalizedPosition = pos / gridSize;  (gridSize substituted with safeGridSize
+  // per the NAMED FORK above — snaptogrid.metal:109 does the same substitution.)
+  const float normX = orgX / safeGridSizeX;
+  const float normY = orgY / safeGridSizeY;
+  const float normZ = orgZ / safeGridSizeZ;
 
   // :37 -- float3 normlizedOffsetPosition = normalizedPosition + 0.5 - GridOffset;  (TiXL's own
   // identifier is misspelled "normlized"; transcribed as a comment only, not as a C++ name.)
@@ -225,10 +251,10 @@ inline void snapPointsToGridOne(const SwPoint& in, SwPoint& out, uint32_t idx,
   const float sfY = (detail::flooredMod1(noffY) - 0.5f) * 2.0f;
   const float sfZ = (detail::flooredMod1(noffZ) - 0.5f) * 2.0f;
 
-  // :39 -- float3 centerPoint = pos - signedFraction * gridSize / 2;
-  const float centerX = orgX - sfX * gridSizeX * 0.5f;
-  const float centerY = orgY - sfY * gridSizeY * 0.5f;
-  const float centerZ = orgZ - sfZ * gridSizeZ * 0.5f;
+  // :39 -- float3 centerPoint = pos - signedFraction * gridSize / 2;  (safeGridSize, ditto)
+  const float centerX = orgX - sfX * safeGridSizeX * 0.5f;
+  const float centerY = orgY - sfY * safeGridSizeY * 0.5f;
+  const float centerZ = orgZ - sfZ * safeGridSizeZ * 0.5f;
 
   // :41 -- float3 scatter = (hash41u(i.x) - 0.5) * Scatter;  NOTED-QUIRK: hash41u returns a float4;
   // assigning it to a float3 var is an implicit HLSL vector TRUNCATION to .xyz — the hash's .w lane
@@ -250,19 +276,26 @@ inline void snapPointsToGridOne(const SwPoint& in, SwPoint& out, uint32_t idx,
   // must not be "fixed" into uniform behavior.
   float snapX = 0.0f, snapY = 0.0f, snapZ = 0.0f;  // :43 default; ALSO the silent Mode>=3.5
                                                     // fallthrough (no branch covers it below).
-  const float gridLenSq = gridSizeX * gridSizeX + gridSizeY * gridSizeY + gridSizeZ * gridSizeZ;
+  // gridLen/sfScaledLen use safeGridSize (NAMED FORK above); the division itself gets a second
+  // guard matching snaptogrid.metal:121-122/:126-127's `max(lenG, 1e-6f)` floor -- safeGridSize
+  // only rescues an EXACTLY-zero axis, but a length built from several tiny (denormal-boundary)
+  // safeGridSize axes could still ratio toward Inf/NaN without this floor.
+  const float gridLenSq =
+      safeGridSizeX * safeGridSizeX + safeGridSizeY * safeGridSizeY + safeGridSizeZ * safeGridSizeZ;
   const float gridLen = std::sqrt(gridLenSq);  // :46/:50 length(gridSize)
-  const float sfScaledX = sfX * gridSizeX, sfScaledY = sfY * gridSizeY, sfScaledZ = sfZ * gridSizeZ;
+  const float gridLenFloor = std::fmax(gridLen, 1e-6f);  // snaptogrid.metal:121/:126 max(lenG,1e-6f)
+  const float sfScaledX = sfX * safeGridSizeX, sfScaledY = sfY * safeGridSizeY,
+              sfScaledZ = sfZ * safeGridSizeZ;
   const float sfScaledLen =
       std::sqrt(sfScaledX * sfScaledX + sfScaledY * sfScaledY + sfScaledZ * sfScaledZ);
   // :46/:50 length(signedFraction * gridSize)
   if (prm.mode < 0.5f) {
     // :44-47 -- Mode 0 CenterDistance
-    const float v = detail::hlslSaturate(sfScaledLen / gridLen + scatterX);
+    const float v = detail::hlslSaturate(sfScaledLen / gridLenFloor + scatterX);
     snapX = snapY = snapZ = v;
   } else if (prm.mode < 1.5f) {
     // :48-51 -- Mode 1 CornersDistance
-    const float v = 1.0f - detail::hlslSaturate(sfScaledLen / gridLen + scatterX);
+    const float v = 1.0f - detail::hlslSaturate(sfScaledLen / gridLenFloor + scatterX);
     snapX = snapY = snapZ = v;
   } else if (prm.mode < 2.5f) {
     // :52-55 -- Mode 2 AxisCenterDistance
@@ -317,76 +350,12 @@ inline void mathvRefSnapPointsToGrid(const SwPoint* in, SwPoint* out, size_t cou
   }
 }
 
-// --- self-check: hand-derived sanity values (independent of the code above; re-derive by hand
-// from the HLSL text, not by reading this file's own logic back) ------------------------------
-//
-// 1) Mode=0 (CenterDistance), GridScale=1/GridStretch=(1,1,1)->gridSize=(1,1,1), GridOffset=0,
-//    Scatter=0, GainAndBias=(0.5,0.5) [g=b=0.5 -- GetBias/GetSchlickBias both reduce to IDENTITY at
-//    0.5: GetBias(0.5,y)=y/((2-2)*(1-y)+1)=y/1=y], Amount=1, StrengthFactor=0, Position=(1.3,0,0):
-//    normOffsetPos=(1.8,0.5,0.5); flooredMod1(1.8)=0.8, flooredMod1(0.5)=0.5;
-//    signedFraction=((0.8-0.5)*2,0,0)=(0.6,0,0). centerPoint=(1.3-0.6*0.5,0,0)=(1.0,0,0).
-//    snapAmount(mode0): len(sf*gridSize)=0.6; len(gridSize)=sqrt(3)=1.732051;
-//      v=saturate(0.6/1.732051)=0.346410; snapAmount=(v,v,v)=biasedSnap (identity bias).
-//    strength=1*1=1. ff=(1-saturate(biasedSnap-2+1))*1=(1-saturate(-0.65359))*1=(1-0)*1=1 (all
-//      lanes, since Amount=1 always fully engages regardless of biasedSnap).
-//    Position_out = lerp(org,center,1) = center = (1.0,0,0).
-//
-// 2) Mode=2 (AxisCenterDistance), same grid as (1), Scatter=0, GainAndBias=(0.5,0.5) (identity),
-//    Amount=0.3, StrengthFactor=0, Position=(1.3,1.7,0.2):
-//    normOffsetPos=(1.8,2.2,0.7); flooredMod1: 1.8->0.8, 2.2->0.2, 0.7->0.7.
-//    signedFraction=(0.6,-0.6,0.4). centerPoint=(1.3-0.3,1.7+0.3,0.2-0.2)=(1.0,2.0,0.0).
-//    snapAmount(mode2,per-axis abs,scatter=0)=(0.6,0.6,0.4)=biasedSnap (identity bias).
-//    strength=0.3*1=0.3. ff_n=(1-saturate(biased_n-0.6+1))*0.3:
-//      ff_x=(1-saturate(1.0))*0.3=0; ff_y=0 (same magnitude); ff_z=(1-saturate(0.8))*0.3=0.06.
-//    Position_out=(1.3+0,1.7+0,0.2+0.06*(-0.2))=(1.3,1.7,0.188) -- x/y UNCHANGED, z partially
-//      snapped: demonstrates Mode 2's per-axis independence.
-//
-// 3) ApplyGainAndBias `return v4` BUG made concrete: Mode=1 (CornersDistance), same grid as (1),
-//    Position=(0,0,0), Scatter=0, GainAndBias=(0,0) [degenerate-but-in-range post-saturate], Amount=1,
-//    StrengthFactor=0: normOffsetPos=(0.5,0.5,0.5); flooredMod1(0.5)=0.5; signedFraction=(0,0,0)
-//    exactly -> centerPoint == orgPosition == (0,0,0). snapAmount(mode1): len(0)/len(gridSize)=0;
-//    v=1-saturate(0)=1; snapAmount=(1,1,1).
-//    applyGainAndBiasVec4(1,1,1,gain=0,bias=0): g=0<0.5 -> vx=getBias(b=0,x=1)
-//      = 1/((1/0-2)*(1-1)+1) = 1/((Inf-2)*0+1) = 1/(NaN+1) = NaN  [Inf*0=NaN per IEEE754].
-//      vx=getSchlickBiasVec4(NaN,gain=0): NaN<0.5 is FALSE -> else arm getBias(1,NaN)=NaN/(NaN+1)
-//      =NaN; /2+0.5=NaN. biasedSnap=(NaN,NaN,NaN) all lanes.
-//    strength=1. ff=(1-saturate(NaN-2+1))*1=(1-NaN)*1=NaN (this ref's hlslSaturate(NaN)=NaN, see
-//      its AMBIGUITY note). Position_out=lerp(org,center,NaN)=org+NaN*(center-org)=org+NaN*0=NaN
-//      (center==org exactly, but IEEE754 NaN*0=NaN, not 0 -- still propagates).
-//    Position_out=(NaN,NaN,NaN) even though the "intended" (unbugged) clamp would have forced
-//      biasedSnap=1 (hiMask fires >=0.999) -> ordinary ff=0 -> no movement. Concrete,
-//      non-degenerate-input proof the `return v4;` bug is reachable through ordinary parameters
-//      (Mode 1 at grid center + zero gain/bias), not a theoretical dead-code curiosity.
-inline bool mathvRefSnapPointsToGridSelfCheck() {
-  auto approxEq = [](float a, float b, float eps = 1e-4f) { return std::fabs(a - b) <= eps; };
-  bool ok = true;
-
-  {  // case 1
-    SwPoint in{}, out{};
-    in.Position = {1.3f, 0.0f, 0.0f};
-    SnapPointsToGridParams p{1, 1, 1, 1.0f, 0, 0, 0, 1.0f, 0.0f, 0.0f, 0.5f, 0.5f, 0};
-    snapPointsToGridOne(in, out, 0, p);
-    ok &= approxEq(out.Position.x, 1.0f) && approxEq(out.Position.y, 0.0f) &&
-          approxEq(out.Position.z, 0.0f);
-  }
-  {  // case 2
-    SwPoint in{}, out{};
-    in.Position = {1.3f, 1.7f, 0.2f};
-    SnapPointsToGridParams p{1, 1, 1, 0.3f, 0, 0, 0, 1.0f, 0.0f, 2.0f, 0.5f, 0.5f, 0};
-    snapPointsToGridOne(in, out, 0, p);
-    ok &= approxEq(out.Position.x, 1.3f) && approxEq(out.Position.y, 1.7f) &&
-          approxEq(out.Position.z, 0.188f);
-  }
-  {  // case 3
-    SwPoint in{}, out{};
-    in.Position = {0.0f, 0.0f, 0.0f};
-    SnapPointsToGridParams p{1, 1, 1, 1.0f, 0, 0, 0, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0};
-    snapPointsToGridOne(in, out, 0, p);
-    ok &= std::isnan(out.Position.x) && std::isnan(out.Position.y) && std::isnan(out.Position.z);
-  }
-
-  return ok;
-}
+// Hand-derived sanity self-check (3 cases incl. the ApplyGainAndBias `return v4` bug traced through
+// the small-D hlslSaturate(NaN)->0 fix) — split into its own header, §4.3 rule 4 (this file crossed
+// 400 lines). See mathv_ref_snappointstogrid_selfcheck.h; included here, still inside this
+// namespace, so mathvRefSnapPointsToGridSelfCheck() stays available to anyone who already included
+// this header (unchanged from before the split).
+#include "mathv_ref_snappointstogrid_selfcheck.h"
 
 }  // namespace mathv_ref
 }  // namespace sw
