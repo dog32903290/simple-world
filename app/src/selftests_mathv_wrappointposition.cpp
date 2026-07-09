@@ -27,7 +27,12 @@
 // mathv_harness.h's identity-sentinel layer requires inDim==outDim, so the primary MathvCase below
 // carries ONLY Position (inDim=outDim=3); the W/FX1 edge-fade channel and the isnan-quirk edge case
 // need their own direct probes:
-//   TOOTH FX1      — direct FX1 (edge-fade) parity across the random Position/Size domain.
+//   TOOTH FX1      — direct FX1 (edge-fade) parity across the random Position/Size domain, PLUS
+//     (X caveat 1, S-audit 2026-07-09) explicit fade-band boundary sampling: |wrappedP| in
+//     [halfSize-0.1, halfSize] is the only region where W varies continuously (saturate's
+//     transition zone); a slope mutation there (e.g. the *10 constant -> *9.9) is invisible to a
+//     coarse-only random sweep since W saturates to 0/1 almost everywhere else. Equal-strength
+//     with the position/nan-axis teeth: this one is now brought up to that same bar.
 //   TOOTH NAN-AXIS — S-audit verdict (a) 2026-07-09 (docs/agent/ mathv pilot ledger): TiXL's HLSL
 //     guard literally reads isnan(p.x+p.y+p.x) (p.x summed TWICE, p.z NEVER inspected) — an
 //     unambiguous hand-slip (sole such idiom in TiXL's points shaders; recovery :58 is
@@ -172,6 +177,39 @@ bool checkFx1Tooth(const WrapDispatch& disp, float inLo, float inHi) {
       fx1.add(dst[i].FX1, pout.FX1, &pos[i * 3], 3, /*lane=*/0, -1.0f, "fx1-random");
     }
   }
+
+  // X caveat 1 (S-audit 2026-07-09): explicit fade-band boundary sampling. The random domain
+  // sweep above rarely lands inside the narrow slope-sensitive band |wrappedP| in
+  // [halfSize-0.1, halfSize] (width == 1/10, the saturate(distToEdge*10) scale) where W actually
+  // varies continuously; outside that band W is pinned to 0 or 1 regardless of the slope
+  // constant, so a mutated slope (verified regression case: *10 -> *9.9, i.e. W-slope 10->9.9)
+  // can silently pass a coarse-only sweep. Walk the band explicitly per axis, both signs, for a
+  // few representative Size values. Center=0 so wrappedP == Position exactly (no folding: padded
+  // = halfSize + Size.x*0.1 is always > halfSize, so every band sample stays within padded).
+  const float bandSizes[] = {10.0f, 1.0f, 4.5f};
+  const float bandFracs[] = {0.0f, 0.01f, 0.05f, 0.1f, 0.25f, 0.5f, 0.75f, 0.9f, 0.95f, 0.99f, 1.0f};
+  for (float sz : bandSizes) {
+    std::vector<float> Pb = {0.0f, 0.0f, 0.0f, sz, sz, sz};
+    mathv_ref::WrapPointPositionParams prmB = refParamsFrom(Pb);
+    const float halfSize = sz * 0.5f;
+    for (int axis = 0; axis < 3; ++axis) {
+      for (float frac : bandFracs) {
+        for (int sign = -1; sign <= 1; sign += 2) {
+          const float delta = frac * 0.1f;                      // delta in [0, 0.1] == band width
+          const float coord = (float)sign * (halfSize - delta);
+          float posArr[3] = {0.0f, 0.0f, 0.0f};
+          posArr[axis] = coord;
+          SwPoint in{}; in.Position = {posArr[0], posArr[1], posArr[2]};
+          std::vector<SwPoint> src1(1, in), dst1;
+          if (!disp.dispatch(Pb, src1, dst1) || dst1.size() != 1) continue;
+          SwPoint pout{};
+          mathv_ref::wrapPointPositionOne(in, pout, 0, 1, prmB);
+          fx1.add(dst1[0].FX1, pout.FX1, posArr, 3, /*lane=*/0, -1.0f, "fx1-band-edge");
+        }
+      }
+    }
+  }
+
   fx1.print();
   return fx1.verdict();
 }
