@@ -12,6 +12,29 @@
 //                    100% inside the WIDE gate (10× tight). One fp-physics straggler cannot hide a
 //                    formula error (a wrong formula decorrelates ~every sample), and one true fork
 //                    cannot hide inside the 1% either — it must still fit the wide gate.
+//                    ILL-CONDITIONED-LOOKUP EXEMPTION (AddNoise pilot #2 fixer, §9 "transcendental-
+//                    wrapping-branchy"): a WIDE-gate miss is forgiven ONLY when ALL of these hold —
+//                    a bounded, capped escape hatch, NOT a second wide gate:
+//                      1. the TU's `branchDist` callback (the SAME channel Branchy already rides —
+//                         MathvCase::branchDist / add()'s `branchDist` param) returns >=0 for this
+//                         (P,in,lane): the TU judges the transcendental's LOOKUP COORDINATE
+//                         ill-conditioned at this sample (ulp at that magnitude ≈ the function's own
+//                         cell/period scale, so fast-math re-association can legally land on a
+//                         different branch of the underlying periodic function — e.g. a
+//                         simplex-noise cell). <0 = not a candidate, no exemption (Branchy's exact
+//                         semantics, reused verbatim).
+//                      2. both gpu/ref already classified Finite — NaN/±Inf are resolved earlier in
+//                         add(), before this exemption is ever consulted; an exemption can never
+//                         paper over a class mismatch.
+//                      3. the TU's optional `envelopeOk(gpu,ref)` closure — built by the TU from
+//                         that sample's P/in, since Comparator itself never sees P — returns true:
+//                         the exempted output must still sit inside a TU-derived magnitude envelope,
+//                         so a fork-flipped-to-garbage sample cannot hide behind the exemption.
+//                      4. the GLOBAL exempt fraction stays <= eps_.exemptMax (the same 1% field
+//                         Branchy uses) — enforced in verdict(); exceeding the cap is RED, not
+//                         silently forgiven.
+//                    Passing `envelopeOk=nullptr` (the default, every pre-existing call site) makes
+//                    this whole path dead code — behavior-identical to before this exemption existed.
 //   • Branchy        (floor/step/simplex-cell/threshold): a mismatch is EXEMPT only if the input
 //                    sits closer than deltaBranch (~1e-4) to the nearest branch boundary (distance
 //                    supplied by the TU's branchDist callback) AND total exemptions stay ≤1% —
@@ -30,6 +53,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -92,9 +116,13 @@ class Comparator {
       : tag_(tag), eps_(eps), maxEvidence_(maxEvidence) {}
 
   // Compare one output scalar lane. `in`/`inDim` = the element's input vector (evidence only).
-  // `branchDist` = distance from the nearest branch boundary (<0 = unknown), from the TU callback.
+  // `branchDist` = distance from the nearest branch boundary (<0 = unknown), from the TU callback
+  // (Branchy semantics); for Transcendental it doubles as the ill-conditioned-lookup candidate flag
+  // (>=0 = candidate, see header note above). `envelopeOk` is the Transcendental-only exemption's
+  // output-magnitude bound, already closed over the TU's P/in — nullptr (default) => inert, exact
+  // prior behavior for every call site that doesn't opt in.
   void add(float gpu, float ref, const float* in, int inDim, int lane, float branchDist,
-           const char* batch) {
+           const char* batch, std::function<bool(float gpu, float ref)> envelopeOk = nullptr) {
     ++total_;
     float g = ftz(gpu), r = ftz(ref);
     FpClass cg = classify(g), cr = classify(r);
@@ -125,6 +153,13 @@ class Comparator {
         }
         ++beyondTight_;
         if (err <= eps_.wideMul * tight) return;  // inside wide → counted against tightFrac only
+        // ill-conditioned-lookup exemption (criteria 1+3 here; criterion 2 already holds — this
+        // switch case is only reached for two already-Finite-classified values; criterion 4/the
+        // global cap is enforced in verdict()).
+        if (branchDist >= 0.0f && envelopeOk && envelopeOk(g, r)) {
+          ++exempt_;
+          return;
+        }
         recordMiss(g, r, in, inDim, lane, branchDist, batch);
         return;
       }
@@ -147,6 +182,10 @@ class Comparator {
     if (total_ == 0) return false;  // an empty comparator proved nothing — hollow, not green
     if (miss_ > 0) return false;    // hard misses fail EVERY class (wide gate / non-exempt)
     if (eps_.cls == EpsSpec::Cls::Transcendental) {
+      // criterion 4 (global cap): exceeding exemptMax is RED even if the tight-fraction gate would
+      // otherwise pass — exempt_ is 0 for every TU that never opts into envelopeOk, so this is a
+      // no-op (frac 0/total <= exemptMax trivially) for every pre-existing Transcendental case.
+      if ((double)exempt_ / (double)total_ > (double)eps_.exemptMax) return false;
       uint64_t denom = tightOk_ + beyondTight_;
       double frac = denom ? (double)tightOk_ / (double)denom : 1.0;
       return frac >= (double)eps_.tightFrac;
@@ -164,7 +203,7 @@ class Comparator {
       printf(" tightOk=%.5f (gate>=%.2f)", denom ? (double)tightOk_ / denom : 0.0,
              (double)eps_.tightFrac);
     }
-    if (eps_.cls == EpsSpec::Cls::Branchy)
+    if (eps_.cls == EpsSpec::Cls::Branchy || eps_.cls == EpsSpec::Cls::Transcendental)
       printf(" exempt=%.5f (gate<=%.3f)", total_ ? (double)exempt_ / total_ : 0.0,
              (double)eps_.exemptMax);
     printf(" -> %s\n", verdict() ? "ok" : "RED");

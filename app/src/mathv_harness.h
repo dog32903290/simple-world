@@ -59,9 +59,18 @@ struct MathvCase {
       gpu;
   // CPU scalar reference (TiXL-transcribed): per element.
   std::function<void(const std::vector<float>& P, const float* in, float* out)> ref;
-  // Branchy class only: distance from the nearest branch boundary for (P, element, out lane);
-  // return <0 for "unknown" (no exemption possible on that lane).
+  // Branchy class: distance from the nearest branch boundary for (P, element, out lane); return <0
+  // for "unknown" (no exemption possible on that lane). Transcendental class REUSES this same
+  // channel as the ill-conditioned-lookup candidate flag (mathv_compare.h header note): >=0 =
+  // candidate, <0 = not a candidate. Either way the callback owns its own class-appropriate meaning.
   std::function<float(const std::vector<float>& P, const float* in, int lane)> branchDist;
+  // Transcendental class only: output-envelope bound for the ill-conditioned-lookup exemption.
+  // Consulted ONLY when branchDist(...)>=0 flagged a lane a candidate. The TU computes the bound
+  // from that sample's P/in (Comparator itself never sees P) and checks it against the actual
+  // gpu/ref magnitudes it's handed. Null (default) => feature inert — zero behavior change for
+  // every TU that doesn't set it (mathv_compare.h Comparator::add's envelopeOk stays nullptr).
+  std::function<bool(const std::vector<float>& P, const float* in, int lane, float gpu, float ref)>
+      illConditionedEnvelope;
 
   // ≥1 identity param vector (Amount=0 / Scale=1): expected output == input. If the op TRULY has
   // no identity configuration, set noIdentityReason instead (cited) — leaving both empty is RED.
@@ -121,7 +130,13 @@ inline bool runMathvFuzz(const MathvCase& c, bool injectBug) {
       c.ref(P, e, refOut.data());
       for (int k = 0; k < c.outDim; ++k) {
         float bd = c.branchDist ? c.branchDist(P, e, k) : -1.0f;
-        cmp.add(g[k], refOut[k], e, c.inDim, k, bd, batch);
+        std::function<bool(float, float)> envOk = nullptr;
+        if (c.illConditionedEnvelope) {
+          envOk = [&c, &P, e, k](float gg, float rr) {
+            return c.illConditionedEnvelope(P, e, k, gg, rr);
+          };
+        }
+        cmp.add(g[k], refOut[k], e, c.inDim, k, bd, batch, envOk);
       }
       if (lv) lv->add(e, c.inDim, g, c.outDim);
     }
