@@ -6,8 +6,8 @@
 // golden TU per ARCHITECTURE.md rule 4 (≤400-line files), same shape as tixl_noise_oracle.h /
 // runtime/t3import_displacemeshnoise_oracle.h.
 //
-// PROVENANCE (P5 discipline — GOLDEN_STANDARD.md rule 1): TiXL simplex noise, transcribed
-// LINE-BY-LINE from the HLSL global "fSimplexNoiseDisplace" in external/tixl
+// PROVENANCE (P5 discipline — GOLDEN_STANDARD.md rule 1): TiXL simplex noise, TRANSCRIBED from
+// the HLSL global "fSimplexNoiseDisplace" LINE-BY-LINE in external/tixl
 // Operators/Lib/field/adjust/NoiseDisplaceSDF.cs:41-127 (pinned TiXL SHA 395c4c55) — NOT from the
 // leaf's emitted MSL and NOT from any sw host helper (P5 discipline). ALL arithmetic is fp32 (float
 // literals, no double promotion): the mod289/permute hash chain is exact-integer float math below

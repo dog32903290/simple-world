@@ -29,6 +29,24 @@
 | P4 無值 oracle | 行為帶(>40/<30)、substring 斷言、只驗「有動+決定性」 | noisedisplacesdf simplex、toroidalvortex velocity |
 | P5 自洽 oracle | 期望值來自 sw 自身(同 kernel 兩次 dispatch 互比=A==A 恆真;mirror 抄 sw helper 非 TiXL .cs) | snaptoangles 恆真假錨、octahedronsdf、locator |
 
+## P5-safe oracle 判準(mathv CPU ref:`mathv_ref_<op>.h` 含既有 `*_oracle.h`)
+
+mathv(MATH_VERIFY_WORKFLOW.md)的 CPU 純量參考出身=TiXL HLSL 直譯=外部 oracle,
+與 `tixl_noise_oracle.h` 同宗,**不是新 P5**——但合格判準寫死。一份 ref 合格 **iff 四條全成立**:
+
+1. **檔頭 provenance**:`TRANSCRIBED from external/tixl …`(含 pinned SHA+檔名)+ 逐函式 `:NN`
+   行號引註(範本:`tixl_noise_oracle.h` 檔頭)。
+2. **零 sw shader 血緣**:全檔零 metal include、零 `app/shaders/` 引用、零 sw math helper——
+   ref 從 sw 的 MSL 或 shader helper 派生=自我認證(P5)。
+3. **作者隔離**:R(ref 作者)≠ D(driver 作者)≠ 該 op 的 MSL 作者,工單可稽
+   (R 禁開 `app/shaders/`;歷史 MSL 作者無法回溯排除時以①②+S 獨立轉錄稽核補償)。
+4. **refuter 手推 spot-check**:獨立於 ref 與 kernel,手算 2-3 組輸入對 ref 輸出,過了才出廠。
+
+①②可 grep → `tools/golden_lint.sh` P5-oracle 硬閘機械擋(shaders/metal include、MTL::/NS::、
+檔頭缺 provenance 皆 fail);③④是工單/語義性質,住在 refuter checklist。任一條不成立 →
+該 ref 不得當 mathv oracle(修到成立,不放寬判準)。eps 超類別預設必須帶同行 `measured` 推導
+註記(`golden_lint.sh --audit` 軟篩)。
+
 ## 新 golden checklist(逐條打勾)
 
 - [ ] 期望值旁註明 TiXL 來源行號(`.cs:NN` / `.hlsl:NN` / `.t3` 欄位)

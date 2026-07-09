@@ -3,8 +3,16 @@
 // golden (t3import_displacemeshnoise_golden.cpp). Split out so the harness .cpp stays a bounded ≤400-line
 // seam-and-tooth file (ARCHITECTURE.md rule 4); this header is the pure-math half.
 //
-// ── Oracle: snoiseVec3 — a straight port of app/shaders/shared/noise.metal.h (Ashima 3-D simplex),
-//    independent of the import/cook path (so GREEN is not self-proving). ────────────────────────────────
+// ── Oracle: snoiseVec3 (Ashima 3-D simplex), independent of the import/cook path (so GREEN is not
+//    self-proving). ─────────────────────────────────────────────────────────────────────────────────────
+// PROVENANCE (P5-safe oracle 判準, GOLDEN_STANDARD.md): the math is TRANSCRIBED from the TiXL
+// (SHA 395c4c55) external/tixl Operators/Lib/Assets/shaders/shared/noise-functions.hlsl:16-34,179-261
+// Ashima lineage (mod289/permute/taylorInvSqrt/snoise/snoiseVec3 — same constants, same permute
+// chain). TRANSCRIPTION PATH, stated honestly: this file was written from sw's float port of that
+// same HLSL (noise.metal.h) rather than keyed in from the .hlsl directly; its faithfulness to the
+// TiXL source is CROSS-VERIFIED against the fully independent direct transcription
+// tixl_noise_oracle.h — measured snoise divergence ~1e-5 over the turbulence lattice
+// (turbulence_parity_golden.cpp:227-233), i.e. simplex-cell decisions and hash chain agree.
 // NOTE the noise runs in FLOAT (not double): 3-D simplex has floor()/step() branch points, and the
 // snoiseVec3 offsets push lookups to |coord|~120; a double oracle lands on DIFFERENT simplex cells than
 // the float GPU there → the noise value forks entirely (not a rounding delta). Matching the GPU's FLOAT
