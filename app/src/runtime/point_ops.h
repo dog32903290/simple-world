@@ -133,9 +133,9 @@ int runSetPointAttributesSelfTest(bool injectBug);
 // (CombineBuffers flat atom + its own --selftest-combinebuffers RETIRED 2026-07-08, 廢棄節點退場 pilot #2
 //  — the .t3 compound (guid 4dd8a618…) provides it now. The .t3 replay parity lives in the surviving
 //  t3import_combinebuffers_golden.cpp, independent of any leaf here. See RETIREMENT_BATTLE_SPEC §7.2.)
-// AddNoise MODIFIER golden (point_ops_addnoise.cpp): simplex noise displaces sphere points.
-// injectBug = Strength=0 -> identity passthrough -> no displacement -> FAIL.
-int runAddNoiseSelfTest(bool injectBug);
+// (AddNoise flat atom + its --selftest-addnoise RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound
+//  (guid dd586355…) provides it now. Kernel math is mathv-verified (selftests_mathv_addnoise.cpp
+//  dispatches app/shaders/addnoise.metal), takeover in t3import_addnoise_retire_golden.cpp. §5.)
 // FilterPoints op golden (point_ops_filterpoints.cpp): re-samples input bag to Count points.
 // injectBug = flips sphere-membership predicate sense -> FAIL.
 int runFilterPointsSelfTest(bool injectBug);

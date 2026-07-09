@@ -48,40 +48,14 @@ static const PointModifyOp _reg_RandomizePoints{
        "point.modify"}
 };
 
-// ---- batch 15: point modify — AddNoise ----------------------------------------
-// TiXL parity: external/tixl .../point/modify/AddNoise.cs + AddNoise.hlsl
-// A count-preserving MODIFIER: displaces Position by snoiseVec3 field and updates
-// Rotation to follow the displaced tangent frame (RotationLookupDistance probe).
-// Defaults from AddNoise.t3 (GUID-keyed):
-//   Strength=1.0, StrengthFactor=None, Frequency=1.0, Phase=0.0, Variation=0.0,
-//   AmountDistribution=(1,1,1), RotationLookupDistance=0.25, NoiseOffset=(0,0,0)
-static const PointModifyOp _reg_AddNoise{
-      {"AddNoise",
-       "AddNoise",
-       {{"points", "points", "Points", true},   // input bag (port 0)
-        {"out", "out", "Points", false},         // displaced output bag (port 1)
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 5.0f},
-        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
-         Widget::Enum, {"None", "F1", "F2"}},
-        {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 20.0f},
-        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},
-        {"AmountDistribution.x", "AmountDistribution", "Float", true, 1.0f, 0.0f, 2.0f,
-         Widget::Vec, {}, true, 3},
-        {"AmountDistribution.y", "AmountDistribution.y", "Float", true, 1.0f, 0.0f, 2.0f,
-         Widget::Vec, {}, true, 1},
-        {"AmountDistribution.z", "AmountDistribution.z", "Float", true, 1.0f, 0.0f, 2.0f,
-         Widget::Vec, {}, true, 1},
-        {"RotationLookupDistance", "RotationLookupDistance", "Float", true, 0.25f, 0.0f, 2.0f},
-        {"NoiseOffset.x", "NoiseOffset", "Float", true, 0.0f, -10.0f, 10.0f,
-         Widget::Vec, {}, true, 3},
-        {"NoiseOffset.y", "NoiseOffset.y", "Float", true, 0.0f, -10.0f, 10.0f,
-         Widget::Vec, {}, true, 1},
-        {"NoiseOffset.z", "NoiseOffset.z", "Float", true, 0.0f, -10.0f, 10.0f,
-         Widget::Vec, {}, true, 1}},
-       nullptr,
-       "point.modify"}
-};
+// ---- batch 15: point modify — AddNoise — RETIRED 2026-07-10 (廢棄節點退場) ------------------------
+// The flat AddNoise NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by the nested
+// .t3 compound (assets/catalog_t3/AddNoise.t3, guid dd586355…). A human-name reference to "AddNoise" no
+// longer hits this sink — it falls through findSpec's tail to the compound's name alias (graph_bridge.cpp
+// refreshCompoundSpecs). The generic ComputeShaderStage (SRV+UAV) cooks the ABI-repacked
+// computeshaderstage_addnoise.metal. Kernel math stays mathv-verified (selftests_mathv_addnoise.cpp
+// dispatches app/shaders/addnoise.metal); takeover in t3import_addnoise_retire_golden.cpp. See
+// RETIREMENT_BATTLE_SPEC §5. (Leaf cook point_ops_addnoise.cpp deleted; addnoise_params.h + .metal stay.)
 
 // ---- batch 24 (lane point_modify): PointAttributeFromNoise ------------------
 // TiXL parity: external/tixl .../point/modify/PointAttributeFromNoise.cs +

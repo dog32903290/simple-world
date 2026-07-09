@@ -47,7 +47,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"sortpoints", runSortPointsSelfTest},
     // (--selftest-combinebuffers RETIRED 2026-07-08, 廢棄節點退場 pilot #2 — the .t3 compound provides
     //  CombineBuffers now; parity lives in t3-combinebuffers, takeover in t3-combinebuffers-retire.)
-    {"addnoise", runAddNoiseSelfTest},
+    // (--selftest-addnoise RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound provides AddNoise now;
+    //  kernel math in --selftest-mathv-addnoise, takeover in t3-addnoise-retire.)
     {"filterpoints", runFilterPointsSelfTest},
     {"polartransform", runPolarTransformPointsSelfTest},
     {"polarprobe", runPolarTransformPointsParityProbe},
@@ -168,6 +169,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-combinebuffers-retire", runT3CombineBuffersRetireGates},  // ★廢棄節點退場 PILOT #2: retired flat CombineBuffers atom → references auto-taken-over by .t3 compound (guid 4dd8a618…) — proves the seam is NOT TransformPoints-specific (①takeover ③reference ②parity ④layout under one -bug)
     {"t3-snappointstogrid-retire", runT3SnapPointsToGridRetireGates},  // ★廢棄節點退場: retired flat SnapPointsToGrid atom → .t3 compound (guid bc88304a…) takeover; ②parity is COOK-DRIVEN vs the mathv oracle (computeshaderstage_snaptogrid kernel) — ①takeover ③reference ②parity ④layout under one -bug
     {"t3-wrappointposition-retire", runT3WrapPointPositionRetireGates},  // ★廢棄節點退場: retired flat WrapPointPosition atom → .t3 compound (guid 0814a593…) takeover; ②parity COOK-DRIVEN through the generic ComputeShaderStage IN-PLACE (u0-only, no SRV) dispatch vs the mathv oracle (computeshaderstage_wrappointposition kernel)
+    {"t3-addnoise-retire", runT3AddNoiseRetireGates},  // ★廢棄節點退場: retired flat AddNoise atom → .t3 compound (guid dd586355…) takeover; ②parity COOK-DRIVEN vs the mathv oracle with a TRANSCENDENTAL double fraction gate (simplex-noise displace, computeshaderstage_addnoise kernel)
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
     {"t3-blend", runT3BlendParity},  // ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) through the SAME collapse → Normal-blend oracle; proves not HSE-only
     {"t3-bubblezoom", runT3BubbleZoomParity},  // ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 with GradientsToTexture ELIDED onto the atom's Gradient port (2×Vector2Components kept) → closed-form gradient oracle; -bug drops the Gradient wire → RED. Unlocks gradient-fed image-fx

@@ -14,7 +14,8 @@ namespace sw {
 void registerOrientPointsOp();
 void registerRandomizePointsOp();
 void registerSetPointAttributesOp();
-void registerAddNoiseOp();
+// (AddNoise flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid dd586355…) provides it
+//  now; mathv verifies the kernel, t3-addnoise-retire the takeover. §5.)
 void registerFilterPointsOp();
 void registerPolarTransformPointsOp();
 void registerWrapPointsOp();
@@ -59,7 +60,7 @@ void registerPointModifyPointOps() {
   registerOrientPointsOp();
   registerRandomizePointsOp();
   registerSetPointAttributesOp();
-  registerAddNoiseOp();
+  // AddNoise flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerFilterPointsOp();
   registerPolarTransformPointsOp();  // Points → Points (TRS + cartesian->polar warp, lane P, batch 16)
   registerWrapPointsOp();            // Points → Points (floored-mod box wrap, lane P, batch 16)
