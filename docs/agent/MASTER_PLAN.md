@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 56a6a66
-DIRTY: 1 files
+HEAD: 9574549
+DIRTY: clean
 CENSUS: 609 / 749 done
-BITE: 726 PASS
-STAMP_AT: 2026-07-10T14:10
+BITE: 732 PASS
+STAMP_AT: 2026-07-10T15:22
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -40,7 +40,12 @@ STAMP_AT: 2026-07-10T14:10
 - **transpiler 量產線制度化+首波 3 顆 `56a6a66`**（MATH_VERIFY_WORKFLOW §10 SOP+SimBlendTo/AppendPoints/PointSimulation 全綠）——**成本轉折實證：單 Sonnet session R+D+port+fixer 一次迭代到綠 ~140k/顆（pilot 300-600k）**；分流模型修正=紅主因是 ±1e6 特殊值格浮點病態非 sw fork 邊界（exact 類缺 2b 通道缺口已回寫 §10.3）。
 - **render 島路線裁決（orchestrator，scout 材料）**：採 (a)+(c)——render-STATE 通用摺疊機制早已 DONE（Seam2 四顆 refuter 過，只缺 importer guid 接線；PRODUCTION_187_BACKLOG「設計凍結」條 stale）+26 顆純 SRV 子集由 texture 縫階段 2/3 自然吃；**(b) 63 顆硬光柵管線不賭通用 VS/PS 縫**（DrawMesh 牽動態 shader-graph 材質系統=第三子系統量級大於 compute 縫，sw 11 顆 DrawKind「一顆一刻」是已證節奏）。
 
-**接力待辦（下一棒）**：㈠ ReorientLinePoints 退場（R6 綠+修單清完，owner-lock 已空）㈡ transpiler 量產波次 2（§10 SOP 就緒，每波 5-8 顆 buffer-only 未 port，Sonnet 單 session）㈢ render-state importer guid 接線（機制在 node_registry_draw_renderstate.cpp Seam2，把 63+ 顆 import 從 unmapped 推到「缺 shader」誠實態）㈣ 63 顆硬管線「參數變體 vs 獨立算法」分類 scout（決定 bespoke 路線真實量級——scout 已自指最大不確定）㈤ 52 假 MISSING guid→sw-atom 表（機械，ENGINE_GAP_GLUE 發現⑤）㈥ texture 縫階段 3（buffer 軌 SRV-tex+sampler+CB live 覆寫細化）㈦ 退場 agent 稱曾 spawn 背景任務補 RETIREMENT_BATTLE_SPEC——查孤兒。
+**第三批收官（2026-07-10 14:15-15:22，732/0/0）**：
+- **ReorientLinePoints 退場 `9574549`（退場帳 11 顆）+42 條 guid 映射**（52 假 MISSING=45 still-flat 映射+7 已退走 compound 遞迴接管實測通過；3 真 gap 排除；SimForceOffset unmapped 14→7）。
+- **transpiler 波次 2：6 顆 mesh/point kernel 庫存全綠**——成本再降 ~59k/顆（波次1 140k）；兩個 struct-packing 缺口實證修復（StructuredBuffer<int3>→packed_int3 12B 緊排/PbrVertex 連續 float3 全 packed 否則 stride 80→112）；場外抓到 FlipNormals CPU port 漏 winding reversal（chip task_ffd899e3）。**mathv kernel 庫存累計 19 顆**。
+- **render 島 71 顆分類完成**：35% 已零成本完工（9 DrawKind 本體+5 已 port compute atom+RaymarchField 證 field-graph codegen 已活）；真 backlog=C 桶 29 顆未做獨立算法（多 80-250 行中小）+B 桶 8 家族變體≈37 顆手刻；D 桶真堵僅 6 顆（mesh/point 材質圖）；3 顆 field-render 只缺接線。71 行清單在 scout 報告（含每顆桶別+依據）。
+
+**接力待辦（下一棒）**：㈠ transpiler 量產波次 3（§10 SOP+波次2 兩個 packing 缺口需先回寫 §10.5，buffer-only 未 port 存量續）㈡ render-state importer guid 接線（機制在 node_registry_draw_renderstate.cpp Seam2，把 import 推到「缺 shader」誠實態）㈢ texture 縫階段 3（buffer 軌 SRV-tex+sampler+CB live 覆寫）㈣ render C 桶 29 顆手刻首波（從小顆起：TextGrid 20 行/ColorGradeDepth 81 行/GridPlane 113 行）㈤ field-render 3 顆接線（RaymarchField 前例）㈥ agent_worktree_setup.sh 補 external/ symlink（兩 agent 手動繞過）㈦ 退場 agent 曾 spawn 背景任務補 RETIREMENT_BATTLE_SPEC——查孤兒 ㈧ PairPointsForLines/Splines 缺 NodeSpec（guid 表排除的真 gap）。
 
 **★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
