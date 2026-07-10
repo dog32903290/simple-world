@@ -851,6 +851,7 @@ add_executable(simple_world
   src/runtime/t3_import_recurse.cpp                # COMPOUND-RECURSION seam: nested-compound resolution + §1.3 cross-layer slot fallback (split of t3_import.cpp for the ≤400 ratchet)
   src/runtime/t3_import_clips.cpp                  # .t3 per-child TimeClip OutputData parse (DataSet-timeline seam, split for the ≤400 ratchet)
   src/runtime/t3_import_layout.cpp                 # ★.t3ui CANVAS-POSITION seam: SymbolChildUis/InputUis/OutputUis Position → SymbolChild/SlotDef x,y (fixes dive-in-stacks-at-origin, split for the ≤400 ratchet)
+  src/runtime/t3_import_texcompute.cpp             # ★TEXTURE-COMPUTE COLLAPSE (TEXTURE_COMPUTE_SEAM_SPEC §3): shape-detected texture-OUT compute .t3 (stage+UavFromTexture2d) → ONE ComputeShaderStageTex atom
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/t3import_nestedcompound_golden.cpp   # ★COMPOUND-RECURSION keystone: DrawPointsDOF.t3 recurses TransformPoints into a nested compound → structural + cross-layer parity vs host-matrix oracle; -bug disables recursion → RED
   src/runtime/t3import_layout_golden.cpp           # ★.t3ui LAYOUT keystone: TransformPoints.t3+.t3ui → every child/boundary-pin x,y matches the .t3ui constants (not sw's own output); -bug disables the read → RED (all 0,0)
@@ -865,6 +866,7 @@ add_executable(simple_world
   src/runtime/t3import_clearsomepoints_retire_golden.cpp  # ★廢棄節點退場: retired flat ClearSomePoints atom → .t3 compound takeover; ②parity COOK-DRIVEN vs the mathv oracle (branchy per-block hash kill Scale→NAN, computeshaderstage_clearsomepoints kernel; b0 float + b1 int)
   src/runtime/t3import_snaptopoints_retire_golden.cpp  # ★廢棄節點退場: retired flat SnapToPoints atom → .t3 compound takeover; ②parity COOK-DRIVEN vs the mathv oracle (DUAL-SRV index-paired snap, computeshaderstage_snaptopoints kernel; b0 [BlendFactor,Distance,MaxAmount]; stride 32→64 fork)
   src/runtime/t3import_blendpoints_retire_golden.cpp  # ★廢棄節點退場: retired flat BlendPoints atom → .t3 compound takeover; ②parity COOK-DRIVEN vs the mathv oracle (DUAL-SRV index-paired blend, computeshaderstage_blendpoints kernel; b0 5 floats; generic-seam per-SRV countB aux extension)
+  src/runtime/t3import_brdflookup_golden.cpp       # ★TEXTURE-COMPUTE seam 首證 (stage 1): _ComputeBRDFLookup.t3 → ComputeShaderStageTex collapse → resident cook + RGBA16 readback vs split-sum BRDF oracle (①takeover ②parity ③reference ④layout)
   src/runtime/t3import_hse_golden.cpp              # ★IMAGE-fx collapse: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle
   src/runtime/t3import_blend_golden.cpp            # ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) → same collapse → Normal-blend oracle (proves not HSE-only)
   src/runtime/t3import_bubblezoom_golden.cpp       # ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 (GradientsToTexture-elided-to-Gradient-port) → sw BubbleZoom atom + 2×Vector2Components → closed-form gradient oracle (unlocks gradient-fed image-fx)
