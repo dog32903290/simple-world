@@ -105,13 +105,21 @@ inline FpClass classify(float x) {
 }
 
 // One recorded mismatch (evidence pack row).
+//
+// `batch` is a COPIED std::string, not a raw `const char*` (stack-use-after-scope trap fixed
+// 2026-07-10, ReorientLinePoints D-role fuzz driver: a per-iteration snprintf'd batch tag passed as
+// a bare pointer dangled by print() time, since Evidence rows outlive the add() call that recorded
+// them -- ASan caught it under the -bug leg's recorded mismatches). `add()`/`recordMiss()` still take
+// `const char*` (every call site may pass a string literal OR a temporary buffer); the value is
+// copied into this std::string at record time, so the CALLER's pointer only needs to stay valid for
+// the duration of the add() call itself, not until print().
 struct Evidence {
   std::vector<float> input;  // the element's input vector
   int lane;                  // which output scalar
   float gpu, ref;
   float absErr, relErr;
   float branchDist;  // <0 = unknown / not a branchy op
-  const char* batch; // which sampling layer/batch produced it
+  std::string batch;  // which sampling layer/batch produced it
 };
 
 // Accumulates scalar-lane comparisons across batches; verdict() applies the class gates.
@@ -229,7 +237,7 @@ class Comparator {
     for (const Evidence& e : evidence_) {
       printf("[%s]   MISMATCH batch=%s lane=%d gpu=%.9g ref=%.9g absErr=%.3g relErr=%.3g "
              "branchDist=%.3g in=(",
-             tag_.c_str(), e.batch, e.lane, e.gpu, e.ref, e.absErr, e.relErr, e.branchDist);
+             tag_.c_str(), e.batch.c_str(), e.lane, e.gpu, e.ref, e.absErr, e.relErr, e.branchDist);
       for (size_t k = 0; k < e.input.size(); ++k)
         printf("%s%.9g", k ? "," : "", e.input[k]);
       printf(")\n");

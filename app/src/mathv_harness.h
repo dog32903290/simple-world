@@ -21,7 +21,13 @@
 // fork → the comparator MUST flip RED, proving the whole compare path (dispatch → readback →
 // comparator gates) is live. This corrupts the real dispatch path, not the expectation (no
 // want-flip); a -bug leg that stays green means the tooth is dead — the TU returns 0 for it
-// (mathvVerdictToExit) so --bite's NO-BITE list catches it.
+// (mathvVerdictToExit) so --bite's NO-BITE list catches it. This generic 3-layer runMathvFuzz below
+// wraps EVERY GPU call (grid/random/identity) in gpuParams(), so injectBug reaches all of them here.
+// Tier-H ops that hand-roll their own multi-tooth TU instead of this generic case (§1.3's direct-
+// dispatch shape — BlendPoints/SnapPointsToGrid/ReorientLinePoints/…) do NOT get this for free: their
+// own `runMathv<Op>SelfTest(bool injectBug)` entry typically only re-runs the PRIMARY tooth under
+// injectBug=true — known cross-op limitation, MATH_VERIFY_WORKFLOW.md §1.5 "已知限制" for the full
+// note + suggested fix (backlog, non-blocking).
 //
 // CPU REF DISCIPLINE: the `ref` lambda must come from a mathv_ref_<op>.h / *_oracle.h TRANSCRIBED
 // from external/tixl HLSL (P5-safe oracle 判準, GOLDEN_STANDARD.md) — never from sw's MSL. The
