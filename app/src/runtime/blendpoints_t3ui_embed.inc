@@ -1,0 +1,173 @@
+// AUTO-EMBED: external/tixl/Operators/Lib/point/combine/BlendPoints.t3ui (byte-faithful).
+// Included by t3import_blendpoints_retire_golden.cpp (retire ④layout). Data, not code.
+R"T3(
+{
+  "Id": "2dc5c9d1-ea93-4597-a4d9-7b610aad603a"/*BlendPoints*/,
+  "Description": "Creates different transitions between two different point setups",
+  "SymbolTags": "1",
+  "InputUis": [
+    {
+      "InputId": "91b903a2-5127-431b-ab66-d5a38ce1693c"/*PointsB_*/,
+      "Relevancy": "Required",
+      "Position": {
+        "X": 148.47668,
+        "Y": 1052.1796
+      },
+      "Description": "Input for Point Setup B"
+    },
+    {
+      "InputId": "97904d2e-ae67-4ab4-9201-7902a85d12f3"/*PointsA_*/,
+      "Relevancy": "Required",
+      "Position": {
+        "X": -539.26337,
+        "Y": 958.8297
+      },
+      "Description": "Input for Point Setup A"
+    },
+    {
+      "InputId": "acef877d-214d-4ca0-ac11-95fa59d1f6fc"/*Pairing*/,
+      "Position": {
+        "X": -415.56927,
+        "Y": 1432.6199
+      },
+      "Description": "Selects the mode with which points are paired for blending",
+      "AddPadding": "True"
+    },
+    {
+      "InputId": "ba7ffda2-f9f6-440d-a174-7339844835fa"/*BlendFactor*/,
+      "Position": {
+        "X": -275.56927,
+        "Y": 1362.6199
+      },
+      "Description": "Defines the transition between the two point setups\n0 = PointsA is displayed without changes\n1 = PointsB is displayed without changes\nIf the 'BlendMode' is set to 'Blend', the points overshoot at values lower than 0 and higher than 1.\nIf the 'BlendMode' is set to 'RangeBlendSmooth', the transition loops.",
+      "AddPadding": "True",
+      "Min": 0.0,
+      "Max": 1.0
+    },
+    {
+      "InputId": "bdb712a8-3dbc-458a-887a-5add51813196"/*RangeWidth*/,
+      "Position": {
+        "X": -275.56927,
+        "Y": 1467.6199
+      },
+      "Description": "Defines the range width when the 'BlendMode' is set to 'RangeBlend' or 'RangeBlendSmooth'"
+    },
+    {
+      "InputId": "c5480ce5-a8ba-4a26-8cee-c28e442020b7"/*BlendMode*/,
+      "Position": {
+        "X": -415.56927,
+        "Y": 1397.6199
+      },
+      "GroupTitle": "Options",
+      "Description": "Defines how to blend between the point setups"
+    },
+    {
+      "InputId": "ee8e9e15-ce18-4034-abc6-dd56108c8a02"/*Scatter*/,
+      "Position": {
+        "X": -275.56927,
+        "Y": 1502.6199
+      },
+      "Description": "Adds random noise to the points' position during the transition"
+    }
+  ],
+  "SymbolChildUis": [
+    {
+      "ChildId": "0bc3f50e-f47c-44bd-9f19-5a144f745b14"/*GetSRVProperties*/,
+      "Position": {
+        "X": -135.56927,
+        "Y": 1155.4034
+      }
+    },
+    {
+      "ChildId": "0da93e22-c63d-4efe-96db-ff346c79a706"/*GetBufferComponents*/,
+      "Position": {
+        "X": 288.47668,
+        "Y": 1052.1796
+      }
+    },
+    {
+      "ChildId": "2eb9e20b-521f-4630-8085-2c32bda1bbdb"/*IntToFloat*/,
+      "Position": {
+        "X": -275.56927,
+        "Y": 1397.6199
+      }
+    },
+    {
+      "ChildId": "4c7d82ca-42ed-4968-8150-7c6378a7a6ca"/*ExecuteBufferUpdate*/,
+      "Position": {
+        "X": 428.47668,
+        "Y": 1122.1796
+      }
+    },
+    {
+      "ChildId": "4fee13a9-9e54-48a9-b6a4-fbf73d710aad"/*CalcDispatchCount*/,
+      "Position": {
+        "X": 4.430725,
+        "Y": 1120.4036
+      }
+    },
+    {
+      "ChildId": "76ab5ba5-897f-4f96-b57e-aed844481f88"/*FloatsToBuffer*/,
+      "Style": "Resizable",
+      "Size": {
+        "X": 110.86372,
+        "Y": 44.69636
+      },
+      "Position": {
+        "X": -135.56927,
+        "Y": 1327.6199
+      }
+    },
+    {
+      "ChildId": "951f2698-ceac-42de-9401-5f58672fcc2e"/*GetBufferComponents*/,
+      "Position": {
+        "X": -135.56927,
+        "Y": 1225.4036
+      }
+    },
+    {
+      "ChildId": "a9afe19d-306c-428c-be18-683304d63951"/*ComputeShaderStage*/,
+      "Position": {
+        "X": 428.47668,
+        "Y": 912.17957
+      }
+    },
+    {
+      "ChildId": "be16bd14-c623-47e2-8944-ce90f98e2728"/*GetBufferComponents*/,
+      "Position": {
+        "X": -399.26328,
+        "Y": 958.8297
+      }
+    },
+    {
+      "ChildId": "c8193c86-0696-49c7-a3a3-7f676ebdef0c"/*ComputeShader*/,
+      "Position": {
+        "X": -135.56927,
+        "Y": 1085.4034
+      }
+    },
+    {
+      "ChildId": "e7032fa8-ae95-4a18-ad2e-5a5524d8d936"/*StructuredBufferWithViews*/,
+      "Position": {
+        "X": -135.56927,
+        "Y": 1190.4036
+      }
+    },
+    {
+      "ChildId": "ec56cf28-5896-4dfb-a701-b3b33e659935"/*IntToFloat*/,
+      "Position": {
+        "X": -275.56927,
+        "Y": 1432.6199
+      }
+    }
+  ],
+  "OutputUis": [
+    {
+      "OutputId": "660013c7-8f6b-458a-bb86-61e5a85692a4"/*OutBuffer*/,
+      "Position": {
+        "X": 792.6956,
+        "Y": 659.3562
+      }
+    }
+  ]
+})T3"

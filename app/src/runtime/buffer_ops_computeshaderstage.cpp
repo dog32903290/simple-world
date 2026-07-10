@@ -74,6 +74,8 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_clearsomepoints";  // 退場: point per-block hash kill (SRV+UAV, b0 float + b1 int)
   if (src.find("points/modify/SnapToPoints.hlsl") != std::string::npos)
     return "computeshaderstage_snaptopoints";  // 退場: point index-paired snap (DUAL-SRV t0/t1 + UAV)
+  if (src.find("points/combine/BlendPoints.hlsl") != std::string::npos)
+    return "computeshaderstage_blendpoints";  // 退場: point index-paired blend (DUAL-SRV + per-SRV count aux)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 
@@ -121,6 +123,13 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   for (size_t i = 0; i < uavs.size() && i < (size_t)CS_MAX_UAV; ++i)
     enc->setBuffer(const_cast<MTL::Buffer*>(uavs[i]->bytes), 0, CS_UAV_BASE + (int)i);
   enc->setBytes(&numStructs, sizeof(numStructs), CS_CB_BASE + 3);  // dispatch bound (see fork)
+  // AUX per-SRV element counts (computestage-per-srv-elementcount): every wired SRV's count in t# order.
+  // numStructs above stays the front SRV's count for existing kernels; a dual-SRV kernel that needs a
+  // NON-front length (BlendPoints countB = srvCounts[1] for Adjust thinning / B zero-fill) reads it here.
+  // Backward-compatible: kernels that never declare buffer(CS_SRVCOUNT_BASE) ignore this extra binding.
+  uint32_t srvCounts[CS_MAX_SRV] = {0};
+  for (size_t i = 0; i < srvs.size() && i < (size_t)CS_MAX_SRV; ++i) srvCounts[i] = srvs[i]->elementCount;
+  enc->setBytes(srvCounts, sizeof(srvCounts), CS_SRVCOUNT_BASE);
   const uint32_t tg = 64;
   enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(numStructs, tg), 1, 1),
                             MTL::Size::Make(tg, 1, 1));

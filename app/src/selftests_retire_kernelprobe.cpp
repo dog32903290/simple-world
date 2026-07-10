@@ -37,6 +37,8 @@ std::string probeResolveComputeKernel(const std::string& src) {
     return "computeshaderstage_clearsomepoints";
   if (src.find("points/modify/SnapToPoints.hlsl") != std::string::npos)
     return "computeshaderstage_snaptopoints";
+  if (src.find("points/combine/BlendPoints.hlsl") != std::string::npos)
+    return "computeshaderstage_blendpoints";
   return src;  // unmapped path → unported
 }
 

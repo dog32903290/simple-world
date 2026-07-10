@@ -27,4 +27,10 @@ enum ComputeStageBinding {
   CS_MAX_CB   = 4,
   CS_MAX_SRV  = 8,
   CS_MAX_UAV  = 4,
+  // AUX (backward-compatible, computestage-per-srv-elementcount): a uint[CS_MAX_SRV] array of every
+  // wired SRV's elementCount, in t# order. numStructs (CS_CB_BASE+3) still carries the FRONT SRV's count
+  // for existing kernels; a kernel that needs a NON-front SRV's length (e.g. dual-SRV BlendPoints reading
+  // countB = srvCounts[1] for its Adjust-thinning / B-zero-fill) binds this array here. Existing kernels
+  // that never declare buffer(CS_SRVCOUNT_BASE) are unaffected (Metal ignores the extra bound buffer).
+  CS_SRVCOUNT_BASE = 16,
 };

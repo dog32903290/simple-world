@@ -16,7 +16,8 @@ void registerPickPointListOp();       // batch 24: multi-input select by Index
 void registerPairPointsForSplinesOp();        // batch 10: Hermite spline strip per pair
 void registerSplinePointsOp();                // even arc-length resample of a cardinal cubic spline
 void registerPairPointsForGridWalkLinesOp();  // batch 10: 11-step grid-walk polyline per pair
-void registerBlendPointsOp();                 // batch 10: index-paired PointsA->PointsB lerp
+// (BlendPoints flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid 2dc5c9d1…) provides
+//  it now; mathv verifies the kernel, t3-blendpoints-retire the takeover. §5.)
 void registerMultiUpdatePointsOp();           // point lane: pass-through last wired buffer (TiXL _internal)
 void registerRepeatAtPointsOp();              // count-product seam: cartesian product source.N * target.N
 void registerGrowStrainsOp();                 // 2-input product + GrowthMap texture (count=(A+1)*B)
@@ -29,7 +30,7 @@ void registerPointCombinePointOps() {
   registerPairPointsForSplinesOp();
   registerSplinePointsOp();
   registerPairPointsForGridWalkLinesOp();
-  registerBlendPointsOp();
+  // BlendPoints flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerMultiUpdatePointsOp();
   registerRepeatAtPointsOp();
   registerGrowStrainsOp();

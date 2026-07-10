@@ -281,12 +281,9 @@ int runSplinePointsSelfTest(bool injectBug);
 // +Target[i] (cyclic) -> 11-step grid-walk polyline (11th=NaN divider); count = max(Start,Target)*11.
 void registerPairPointsForGridWalkLinesOp();
 int runPairPointsForGridWalkLinesSelfTest(bool injectBug);
-// BlendPoints COMBINE op (point_ops_blendpoints.cpp, batch 10): per-point lerp of PointsA[i] toward
-// PointsB[i] (index-paired) by a BlendMode-selected factor f. Output count = countA (PointsA, the
-// FIRST input — countFromFirstPointsInput=true, NOT the sum). injectBug = perturb BlendFactor so the
-// routed lerp factor differs from the asserted f=0.25 -> Position/Color/FX1 assertions FAIL.
-void registerBlendPointsOp();
-int runBlendPointsSelfTest(bool injectBug);
+// (BlendPoints flat atom + its --selftest-blendpoints RETIRED 2026-07-10, 廢棄節點退場 — the .t3
+//  compound (guid 2dc5c9d1…) provides it now. Kernel math is mathv-verified (selftests_mathv_blendpoints.cpp
+//  dispatches app/shaders/blendpoints.metal), takeover in t3import_blendpoints_retire_golden.cpp. §5.)
 // MultiUpdatePoints COMBINE op (point_ops_multiupdatepoints.cpp, sw-batch point lane): a fan-in
 // HELPER (TiXL _internal) that passes the LAST wired Points input through unchanged. Output count =
 // first wired input (== last in faithful same-buffer usage; countFromFirstPointsInput=true). No
