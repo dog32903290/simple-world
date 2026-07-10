@@ -75,8 +75,9 @@ bool checkRotationTooth(const TfcsDispatch& disp) {
 // ── TOOTH SPECIAL MATRICES: identity / pure-translation / pure-rotation(180-about-X) /
 // degenerate-det0 / w-row-nontrivial(true clip-projection form). Every case's upper-left 3x3 is
 // DIAGONAL (rotation angles pinned 0, only scale+translation+w-row vary) -> trivially SYMMETRIC ->
-// sidesteps the KNOWN FINDING's transpose divergence, so this tooth stays a clean, meaningful
-// Position+Rotation gate (both channels expected GREEN).
+// transpose(R)==R so this tooth is insensitive to the transpose decision either way; it stays a clean,
+// meaningful Position+Rotation gate (both channels GREEN). The transpose-sensitive coverage lives in
+// checkRotationTooth (asymmetric) + checkPinnedEyeTooth (the absolute anchor).
 bool checkSpecialMatrixTooth(const TfcsDispatch& disp) {
   Comparator cmp("mathv-transformfromclipspace-specialmatrix", EpsSpec::transcendental(), 8);
   struct Case { const char* tag; Mat16 M; };
