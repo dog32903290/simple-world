@@ -77,6 +77,12 @@ bool collapseTextureComputeStage(const crude_json::value& root, Symbol& sym, Sym
                                  const std::function<void(const std::string&)>& warn,
                                  const std::string& t3uiJson);
 
+// Single ROOT-collapse entry point (image-fx wrapper OR texture-compute) — keeps the importer's hook one
+// block for the rule-4 line ratchet. Returns true if a collapse fired (caller commits `sym` + returns).
+bool tryCollapseRoot(const crude_json::value& root, const std::string& symGuid, Symbol& sym,
+                     SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
+                     const std::string& t3uiJson);
+
 // DataSet-timeline seam: read a child's Outputs[].OutputData TimeClip blocks (= SymbolJson.cs:112-131,
 // Type "T3.Core.Animation.TimeClip") into `child.clips`, keyed by the sw output slot name. Split out of
 // t3_import.cpp's Children loop ONLY for the rule-4 line ratchet (self-contained parse). No-op when the

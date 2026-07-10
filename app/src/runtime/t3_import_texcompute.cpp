@@ -169,4 +169,16 @@ bool collapseTextureComputeStage(const crude_json::value& root, Symbol& sym, Sym
   return true;
 }
 
+// Try every ROOT-collapse path in order (image-fx wrapper first, then texture-compute). Returns true if
+// EITHER fired (the caller commits `sym` + returns); false if this root is a normal per-child compound.
+// One entry point keeps the importer's collapse hook a single block (rule-4 line ratchet).
+bool tryCollapseRoot(const crude_json::value& root, const std::string& symGuid, Symbol& sym,
+                     SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
+                     const std::string& t3uiJson) {
+  const std::string collapseType = swTexOpForCollapseRootGuid(symGuid);
+  if (!collapseType.empty() && collapseImageFxWrapper(root, collapseType, sym, lib, warn, t3uiJson))
+    return true;
+  return collapseTextureComputeStage(root, sym, lib, warn, t3uiJson);
+}
+
 }  // namespace sw

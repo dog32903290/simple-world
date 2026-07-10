@@ -71,7 +71,7 @@ bool nearf(float a, float b, float e = kLayoutEps) { return std::fabs(a - b) < e
 // fast-math via 1/cosLo). eps in 16-bit UNorm LSB (measured; a body-formula error moves the split-sum by
 // O(0.1)=thousands of LSB, so this is far tighter than the seam it guards yet absorbs fast-math).
 constexpr uint32_t kW = 512, kH = 512;
-constexpr int kParityEpsLsb = 8;
+constexpr int kParityEpsLsb = 3;  // MEASURED interior max ~0.5 LSB on the 512² probe grid; 3× fast-math margin
 
 int childIdOfType(const Symbol& s, const std::string& type) {
   for (const SymbolChild& c : s.children) if (c.symbolId == type) return c.id;
