@@ -15,20 +15,27 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 592016a
+HEAD: 8238920
 DIRTY: clean
 CENSUS: 609 / 749 done
-BITE: 718 PASS | FAILED=[0] | NO-BITE=[0]
-STAMP_AT: 2026-07-10T09:46
+BITE: 721 PASS
+STAMP_AT: 2026-07-10T13:10
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**⏸ LOOP 已收尾（柏為 2026-07-10 09:24 令「這個任務結束後先收尾，我們討論」，量產批 2 部分收）。main 乾淨（HEAD 見機器塊）、718/0/0、過閘綠、未 push（領先 origin ~三天份——要推等柏為授權）。worktree 已全清（只剩 main，branch 保留可撈）。**
-- **量產批 2 收尾帳**：①MeshVerticesToPoints+ReorientLinePoints **mathv 五關閉合已合流 main**（S PASS+X GO 各自；退場未做）②**TransformFromClipSpace 誠實紅未合流**（branch `worktree-agent-a0ad257862455da23` 全留：R `68c7906`+D `ccaf000`/`21d37be`）——D 抓到 **ref 轉錄 bug**：R 照 .hlsl 字面轉錄 `transpose()` 但 TiXL C# host 上傳前已 pre-transpose（R 隔離規則看不到 C#）→ ref 對非對稱矩陣算共軛四元數（獨立 oracle 三案 |dot|=1.0 vs 0.45 隔離實測）。**修法明確**：ref 拔 transpose → D rotation 牙轉綠 → S/X 走完 → 合流。
-- **接力待辦（下一棒開工單清單）**：㈠ TransformFromClipSpace ref 修+S/X 收尾 ㈡ **3 顆退場未做**（MeshVerticesToPoints/ReorientLinePoints/TransformFromClipSpace——R6 前兩顆已綠，照量產批 1 recipe ABI 重包+四閘）㈢ ReorientLinePoints 4 非阻斷修單（S 給措辭：.metal 第三條 OOB FORK 註記補全/R 註釋修正×2/D clamp 補牙 6-6）㈣ **共享 quat oracle qSlerp 零長度判定修**（float underflow，下顆 quat-reuse op 前必修，S 給一行修法）㈤ harness backlog：`Evidence::batch` const char*→std::string（stack-use-after-scope 陷阱）+ `-bug` 腿只咬 PRIMARY（X flag，跨 op 慣例級）㈥ **R 工單模板補一條**：kernel 吃 host 端預處理資料（矩陣等）時 cbuffer 語義可能定義在 C# host——R 標 AMBIGUITY 留 S 稽 C#（TransformFromClipSpace 教訓）。
+**★引擎先行戰役（柏為 2026-07-10 09:56 拍板，Fable orchestrator 執行中）＝「引擎一次改到好+.t3 波次套答案」取代逐顆撞運氣。** main 乾淨 721/0/0 過閘綠、未 push（領先 origin 更多——要推等柏為授權）。本批（2026-07-10 10:05-13:10）七筆合流：
+- **盤點兩表 `ac50d7c`**（`census/ENGINE_GAP_GLUE.md`+`ENGINE_GAP_BUFFER_SHAPES.md`）：29 buffer 形狀（已證 3 種蓋 55.3%、到 80% 需再 6 種全 texture-bound）、564 膠水（最痛前 5 全 render/DX11 膠水=與「架構外」定性相撞**待裁決 render 島複合路線**）、52 假 MISSING=壓平複合互嵌（修法=guid→sw-atom 表）。
+- **transpiler 路線定案（試金石 branch `worktree-agent-ae12359c71deefe72` 未合流=實驗品）**：glslang+spirv-cross（brew 現成、DXC 死路）；三數據點=AddNoise 5/5 全綠（不同矩陣路徑同解=語義忠實鐵證）/SnapToGrid 紅全落 sw NAMED FORK（忠實到連 raw HLSL 陷阱一起搬）/BRDF adapter 僅 1 行。**量產工作流：轉換→編譯→selftest 閘自動分流——綠直接收、紅對 NAMED FORK 補 1-3 行守衛**。137 顆未 port 的數學 body 零手寫。配方（--hlsl-iomap --amb + 四 shift flag）在試金石 branch commit 07c0c3f。
+- **texture-compute 縫藍圖 `dcf25e7`（`TEXTURE_COMPUTE_SEAM_SPEC.md`）+ 階段 1 LIVE `cd86cf5`**：第二 keystone（66/190 compute=34.7% 被 texture 綁定擋）開通——tex 軌 ComputeShaderStageTex+importer 四摺+rail 分流（UAV 貨幣定軌）；封印 `_ComputeBRDFLookup` 四閘咬、S 稽核 FAIL→golden 空心敘事修 `df181d5` 翻 PASS（數學本體零分岔）。階段 2（SRV-tex 讀，封印 _ComputeDepthToLinear）/3（buffer 軌+sampler）/4（多 UAV）按藍圖 §5 未做。
+- **TransformFromClipSpace 五關收官 `5ada8cd`＝S/X 分歧裁決史詩**：D 誤診 ref 錯→fixer 反修→X 內層自洽 GO→S 挖編譯 flag 層（ShaderFlags.None→column-major packing 抵銷 host pre-transpose→HLSL 可見 M≡N）FAIL→orchestrator 獨立驗算裁 S 勝→反向修（kernel rotation 共軛=**第一顆深埋 production 的真 parity bug**，自 port 日活到修日）+pinnedEye324 反共軛錨牙+re-drop 演練。教訓制度化 `72c9997`（R 模板 host-preprocessed AMBIGUITY 條）。
+- **接力㈠㈢㈣㈤㈥全清 `64d2564`+`72c9997`**：ReorientLinePoints 4 修單+Evidence::batch std::string+qSlerp 4D-length（在 5ada8cd 內）。
+- **退場 +2 顆 `8238920`（累計 10 顆）**：MeshVerticesToPoints（首顆 Mesh-SRV）+TransformFromClipSpace（抓修兩機制堵點：graph_bridge Pass 3 kLegacyNameAlias 表解 sw/TiXL 命名分岔死鎖、空 FloatsToBuffer cbuffer 重編號 fork 具名）。
+- **⚠ MASTER_PLAN 前瞻待辦≠既有裁決（本批兩例實錘）**：舊接力㈣「S 給一行修法」㈢「S 給措辭」均查無記錄（是「該去要」不是「已給」）——寫接力段當下就分清「已裁決（引 commit）」vs「待裁決」。
+
+**接力待辦（下一棒）**：㈠ texture 縫階段 2（SRV-tex 讀 tex-out，封印 _ComputeDepthToLinear，藍圖 §5 表列 2，依賴階段 1 已 LIVE）㈡ ReorientLinePoints 退場（R6 綠+修單清完，owner-lock 已空）㈢ transpiler 制度化：把「轉換→selftest 分流」工作流寫進 MATH_VERIFY_WORKFLOW（R 角色量產版）+ 137 顆未 port 首波試產 3-5 顆 ㈣ render 島複合路線裁決（盤點揭露：SrvFromTexture2d 102 顆等 render 膠水最痛但屬「架構外」定性——scout render 島複合能否走 importer fold 等效或需獨立設計）㈤ 52 假 MISSING 的 guid→sw-atom 映射表（機械，ENGINE_GAP_GLUE 發現⑤有修正路徑）㈥ 退場 agent 稱曾 spawn 背景任務補 RETIREMENT_BATTLE_SPEC——查有無孤兒 chip/未合流文件改動。
 
 **★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
