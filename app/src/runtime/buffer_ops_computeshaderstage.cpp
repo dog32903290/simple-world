@@ -119,6 +119,16 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   const uint32_t numStructs = srvs.empty() ? uavs.front()->elementCount : srvs.front()->elementCount;
   if (numStructs == 0) { *c.output = *uavs.front(); return; }  // nothing to do; still forward the (empty) UAV
 
+  // TEXTURE-SRV inputs (TEXTURE_COMPUTE_SEAM_SPEC stage 3): a buffer-out kernel that reads a Texture2D SRV
+  // (DX11's t1 texture-view, split off the buffer t# space onto Metal's own texture index — SPEC §2/§6.3).
+  // The importer folds SrvFromTexture2d → the ShaderResourceTextures port; the cook driver gathers the
+  // cooked upstream texture cross-currency into c.srvTextures (both cook legs). A DEFAULT linear-clamp
+  // MTLSamplerState is bound whenever any texture is present (fork computestage-default-sampler): TiXL
+  // discards the SamplerStates wire at import (t3_import_maps.cpp:152), so the stage supplies a sensible
+  // default (attributesfromimagechannels.cpp:118-141 precedent) — per-op sampler params are a later
+  // refinement. A kernel that only .Load()s (no .Sample) ignores the bound sampler (Metal drops an unused
+  // sampler binding). Empty srvTextures → this block is a no-op → every buffer-only kernel is byte-identical.
+  const int nTex = c.srvTextureCount < CS_MAX_TEX_SRV ? c.srvTextureCount : CS_MAX_TEX_SRV;
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
   enc->setComputePipelineState(pso);
@@ -128,6 +138,21 @@ void cookComputeShaderStage(BufferCookCtx& c) {
     enc->setBuffer(const_cast<MTL::Buffer*>(srvs[i]->bytes), 0, CS_SRV_BASE + (int)i);
   for (size_t i = 0; i < uavs.size() && i < (size_t)CS_MAX_UAV; ++i)
     enc->setBuffer(const_cast<MTL::Buffer*>(uavs[i]->bytes), 0, CS_UAV_BASE + (int)i);
+  // texture-SRVs at CS_TEX_SRV_BASE.. + the default linear-clamp sampler (see block comment above).
+  for (int i = 0; i < nTex; ++i)
+    if (c.srvTextures[i])
+      enc->setTexture(const_cast<MTL::Texture*>(c.srvTextures[i]), CS_TEX_SRV_BASE + i);
+  MTL::SamplerState* samp = nullptr;
+  if (nTex > 0) {
+    MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
+    sd->setMinFilter(MTL::SamplerMinMagFilterLinear);
+    sd->setMagFilter(MTL::SamplerMinMagFilterLinear);
+    sd->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
+    sd->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
+    samp = c.dev->newSamplerState(sd);
+    sd->release();
+    if (samp) enc->setSamplerState(samp, CS_SAMPLER_BASE);
+  }
   enc->setBytes(&numStructs, sizeof(numStructs), CS_CB_BASE + 3);  // dispatch bound (see fork)
   // AUX per-SRV element counts (computestage-per-srv-elementcount): every wired SRV's count in t# order.
   // numStructs above stays the front SRV's count for existing kernels; a dual-SRV kernel that needs a
@@ -142,6 +167,7 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
+  if (samp) samp->release();  // per-cook sampler (attributesfromimagechannels precedent); PSO stays cached
 
   // Output the WRITTEN UAV buffer (the StructuredBufferWithViews buffer, now filled). ExecuteBufferUpdate
   // forwards this same buffer downstream (fork computeshaderstage-dispatch-in-cook).
@@ -161,6 +187,11 @@ NodeSpec makeSpec() {
       {"ConstantBuffers", "Buffer", "Buffer", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
       {"ShaderResources", "Buffer", "Buffer", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
       {"Uavs", "Buffer", "Buffer", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
+      // ShaderResourceTextures: MultiInput<Texture2D> SRV read (TEXTURE_COMPUTE_SEAM stage 3; folded from
+      // SrvFromTexture2d). DX11 packs buffer-SRV + texture-SRV into ONE t# space; Metal splits them, so a
+      // texture-SRV rides its OWN texture-index (CS_TEX_SRV_BASE) here, apart from ShaderResources (buffer).
+      {"ShaderResourceTextures", "ShaderResourceTextures", "Texture2D", true, 0.0f, 0.0f, 0.0f,
+       Widget::Slider, {}, false, 1, true},
       // KernelName: the MSL kernel to dispatch (folded from ComputeShader.Source at import). String port.
       {"KernelName", "KernelName", "String", true},
   };

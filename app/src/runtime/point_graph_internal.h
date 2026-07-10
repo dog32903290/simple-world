@@ -413,7 +413,8 @@ struct PointGraph::Impl : FeedbackStore {
   // cookBufferNode rides in by-ref (Buffer→Buffer self-recursion). Returns the cooked SwBuffer (bufferMeta).
   const SwBuffer* cookFlatBuffer(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
                                  const std::function<const SwBuffer*(int)>& cookBufferNode, const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
-                                 const std::function<const std::vector<float>*(int)>& cookFloatListNode, int id);
+                                 const std::function<const std::vector<float>*(int)>& cookFloatListNode,
+                                 const std::function<MTL::Texture*(int, int)>& cookTexNode, int id);
   // The RESIDENT BUFFER cook (Seam-1 = GPU "Buffer" currency, WO-E), point_graph_resident_buffer.cpp (full
   // doc in leaf). Resident twin of cookFlatBuffer — the PRODUCTION leg (today's live app cooks resident). Walks
   // a Buffer node by resident PATH, gathering its Buffer inputs through ResidentInput::Connection drivers (the
@@ -424,6 +425,7 @@ struct PointGraph::Impl : FeedbackStore {
       const ResidentEvalGraph& rg, const EvaluationContext& ctx, const ResidentEvalCtx& rc,
       const ResidentParamsFn& nodeParams,
       const std::function<const SwBuffer*(const std::string&, int)>& cookResidentBuffer,
+      const std::function<MTL::Texture*(const std::string&, int, const std::string&)>& cookTexNode,
       const std::string& path, int depth);
   // The FLAT STRING cooks + host-scalar, point_graph_string_cook.cpp / point_graph_hostscalar_cook.cpp (full doc in leaves). gatherStringInputs = the SHARED wire-OR-const String gather (both cooks call it).
   std::vector<std::string> gatherStringInputs(

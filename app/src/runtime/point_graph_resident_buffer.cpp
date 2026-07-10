@@ -133,6 +133,7 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
     const ResidentEvalGraph& rg, const EvaluationContext& ctx, const ResidentEvalCtx& rc,
     const ResidentParamsFn& nodeParams,
     const std::function<const SwBuffer*(const std::string&, int)>& cookResidentBuffer,
+    const std::function<MTL::Texture*(const std::string&, int, const std::string&)>& cookTexNode,
     const std::string& path, int depth) {
   if (depth > 64) { pgdetail::warnCookDepthOnce(); return nullptr; }  // SAME cycle guard as cookResident
   const ResidentNode* n = rg.node(path);
@@ -152,9 +153,27 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
   std::vector<float> floatInputs;
   std::vector<std::array<float, 16>> vec4Inputs;  // stays empty on the resident leg (fork — see header)
   std::vector<float> floatListInput;  // LIST-CURRENCY BRIDGE: the single FloatList payload (IntListToBuffer)
+  // SRV-TEX gather (TEXTURE_COMPUTE_SEAM stage 3 — CROSS-CURRENCY, resident twin of the flat gather): a
+  // Buffer op with "Texture2D" ports (ComputeShaderStage.ShaderResourceTextures) cooks each wired upstream
+  // tex op through the resident tex driver (cookResidentTexNode) into srvTextures, wire-declaration order
+  // (primary + extraConns). The MIRROR of the resident texture-into-points gather (point_graph_resident.cpp
+  // :259-277). Empty for every other Buffer op (no Texture2D port) → byte-identical.
+  const MTL::Texture* srvTextures[BufferCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+  int srvTextureCount = 0;
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
     const ResidentInput* ri = n->input(port.id);
+    if (port.dataType == "Texture2D") {
+      if (ri && ri->driver == ResidentInput::Driver::Connection && cookTexNode) {
+        if (srvTextureCount < BufferCookCtx::kMaxTexInputs)
+          srvTextures[srvTextureCount++] = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
+        if (port.multiInput)
+          for (const auto& ec : ri->extraConns)
+            if (srvTextureCount < BufferCookCtx::kMaxTexInputs)
+              srvTextures[srvTextureCount++] = cookTexNode(ec.first, depth + 1, ec.second);
+      }
+      continue;
+    }
     if (port.dataType == "FloatList") {
       // LIST-CURRENCY BRIDGE (list-currency seam) — RESIDENT twin of the flat FloatList gather. A wired
       // FloatList producer (IntListToBuffer.IntList) is cooked through the resident FloatList rail
@@ -208,6 +227,8 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
   bc.ctx = &ctx; bc.nodeId = 0;  // resident: no flat node id (resources key by path, not id)
   bc.inputBuffers = &inputBuffers;
   bc.inputBufferPorts = &inputBufferPorts;
+  for (int k = 0; k < srvTextureCount; ++k) bc.srvTextures[k] = srvTextures[k];  // SRV-tex (stage 3)
+  bc.srvTextureCount = srvTextureCount;
   bc.output = &out;
   bc.params = nodeParams(path);  // resolved Float params (value spine; marshal ops read floatInputs, not this)
   bc.strParams = &n->strInputs;  // resolved String params (ComputeShaderStage's KernelName)
