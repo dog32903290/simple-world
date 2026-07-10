@@ -35,7 +35,9 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"samplepointattributes", runSamplePointAttributesSelfTest},
     {"displacepoints2d", runDisplacePoints2dSelfTest},
     {"transformwithimage", runTransformWithImageSelfTest},
-    {"meshverticestopoints", runMeshVerticesToPointsSelfTest},
+    // (--selftest-meshverticestopoints RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound provides
+    //  MeshVerticesToPoints now; kernel math in --selftest-mathv-meshverticestopoints, takeover in
+    //  t3-meshverticestopoints-retire.)
     {"pointsonmesh", runPointsOnMeshSelfTest},
     {"findclosestpointsonmesh", runFindClosestPointsOnMeshSelfTest},
     {"attributesfromimagechannels", runAttributesFromImageChannelsSelfTest},
@@ -176,6 +178,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-clearsomepoints-retire", runT3ClearSomePointsRetireGates},  // ★廢棄節點退場: retired flat ClearSomePoints atom → .t3 compound (guid e570b2e6…) takeover; ②parity COOK-DRIVEN vs the mathv oracle (branchy per-block hash kill Scale→NAN, computeshaderstage_clearsomepoints kernel; b0 float Ratio + b1 int Seed/Repeat/Resolution)
     {"t3-snaptopoints-retire", runT3SnapToPointsRetireGates},  // ★廢棄節點退場: retired flat SnapToPoints atom → .t3 compound (guid 5822b0d8…) takeover; ②parity COOK-DRIVEN vs the mathv oracle (DUAL-SRV index-paired snap, Position+FX1(W); computeshaderstage_snaptopoints kernel; b0 [BlendFactor,Distance,MaxAmount]; stride 32→64 fork)
     {"t3-blendpoints-retire", runT3BlendPointsRetireGates},  // ★廢棄節點退場: retired flat BlendPoints atom → .t3 compound (guid 2dc5c9d1…) takeover; ②parity COOK-DRIVEN vs the mathv oracle (DUAL-SRV index-paired blend, Position+FX1; computeshaderstage_blendpoints kernel; b0 5 floats; generic-seam per-SRV countB aux extension)
+    {"t3-meshverticestopoints-retire", runT3MeshVerticesToPointsRetireGates},  // ★廢棄節點退場: retired flat MeshVerticesToPoints atom → .t3 compound (guid 2467e1ed…) takeover; ②parity COOK-DRIVEN vs the mathv oracle (Mesh SRV → fresh Point UAV, Stride=64 native; computeshaderstage_meshverticestopoints kernel; b0 [OffsetByTBN.x,W])
     {"t3-brdflookup", runT3BrdfLookupGates},  // ★TEXTURE-COMPUTE SEAM 首證 (stage 1): _ComputeBRDFLookup.t3 → ComputeShaderStageTex collapse → resident cook + RGBA16 readback vs split-sum BRDF oracle (①takeover ③reference ②parity ④layout under one -bug)
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
     {"t3-blend", runT3BlendParity},  // ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) through the SAME collapse → Normal-blend oracle; proves not HSE-only

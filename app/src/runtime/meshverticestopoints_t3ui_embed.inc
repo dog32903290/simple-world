@@ -1,0 +1,122 @@
+// AUTO-EMBED: external/tixl/Operators/Lib/point/generate/MeshVerticesToPoints.t3ui (byte-faithful).
+// Included by t3import_meshverticestopoints_retire_golden.cpp (retire ④layout). Data, not code.
+R"T3(
+{
+  "Id": "2467e1ed-f7fc-4c90-8230-b80ba6b42a2d"/*MeshVerticesToPoints*/,
+  "Description": "Creates a point at each vertex of the connected mesh.\nIntended as a helper method to analyze meshes.\n\nUseful combinations [LoadObj], [DrawPoints] and grouped with [DrawMesh] with Fillmode set to 'Wireframe' (similar to [VisualizeMesh])\n\nSimilar Operators:\nTo create a point at each face center of the connected mesh [MeshFacesPoints] can be used.\nTo get evenly distributed points on a mesh [PointsOnMesh] can be used.\n\n ",
+  "SymbolTags": "1",
+  "InputUis": [
+    {
+      "InputId": "664b9a97-0709-40d5-b0a0-651092e658af"/*OffsetByTBN*/,
+      "Position": {
+        "X": -32.39586,
+        "Y": 639.0343
+      },
+      "Description": "Moves the points along one of the axes of the normal"
+    },
+    {
+      "InputId": "b990cf29-00a5-4e39-8687-4502c7c7eebc"/*Mesh*/,
+      "Relevancy": "Required",
+      "Position": {
+        "X": -559.72864,
+        "Y": 447.2469
+      },
+      "Description": "Mesh Input via [LoadObj]"
+    },
+    {
+      "InputId": "e5ab7ae6-d8de-4c92-9130-1082e5a56ba1"/*W*/,
+      "Position": {
+        "X": 107.60414,
+        "Y": 744.0343
+      },
+      "Description": "Defines W / the size of the points.",
+      "AddPadding": "True"
+    }
+  ],
+  "SymbolChildUis": [
+    {
+      "ChildId": "0716f47d-6f46-49f7-9451-b1225d2a808d"/*ComputeShader*/,
+      "Position": {
+        "X": -32.39585,
+        "Y": 404.61945
+      }
+    },
+    {
+      "ChildId": "174d4182-fc54-4b8a-84f8-c8e60e100be4"/*StructuredBufferWithViews*/,
+      "Position": {
+        "X": 107.60414,
+        "Y": 875.2011
+      }
+    },
+    {
+      "ChildId": "48ca6106-7219-4a6d-929a-dfa139408872"/*_MeshBufferComponents*/,
+      "Position": {
+        "X": -559.72864,
+        "Y": 482.2469
+      }
+    },
+    {
+      "ChildId": "7692424a-cec6-46d9-b46a-29eb3f302371"/*ComputeShaderStage*/,
+      "Position": {
+        "X": 473.48834,
+        "Y": 422.5932
+      }
+    },
+    {
+      "ChildId": "9b93a50e-2de0-4a01-b771-f6f69c56ed1e"/*GetVerrtices*/,
+      "Position": {
+        "X": -304.43826,
+        "Y": 529.2889
+      }
+    },
+    {
+      "ChildId": "9d9b0cfd-e1e8-463f-ba33-6d507d5480a1"/*CalcDispatchCount*/,
+      "Position": {
+        "X": 107.60414,
+        "Y": 439.61945
+      }
+    },
+    {
+      "ChildId": "aeea0963-3b77-4104-bb51-afb7c10c1a2d"/*Vector3Components*/,
+      "Position": {
+        "X": 107.60414,
+        "Y": 639.0343
+      }
+    },
+    {
+      "ChildId": "c8b056cf-e7c8-4ee0-9484-606e0d97ab77"/*ExecuteBufferUpdate*/,
+      "Position": {
+        "X": 473.4883,
+        "Y": 597.5932
+      }
+    },
+    {
+      "ChildId": "ceb431f8-7dbf-4d0c-b8fa-4d8800cc871d"/*FloatsToBuffer*/,
+      "Style": "Resizable",
+      "Size": {
+        "X": 117.32025,
+        "Y": 76.81641
+      },
+      "Position": {
+        "X": 247.60414,
+        "Y": 604.0343
+      }
+    },
+    {
+      "ChildId": "ea922783-8791-445e-99dd-23138ac1680a"/*GetBufferComponents*/,
+      "Position": {
+        "X": 107.60414,
+        "Y": 910.2011
+      }
+    }
+  ],
+  "OutputUis": [
+    {
+      "OutputId": "53089fc7-3f0b-46c4-81e1-04ecbb92efce"/*OutBuffer*/,
+      "Position": {
+        "X": 473.48828,
+        "Y": 667.5932
+      }
+    }
+  ]
+})T3"
