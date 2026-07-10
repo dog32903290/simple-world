@@ -352,6 +352,9 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
     }
   }
 
+  // BUFFER-RAIL SrvFromTexture2d fold (§5 row 3): append texture-SRV → stage.ShaderResourceTextures wires
+  // (fork srvfromtexture2d-folds-onto-shaderresourcetextures; DX11 packs it into ShaderResources, sw splits).
+  appendSrvFromTexFold(root, childGuidToId, childIdToSwType, conns, warn);
   // Routing RED tooth: reverse the FIRST MultiInput collision's order.
   if (t3ImportInjectBug()) {
     for (size_t i = 0; i + 1 < conns.size(); ++i) {
@@ -365,14 +368,11 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
   doneSwap:;
   }
 
-  // COMPOUND-OUTPUT-DEF (imported-compound-needs-outputdefs-to-be-draggable-child): each wire whose
-  // TARGET is the SYMBOL BOUNDARY names one of THIS compound's external output slots (dstSlot = the .t3
-  // boundary output guid). Without a matching SlotDef the imported compound has NO output PIN when
-  // dragged as a child (specFromSymbol emits output ports from outputDefs) AND viewProducerPath returns
-  // "" (`s->outputDefs.empty()`) → dead node / black cook. The port TYPE/name is copied from the SOURCE
-  // child atom's OUTPUT PortSpec that feeds this boundary (the terminal producer of that output). One
-  // SlotDef per distinct boundary output slot, in first-seen wire order. Metadata only — the flattener
-  // already keys outProducers on dstSlot regardless, so the cook product is unchanged.
+  // COMPOUND-OUTPUT-DEF (imported-compound-needs-outputdefs-to-be-draggable-child): each wire TARGETING
+  // the SYMBOL BOUNDARY names one external output slot (dstSlot = the .t3 boundary output guid). Without a
+  // matching SlotDef the imported compound has NO output PIN when dragged (specFromSymbol emits ports from
+  // outputDefs) AND viewProducerPath returns "" → dead/black cook. TYPE/name copied from the SOURCE child's
+  // OUTPUT PortSpec; one SlotDef per boundary output slot, first-seen order. Metadata only (cook unchanged).
   for (const SymbolConnection& c : conns) {
     if (c.dstChild != kSymbolBoundary) continue;
     bool have = false;

@@ -103,6 +103,11 @@ bool& t3TexComputeCollapseDisable();
 // at the .t3 defaults → the seeded oracle diverges → BITE. Off in production.
 bool& computeShaderStageTexForceBakeCb();
 
+// Test-only injection seam (buffer-rail SrvFromTexture2d fold RED case): force appendSrvFromTexFold to
+// no-op → SrvFromTexture2d stays an unmapped child, the texture-SRV wire drops, the buffer ComputeShaderStage
+// never gets a ShaderResourceTextures input. Off in production. The srvfromtexture2d golden flips this.
+bool& t3SrvTexFoldDisable();
+
 // Cheap top-level Id peek: parse ONLY the root object's Id (comment-strip + crude_json + lowercase),
 // matching the sym.id importT3Symbol would assign. Lets the boot catalog skip a .t3 whose symbol is
 // already in the lib WITHOUT a full import. Returns false (outId untouched) when there is no usable Id.

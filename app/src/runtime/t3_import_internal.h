@@ -4,6 +4,7 @@
 // self-contained pass. Tiny pure helpers are inline here so both TUs share one definition (no ODR risk).
 #pragma once
 #include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -82,6 +83,17 @@ bool collapseTextureComputeStage(const crude_json::value& root, Symbol& sym, Sym
 bool tryCollapseRoot(const crude_json::value& root, const std::string& symGuid, Symbol& sym,
                      SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
                      const std::string& t3uiJson);
+
+// BUFFER-RAIL SrvFromTexture2d FOLD (TEXTURE_COMPUTE_SEAM_SPEC §5 row 3, t3_import_texcompute.cpp): for a
+// per-child (NON-collapsed) buffer-out compute compound, append the re-anchored texture-SRV wires
+// (SrvFromTexture2d.out → Stage.ShaderResources becomes its texture source → Stage.ShaderResourceTextures)
+// to `conns`. The caller's loop already dropped the SrvFromTexture2d in/out wires as unmapped. No-op when
+// the compound has no SrvFromTexture2d. t3SrvTexFoldDisable() (t3_import.h) forces it off (the RED tooth).
+void appendSrvFromTexFold(const crude_json::value& root,
+                          const std::map<std::string, int>& childGuidToId,
+                          const std::map<int, std::string>& childIdToSwType,
+                          std::vector<SymbolConnection>& conns,
+                          const std::function<void(const std::string&)>& warn);
 
 // DataSet-timeline seam: read a child's Outputs[].OutputData TimeClip blocks (= SymbolJson.cs:112-131,
 // Type "T3.Core.Animation.TimeClip") into `child.clips`, keyed by the sw output slot name. Split out of
