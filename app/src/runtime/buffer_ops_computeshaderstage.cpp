@@ -82,8 +82,28 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_transformfromclipspace";  // 退場: point camera unproject (b0=TransformsConstBuffer, empty-FloatsToBuffer-reindex fork)
   if (src.find("points/modify/ReorientLinePoints.hlsl") != std::string::npos)
     return "computeshaderstage_reorientlinepoints";  // 退場: point neighbour-tangent align (SRV+UAV, copy-through + OOB-guard forks)
+  if (src.find("img/analyze/cs-GetImageBrightness.hlsl") != std::string::npos)
+    return "computeshaderstage_getimagebrightness";  // stage 3: SRV-tex read → uint UAV reduction (texture-into-buffer seal)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
+
+// Per-kernel dispatch shape (default: 1D over the SRV/UAV element count, tg 64 — every buffer/point kernel).
+// A texture-reduction kernel (GetImageBrightness) instead dispatches 2D over its SRV TEXTURE's W×H (fork
+// computestage-buffer-stage-2d-from-srvtex-dispatch, TEXTURE_COMPUTE_SEAM §3.4), tg 8×8 = HLSL numthreads —
+// the buffer-rail twin of the tex stage's per-kernel threadgroup table (point_ops_computeshaderstagetex.cpp).
+struct StageDispatch { bool twoDFromSrvTex = false; uint32_t tgx = 64, tgy = 1; };
+StageDispatch stageDispatchFor(const std::string& kernel) {
+  StageDispatch d;
+  if (kernel == "computeshaderstage_getimagebrightness") { d.twoDFromSrvTex = true; d.tgx = 8; d.tgy = 8; }
+  return d;
+}
+
+// injectBug hook (stage-3 seal ①gather tooth): when set, the cook SKIPS the texture-SRV bind (= the cross-
+// currency gather off / setTexture dropped) — the kernel then reads an UNBOUND texture (Metal: get_width()==0
+// → the edge-guard returns → the reduction adds nothing → the UAV stays at its zero-init) → the readback
+// diverges from the brightness oracle. A real cook-path perturbation (a dropped bind, not an assert flip).
+// Default false in production; the seal golden toggles it. File-scope so the golden reads it.
+bool g_stageSkipTexture = false;
 
 void cookComputeShaderStage(BufferCookCtx& c) {
   if (!c.output || !c.lib || !c.dev || !c.queue) return;
@@ -139,11 +159,13 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   for (size_t i = 0; i < uavs.size() && i < (size_t)CS_MAX_UAV; ++i)
     enc->setBuffer(const_cast<MTL::Buffer*>(uavs[i]->bytes), 0, CS_UAV_BASE + (int)i);
   // texture-SRVs at CS_TEX_SRV_BASE.. + the default linear-clamp sampler (see block comment above).
-  for (int i = 0; i < nTex; ++i)
+  // g_stageSkipTexture (seal ①gather injectBug): drop the texture bind → the kernel reads an unbound texture.
+  const bool bindTex = !g_stageSkipTexture;
+  for (int i = 0; i < nTex && bindTex; ++i)
     if (c.srvTextures[i])
       enc->setTexture(const_cast<MTL::Texture*>(c.srvTextures[i]), CS_TEX_SRV_BASE + i);
   MTL::SamplerState* samp = nullptr;
-  if (nTex > 0) {
+  if (nTex > 0 && bindTex) {
     MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
     sd->setMinFilter(MTL::SamplerMinMagFilterLinear);
     sd->setMagFilter(MTL::SamplerMinMagFilterLinear);
@@ -161,9 +183,18 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   uint32_t srvCounts[CS_MAX_SRV] = {0};
   for (size_t i = 0; i < srvs.size() && i < (size_t)CS_MAX_SRV; ++i) srvCounts[i] = srvs[i]->elementCount;
   enc->setBytes(srvCounts, sizeof(srvCounts), CS_SRVCOUNT_BASE);
-  const uint32_t tg = 64;
-  enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(numStructs, tg), 1, 1),
-                            MTL::Size::Make(tg, 1, 1));
+  const StageDispatch disp = stageDispatchFor(kernel);
+  if (disp.twoDFromSrvTex && nTex > 0 && c.srvTextures[0]) {
+    // 2D dispatch over the SRV texture (GetImageBrightness reduction) = GetTextureSize/CalcInt2DispatchCount.
+    const uint32_t tw = (uint32_t)c.srvTextures[0]->width(), th = (uint32_t)c.srvTextures[0]->height();
+    enc->dispatchThreadgroups(
+        MTL::Size::Make(calcDispatchCount(tw, disp.tgx), calcDispatchCount(th, disp.tgy), 1),
+        MTL::Size::Make(disp.tgx, disp.tgy, 1));
+  } else {
+    const uint32_t tg = 64;
+    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(numStructs, tg), 1, 1),
+                              MTL::Size::Make(tg, 1, 1));
+  }
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
@@ -202,4 +233,9 @@ NodeSpec makeSpec() {
 const BufferOp _reg_computeshaderstage(makeSpec(), cookComputeShaderStage);
 
 }  // namespace
+
+// Golden hook (t3import_getimagebrightness_golden.cpp ①gather injectBug): drop the texture-SRV bind → the
+// kernel reads an unbound texture → the reduction adds nothing → the readback diverges from the oracle.
+bool& computeShaderStageSkipTexture() { return g_stageSkipTexture; }
+
 }  // namespace sw
