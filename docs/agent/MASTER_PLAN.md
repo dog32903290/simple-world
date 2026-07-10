@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 9b55eb4
+HEAD: 7f27635
 DIRTY: clean
-CENSUS: 610 / 749 done
-BITE: 713 PASS | FAILED=[0] | NO-BITE=[0]
-STAMP_AT: 2026-07-10T05:24
+CENSUS: 609 / 749 done
+BITE: 716 PASS | FAILED=[0] | NO-BITE=[0]
+STAMP_AT: 2026-07-10T08:32
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -35,7 +35,8 @@ STAMP_AT: 2026-07-10T05:24
 - **★mathv pilot #2 AddNoise DONE（HEAD 機器塊 `9c943fa` 系，712/0/0 親驗）＝四方獨立力學實戰證明**：R（共享 oracle 復用+抓 NaN 陷阱 AMBIGUITY）→ D（誠實暴露主牙 RED 25/198912 但**誤診 denormal**）→ **S+X 獨立推翻 D 誤診**（X bisect：拔 denormal 仍 25、拔 ±1e6→0；S batch-tag 儀器化：25/25 全落 Frequency=±1e6→ill-conditioned lookup=陷阱#9 fma 重結合）→ fixer 落地 S 五判準豁免（25→0 miss、exempt 0.013%≪1% 帽、meta-rows 雙向極性）+ NaN pin 牙（可達性鐵證：t3ui clamp 只活編輯器 UI）+ 誤診註解重寫。**kernel+ref 語義等價成立**（break 演練+4 seed+隨機層 0/98304）。**新次類已入 §2b**：transcendental-wrapping-branchy（每顆 noise op 都會撞）。**量產教訓**：D 工單須加「miss 歸因必須儀器化（batch tag 參數層）不准猜」。
 - **★mathv pilot #3 SnapPointsToGrid DONE（HEAD 機器塊 `5feb5ac` 系，713/0/0 親驗）＝三 pilot 全收官+Tier-L 隊形試金石過**：R（抓到 TiXL ApplyGainAndBias `return v4;` shipped bug+7 quirk）→ D（**首次全程儀器化零猜測**，batch-tag 100% 釘死 zero-guard 無註記分岔+抓 liveness 62.6% 結構發現）→ XS 合併位（Opus 一人扛稽核+對抗，三裁+自己反駁自己初始假設+雙 rot 演練）→ fixer（zero-guard pin 含 subnormal FTZ 邊界/假註解改 NAMED FORK/per-op `minLivenessFrac`/Branchy 豁免延伸[orchestrator 裁,pilot#2 前例]）。**隊形定稿（§4.3 已修）**：Tier-L=R→D→fixer 共用 worktree+XS 合併位（保留 build，S-唯讀對合併位致命）＝3 agents 2 worktrees；實測 R+D ~425k（比 pilot#2 同階段省 ~35%）。**mathv 基建至此三 eps 類別全實戰**：exact/transcendental(+2b ill-conditioned 豁免通道 Transcendental+Branchy 通用)/branchy。
 - **★工單4+retire-3 DONE 合流（HEAD 機器塊 `9b55eb4`，713/0/0 親驗+refuter GO）＝退場量產全鏈第一次跑通**：R6 制度化入 spec + **三顆 mathv-verified 點 op 完整退場**（SnapPointsToGrid/WrapPointPosition/AddNoise——ABI 重包 kernel+四閘全綠+-bug 全咬）。**已退總數 5 顆**（+TransformPoints/CombineBuffers）。**承重落地（refuter 六面 GO）**：① generic ComputeShaderStage 加 in-place-UAV-no-SRV 擴充（`buffer_ops_computeshaderstage.cpp`，SRV 路徑 byte-identical 相容）② FloatsToBuffer gap-shift＝**harness-only**（production nested-child 走 default-seeding 結構免疫；residual note：未來 thumbnail/preview 直接 cook catalog 節點為 root 要 default-seed——記給 SNAPSHOT_THUMBNAIL_SPEC）③ ②parity 閘真 cook-driven 對 mathv oracle（ABI-break 演練咬）。
-- **下一根＝退場量產鏈**：每顆 op「mathv（§4.3 Tier 分流隊形）→ ABI 重包 → 四閘退場」一氣呵成。候選＝flattened 中有 flat `.metal` 的點 op 優先（無 mesh-stride 問題；kernel 數學已在 flat atom 驗過=R 直譯+D fuzz 快）——下一批挑 3-5 顆點 op 開量產（ClearSomePoints/BlendPoints/ReorientLinePoints/MeshVerticesToPoints/SnapToPoints…probe 掃 ready 定案）。mesh-compute 待 R5 fixture 議題（TransformMesh stride fork 柏為架構決策已撤=按 .t3 資料驅動，重驗）。**S 場外觀察待路由**：AddLineBreaks 預設場景分岔（line-break 變體優先級上調）。
+- **★量產批 1 DONE 合流（HEAD 機器塊 `7f27635`，716/0/0 親驗）＝3 顆 op 全鏈 mathv→退場，累計已退 8 顆**：ClearSomePoints/SnapToPoints/BlendPoints——三條 mathv 鏈（§4.3 隊形實戰：2×Tier-L XS 合併位 + 1×Tier-H S(Fable)+X）+ 序列退場（四閘全綠、②parity maxErr=0.0 對 mathv oracle）。**本批戰果**：Fable-S 抓到獨家 ref 轉錄 bug（mode4 fold hash11 吃錯 t，RED 89→GREEN 0）；三處 kernel 對齊 TiXL（ClearSomePoints div-0→D3D 0xFFFFFFFF 慣例 16/16 agree、BlendPoints b-count-guard zero-fill、guard-off-by-one FORK 具名）；**generic seam 雙-SRV 擴充**（CS_SRVCOUNT_BASE=16 per-SRV count 陣列，backward-compatible，7 顆既有 retire golden 回歸全 PASS）；SnapToPoints stride fork 具名（LegacyPoint 32→SwPoint 64 烤進 catalog 資產=production-correct）；smoothstep UB locus class-exclusion 手法（XS 裁）。
+- **下一根＝量產批 2**：同鏈再挑 3-5 顆點 op（ReorientLinePoints/MeshVerticesToPoints/TransformFromClipSpace + probe 掃других point flattened）。mesh-compute 待重驗（stride 已證每 .t3 資料驅動+catalog 烤 fork 前例在）。**S 場外觀察待路由**：AddLineBreaks 預設場景分岔（line-break 變體優先級上調）。
 - **同日柏為三拍板**：㈠ R5「64→80 通則」誤框不存在（64=點/80=網格兩貨幣，stride 每 .t3 資料驅動；「一律轉」會毀點複合）㈡ 退場成本已定案=搬已驗數學改 ABI ≈30-60 行/顆（範本 `computeshaderstage_transformpoints.metal`），「屏蔽不刪」不可行（alias 極性互斥）㈢ snapshot=**多池+Preset 一起做**（軸2 Lane B 解鎖）。
 - **舊框架修正記錄（01:30）**：退場騎在 kernel porting 上、probe R4 已落地（[[retire-gated-on-kernel-porting]] 含 17:14 成本修正）。
 - **overnight 批1 DONE 合流（2026-07-09 02:25，HEAD 見機器塊 `c859d28`，--bite 708/0/0，各條親手 cherry-pick+重建復驗）**：① crash-fix `parseChildTimeClips` OOB（`d5e37df`，crude_json const op[] 懸空參照；DrawMesh/FindClosestPointsOnMesh 現 probe 乾淨）② snapshot 軸2 Lane A（`19c90a4`，captureLive 讀 snapshotGroupIndex，UI 觸點在 Variation 面板 `[待柏為簽收位置]`）③ probe R4-fix（`81f8797`，親測全 12 kernel-未port 顆由假 READY→NOT-READY(R4)，TransformPoints/CombineBuffers/TransformMesh 正確留 READY）④ 軸3 tool-fix（`c859d28`，比對器誠實化，假陽性 294→263、240 真漂移 byte-identical 保留）。
