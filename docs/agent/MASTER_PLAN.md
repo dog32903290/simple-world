@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: ecd3564
+HEAD: 1d0d020
 DIRTY: clean
 CENSUS: 613 / 749 done
-BITE: 753 PASS
-STAMP_AT: 2026-07-10T18:49
+BITE: 755 PASS
+STAMP_AT: 2026-07-10T20:01
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -62,7 +62,13 @@ STAMP_AT: 2026-07-10T18:49
 - **C 桶 screen-quad：Steps+ConvertEquirectangle 完工**（各 ~1.5hr 快於預估）；**scout 分類再修正**：5 候選僅 2 真 screen-quad（SortPixelGlitch→compute 雙 stage/GlitchDisplace→points-draw/LenseFlareHoop→command 軌/AsciiRender→字型資產前置）。
 - 事故記錄：一 lane pkill 誤殺鄰 lane sweep（自首+對方 resume 收尾）——pkill 模式須帶 worktree 路徑限定。
 
-**接力待辦（下一棒）**：㈠ **Explicit bare-shader render leaf 縫**（Execute-siblings 的 pixel 閘依賴+GridPlane.t3 全通的最後一塊：通用 VS/PS 綁定管線，transpiler -S vert/frag 配方可試——這也是 63 顆 render 複合「缺 shader」誠實態的補完線）㈡ texture 縫階段 4（多 UAV+CB live+sampler 活驗+importer fold）㈢ S 抽查批（三項攢齊：波次 3/4 驗證降級慣例+srcA=One vs SrcAlpha oracle 分歧+RTBD.SourceAlphaBlend importer 丟棄語義——Fable 一單清）㈣ C 桶 mesh 3D 中大顆（DrawMeshCelShading 205/DrawMeshHatched 204，照 GridPlane 的 DrawKind recipe）㈤ transpiler 按需生產（供退場/複合消費驅動，不再盲掃）㈥ 三顆柏為 chip 等收 ㈦ PairPointsForLines/Splines 缺 NodeSpec ㈧ render 71 清單帳目按第六批實勘重分（C 桶純度修正）。
+**第七批收官（2026-07-10 18:52-20:01，755/0/0）**：
+- **Explicit-shader 縫藍圖落檔（`EXPLICIT_SHADER_LEAF_SEAM_SPEC.md`）**：雙引擎下注——Engine A 名對映 precompiled 承重（gridplane_vs/fs 已在 metallib，零轉譯即第一封印）/Engine B runtime 轉譯後置擴散（cachedSourcePSO 已證，parity 閘綠前不餵 62）；GridPlane=唯一同時錨 A/B 的 pixel-parity 對照；D 桶 6 顆動態 shader-graph 材質劃外另戰役。**build 未派**（等本批 renderstate 檔域清空，下一棒即可開階段 1-2）。
+- **S 抽查批四裁決全落地**：①RTBD alpha 三欄摺疊（**MV 承重**：alpha=ProRes4444 通道；importer 3 guid+cook 端讀 params+gate1 oracle 翻正 SrcAlpha，oracle 與手刻逐 byte 同）②GridWalkPoints 覆蓋閘落地+活性實證；**一致率閘 fixer 重測推翻 S 前提**（基線實測 18.6%≈純機率非 93%，任何閾值=假牙）orchestrator 裁偏離成立——**S 的裁決也要過 measured 復核，這是第二例**（第一例=D 誤診 denormal）③DeformMesh 不可達證據鏈補註 ④手刻 gridPlaneFrozenState 逐欄核清（比 importer 忠實）。
+- **texture 縫階段 4 收官（2 done/2 skip 有據）**：CB live 覆寫（bake→wire+liveness golden 咬）+SrvFromTexture2d fold（合成 .t3 結構閘）；多 UAV skip（真 corpus 無乾淨雙 UAV 單 dispatch 顆——JumpFloodFill 實為 ping-pong；需合成 fixture+tex cook 手術=獨立 session）；sampler 活驗 skip（首活消費者已 sealed 於 samplepointcolorattributes bespoke；generic 封印被 per-op 參數化 gate）。**texture 縫戰役至此四階段全收**。
+
+**接力待辦（下一棒）**：㈠ **Explicit-shader 縫 build 階段 1-2**（藍圖已備 a603368，renderstate/flow.h 檔域已空——Engine A 名對映+collector shader-binding 累積+GridPlane pixel 閘，Opus 全工法）㈡ C 桶 mesh 3D 中大顆（DrawMeshCelShading 205/DrawMeshHatched 204，照 GridPlane DrawKind recipe+剝離餘裕）㈢ 多 UAV 出口獨立 session（合成 fixture+production tex cook 多輸出手術，階段 4 的 blocker 已寫清）㈣ per-op sampler 參數化（computestage-default-sampler fork 補完+generic sampler 封印）㈤ transpiler 按需生產 ㈥ 三顆柏為 chip 等收 ㈦ PairPointsForLines/Splines 缺 NodeSpec ㈧ render 71 帳目重分+UseFallbackTexture elision follow-on（srvtexfold 真 .t3 端到端的擋路石）。
+**工作模式優化（柏為 19:21 檢討，本批起生效）**：①**S-before-fixer**——D 紅分兩類：機械 bug 直修/語義方向（誰對誰錯、慣例分岔）S 未裁不派 fixer（TFCS 反向白工 ~46 萬 token 教訓）②orchestrator 每 2-3 批換血（context 肥大=隱形大頭）③工單模板明令「驗證全程前景，禁背景 sweep+等通知」（本 session 兩例）④scout 工單強制每桶抽 2 顆讀實體層 ⑤親復跑瘦身（1-2 關鍵牙+lint，全量留批尾）。
 
 **★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
