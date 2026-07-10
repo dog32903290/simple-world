@@ -1,8 +1,10 @@
-// FlipNormals mesh op (a pure mesh→mesh CONSUMER, count = input vertex/face count, topology unchanged).
-// TiXL authority: external/tixl/Operators/Lib/mesh/modify/FlipNormals.cs (one Mesh input, one Mesh
-// output, NO params) + its compute shader mesh-FlipNormals.hlsl (the verbatim per-vertex math).
+// FlipNormals mesh op (a pure mesh→mesh CONSUMER, count = input vertex/face count, counts unchanged).
+// TiXL authority: external/tixl/Operators/Lib/mesh/modify/FlipNormals.t3 (one Mesh input, one Mesh
+// output, NO params) — it dispatches TWO ComputeShader children (both named by the .t3's Source
+// values): mesh-FlipNormals.hlsl (per-vertex negation) AND mesh-ReverseFaceVertexIndexOrder.hlsl
+// (per-face winding reversal).
 //
-// VERBATIM math (mesh-FlipNormals.hlsl:21-27):
+// VERBATIM vertex math (mesh-FlipNormals.hlsl:21-27):
 //   Position  = SourceVerts.Position            (copied)
 //   Normal    = -SourceVerts.Normal             (★flipped)
 //   Tangent   = -SourceVerts.Tangent            (★flipped)
@@ -13,6 +15,11 @@
 // The shader writes ResultVerts field-by-field and never sets TexCoord2; its ResultVerts scratch starts
 // as a copy of Source, so TexCoord2 == Source.TexCoord2. We copy the whole SwVertex then overwrite the
 // flipped fields → TexCoord2 (and everything else) is byte-identical to that.
+//
+// VERBATIM index math (mesh-ReverseFaceVertexIndexOrder.hlsl:20):
+//   ResultIndices[i.x] = SourceIndices[i.x].zyx  → each face (x,y,z) → (z,y,x), winding reversed so
+//   front-face determination stays consistent with the flipped normals. CPU transcription matches the
+//   mathv-verified oracle mathv_ref_reversefacevertexindexorder.h (reverseFaceVertexIndexOrderOne).
 //
 // FORKS (named): none. FlipNormals.cs has NO knobs (no params) → nothing deferred.
 #include "runtime/graph.h"  // NodeSpec, PortSpec
@@ -56,18 +63,25 @@ void flipNormalsCook(MeshCookCtx& c) {
     dst[i] = v;
   }
 
-  // Indices: topology unchanged → copy verbatim.
+  // Indices: winding REVERSED per face (mesh-ReverseFaceVertexIndexOrder.hlsl:20 `.zyx`) — counts
+  // unchanged, each face (X,Y,Z) → (Z,Y,X).
   uint32_t nf = c.indexCount < in.faceCount ? c.indexCount : in.faceCount;
-  for (uint32_t f = 0; f < nf; ++f) dstIdx[f] = srcIdx[f];
+  for (uint32_t f = 0; f < nf; ++f) {
+    SwTriIndex t = srcIdx[f];
+    dstIdx[f] = {t.Z, t.Y, t.X};
+  }
 
-  // Test injection (golden RED): corrupt the FIRST output vertex in the REAL cook. We corrupt BOTH the
-  // op's primary output (Normal — the flat golden's load-bearing assertion) AND its Position (so the
-  // production resident pixel golden bites too: DrawMeshUnlit is unlit and ignores Normal, so only a
-  // position move shifts the on-screen quad). Teeth fire on the actual cook path, not by inverting the
-  // expected value.
+  // Test injection (golden RED): corrupt the REAL cook, not the expectations. dst[0].Normal fires the
+  // flat golden's Normal assertion; face 0 written VERBATIM (the pre-fix parity bug itself: winding
+  // NOT reversed) fires the flat index assertion. (In the production pixel leg the upstream QuadMesh
+  // tooth corrupts the SOURCE face to a degenerate (99,99,99) under the same shared flag, so the
+  // visibility flip is masked there — the flat leg carries the -bug polarity; the production culled
+  // assertion was proven RED-capable against the real pre-fix verbatim-copy bug.)
   if (meshInjectBug() && c.vertexCount > 0) {
     dst[0].Normal = {-999.0f, -999.0f, -999.0f};
-    dst[0].Position = {-999.0f, -999.0f, -999.0f};
+  }
+  if (meshInjectBug() && nf > 0) {
+    dstIdx[0] = srcIdx[0];
   }
 }
 

@@ -543,6 +543,7 @@ add_executable(simple_world
   src/mesh_golden.cpp
   src/mesh_input_golden.cpp
   src/mesh_modify_golden.cpp
+  src/mesh_flipnormals_golden.cpp  # FlipNormals golden (vertex negation + winding reversal; split from mesh_modify_golden)
   src/mesh_modify2_golden.cpp
   src/mesh_blendpick_golden.cpp
   src/mesh_sphere_golden.cpp

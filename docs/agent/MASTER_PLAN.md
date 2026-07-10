@@ -42,7 +42,7 @@ STAMP_AT: 2026-07-10T16:21
 
 **第三批收官（2026-07-10 14:15-15:22，732/0/0）**：
 - **ReorientLinePoints 退場 `9574549`（退場帳 11 顆）+42 條 guid 映射**（52 假 MISSING=45 still-flat 映射+7 已退走 compound 遞迴接管實測通過；3 真 gap 排除；SimForceOffset unmapped 14→7）。
-- **transpiler 波次 2：6 顆 mesh/point kernel 庫存全綠**——成本再降 ~59k/顆（波次1 140k）；兩個 struct-packing 缺口實證修復（StructuredBuffer<int3>→packed_int3 12B 緊排/PbrVertex 連續 float3 全 packed 否則 stride 80→112）；場外抓到 FlipNormals CPU port 漏 winding reversal（chip task_ffd899e3）。**mathv kernel 庫存累計 19 顆**。
+- **transpiler 波次 2：6 顆 mesh/point kernel 庫存全綠**——成本再降 ~59k/顆（波次1 140k）；兩個 struct-packing 缺口實證修復（StructuredBuffer<int3>→packed_int3 12B 緊排/PbrVertex 連續 float3 全 packed 否則 stride 80→112）；場外抓到 FlipNormals CPU port 漏 winding reversal（chip task_ffd899e3；**已修**：cook 補 `.zyx` 反轉+golden 補 index 牙+production culled 牙，golden 分拆 mesh_flipnormals_golden.cpp，sweep 732/0/0）。**mathv kernel 庫存累計 19 顆**。
 - **render 島 71 顆分類完成**：35% 已零成本完工（9 DrawKind 本體+5 已 port compute atom+RaymarchField 證 field-graph codegen 已活）；真 backlog=C 桶 29 顆未做獨立算法（多 80-250 行中小）+B 桶 8 家族變體≈37 顆手刻；D 桶真堵僅 6 顆（mesh/point 材質圖）；3 顆 field-render 只缺接線。71 行清單在 scout 報告（含每顆桶別+依據）。
 
 **第四批收官（2026-07-10 15:30-16:21，741/0/0）**：
