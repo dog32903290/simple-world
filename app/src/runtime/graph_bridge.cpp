@@ -48,6 +48,24 @@ void refreshCompoundSpecs(const SymbolLibrary& lib) {
   for (const auto& kv : lib.symbols)
     if (!kv.second.atomic && !kv.second.name.empty() && kv.second.name != kv.first)
       dyn.emplace(kv.second.name, specFromSymbol(kv.second));
+  // Pass 3 — LEGACY sw-name ALIAS. A narrow, explicit list of ops where sw's OWN registered flat-atom
+  // name diverges from the .t3's TiXL-canonical embedded name (== Symbol.name, Pass 2's key) — so Pass
+  // 2's alias alone does NOT cover the flat atom's real registered name. TransformPointsFromClipspace is
+  // the first documented case: sw registered the op after its .hlsl FILENAME
+  // (TransformPointsFromClipspace.hlsl / point_ops_transformpointsfromclipspace.cpp — see that file's
+  // header "@tixl: TransformFromClipSpace — sw filename forks the TiXL op id"), while the .t3's embedded
+  // comment (and TiXL's own op catalog) names it "TransformFromClipSpace". Keyed by the compound's REAL
+  // name so this stays a pure name→name remap (no guid duplication, no behaviour change for any op not
+  // listed here). Extend this table only when a genuine sw/TiXL name fork is found — do not use it to
+  // paper over an actual typo (fix the typo instead).
+  static const std::map<std::string, std::string> kLegacyNameAlias = {
+      {"TransformFromClipSpace", "TransformPointsFromClipspace"},
+  };
+  for (const auto& kv : lib.symbols)
+    if (!kv.second.atomic && !kv.second.name.empty()) {
+      auto it = kLegacyNameAlias.find(kv.second.name);
+      if (it != kLegacyNameAlias.end()) dyn.emplace(it->second, specFromSymbol(kv.second));
+    }
   setDynamicSpecs(std::move(dyn));
 }
 

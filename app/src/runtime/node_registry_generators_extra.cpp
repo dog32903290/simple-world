@@ -178,23 +178,19 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
         {"out", "out", "Points", false}},        // single AABB point (port 1)
        nullptr,
        "point.generate"},
-      // MeshVerticesToPoints — the FIRST Points op with a MESH INPUT (the mesh-into-points seam's
-      // proving op). Ports 1:1 with MeshVerticesToPoints.cs: Mesh (MeshBuffers, gathered by the cook
-      // drivers' Mesh loop into PointCookCtx::meshVtx → one Point per vertex), OffsetByTBN (Vector3,
-      // .t3 default (0,0,0)), W (the .t3 W input = the shader's OffsetScale, default 1.0). Output count
-      // = the mesh vertex count (countFromMeshVtx in the cook registration).
-      {"MeshVerticesToPoints",
-       "MeshVerticesToPoints",
-       {{"Mesh", "Mesh", "Mesh", true},                 // input mesh (port 0) — the seam input
-        {"out", "out", "Points", false},                // one Point per vertex (port 1)
-        // OffsetByTBN (Vector3, TiXL default (0,0,0)) — per-axis Tangent/Bitangent/Normal offset weights.
-        {"OffsetByTBN.x", "OffsetByTBN", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"OffsetByTBN.y", "OffsetByTBN.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"OffsetByTBN.z", "OffsetByTBN.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // W (TiXL float input, default 1.0) → the shader's OffsetScale (global TBN-offset multiplier).
-        {"W", "W", "Float", true, 1.0f, -100.0f, 100.0f}},
-       nullptr,
-       "point.generate"},
+      // MeshVerticesToPoints — RETIRED 2026-07-10 (廢棄節點退場) --------------------------------------
+      // The flat MeshVerticesToPoints NodeSpec (the head 壓平原子) is retired: its behaviour is now
+      // provided by the nested .t3 compound (assets/catalog_t3/MeshVerticesToPoints.t3, guid 2467e1ed…).
+      // A human-name reference to "MeshVerticesToPoints" no longer hits this sink — it falls through
+      // findSpec's tail to the compound's name alias (graph_bridge.cpp refreshCompoundSpecs). The Mesh
+      // boundary input feeds _MeshBufferComponents.MeshBuffers (the SAME native mesh-bridge atom the
+      // TransformMesh/DisplaceMeshNoise goldens already proved) → GetBufferComponents → the generic
+      // ComputeShaderStage's ShaderResources (t0); the output StructuredBufferWithViews already bakes
+      // Stride=64 (TiXL's native Point stride == sw's 64B SwPoint, no allocation fork needed — unlike
+      // the mesh-OUTPUT retirement family). Kernel math stays mathv-verified (selftests_mathv_
+      // meshverticestopoints.cpp dispatches app/shaders/meshverticestopoints.metal); takeover in
+      // t3import_meshverticestopoints_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5. (Leaf cook
+      // point_ops_meshverticestopoints.cpp deleted; meshverticestopoints_params.h + .metal stay for mathv.)
       // PointsOnMesh — area-weighted barycentric SURFACE SCATTER (the FIRST op to consume meshIdx;
       // rides BOTH the mesh-into-points seam AND the texture-into-points seam). Ports 1:1 with
       // PointsOnMesh.cs [Input] order: Mesh (MeshBuffers → meshVtx+meshIdx), Count (int, the output

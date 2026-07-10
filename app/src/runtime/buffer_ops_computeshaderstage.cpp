@@ -76,6 +76,10 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_snaptopoints";  // 退場: point index-paired snap (DUAL-SRV t0/t1 + UAV)
   if (src.find("points/combine/BlendPoints.hlsl") != std::string::npos)
     return "computeshaderstage_blendpoints";  // 退場: point index-paired blend (DUAL-SRV + per-SRV count aux)
+  if (src.find("points/generate/MeshVerticesToPoints.hlsl") != std::string::npos)
+    return "computeshaderstage_meshverticestopoints";  // 退場: point generator, Mesh SRV -> Point UAV (b0=[OffsetByTBN,W])
+  if (src.find("points/modify/TransformPointsFromClipspace.hlsl") != std::string::npos)
+    return "computeshaderstage_transformfromclipspace";  // 退場: point camera unproject (b0=TransformsConstBuffer, empty-FloatsToBuffer-reindex fork)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 

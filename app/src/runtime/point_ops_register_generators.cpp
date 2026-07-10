@@ -19,7 +19,8 @@ void registerDoyleSpiralPointsOp();
 void registerRepetitionPointsOp();
 void registerCommonPointSetsOp();
 void registerBoundingBoxPointsOp();
-void registerMeshVerticesToPointsOp();
+// (MeshVerticesToPoints flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid 2467e1ed…)
+//  provides it now; mathv verifies the kernel, t3-meshverticestopoints-retire the takeover. §5.)
 void registerPointsOnMeshOp();
 void registerPointTrailFastOp();
 void registerPointTrailOp();
@@ -34,7 +35,7 @@ void registerGeneratorPointOps() {
   registerRepetitionPointsOp();  // (generator) GPU fork of CPU RepetitionPoints, batch 36
   registerCommonPointSetsOp();  // (generator) CPU-fill fork of CommonPointSets, batch 37
   registerBoundingBoxPointsOp();  // (generator) CPU-readback AABB fork; reads Points -> 1 point, batch 38
-  registerMeshVerticesToPointsOp();  // (generator+Mesh input) ★mesh-into-points seam: one Point per vertex
+  // MeshVerticesToPoints flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerPointsOnMeshOp();  // (generator+Mesh+Texture2D) ★area-weighted surface scatter (consumes meshIdx)
   registerPointTrailFastOp();  // (generate+STATEFUL) ★cross-frame fixed-size trail ring (single kernel)
   registerPointTrailOp();      // (generate+STATEFUL) ★cross-frame trail, 3-pass Clear/Collect/Copy variant

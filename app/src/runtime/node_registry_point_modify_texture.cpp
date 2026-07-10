@@ -227,23 +227,26 @@ static const PointModifyOp _reg_MapPointAttributes{
        "point.modify"}
 };
 
-// ---- camera-matrix-into-points seam: TransformPointsFromClipspace ---------------------------------
-// TiXL parity: external/tixl .../Assets/shaders/points/modify/TransformPointsFromClipspace.hlsl +
-// .../point/transform/TransformFromClipSpace.t3 (which has ONLY a Points input — no scalar knobs). A
-// count-preserving MODIFIER: unproject each point through CameraToWorld (clip-space → world) and
-// post-multiply its Rotation by the camera orientation quaternion. The "Camera" MARKER input port is
-// detected by the cook drivers' fillPointCamera and filled from the DEFAULT camera into
-// PointCookCtx::cameraToWorld (v1 fork: default camera + identity ObjectToWorld). NAMED FORKS:
-// fork-camera-one-matrix-per-op (only CameraToWorld is computed) + fork-camera-default-only-v1.
-static const PointModifyOp _reg_TransformPointsFromClipspace{
-      {"TransformPointsFromClipspace",
-       "TransformPointsFromClipspace",
-       {{"GPoints", "GPoints", "Points", true},        // input bag (port 0)
-        {"Camera", "Camera", "Camera", true},          // camera marker (port 1) — the seam input
-        {"out", "out", "Points", false}},              // unprojected output bag (port 2)
-       nullptr,
-       "point.transform"}
-};
+// ---- camera-matrix-into-points seam: TransformPointsFromClipspace — RETIRED 2026-07-10 (廢棄節點退場)
+// The flat TransformPointsFromClipspace NodeSpec (the head 壓平原子) is retired: its behaviour is now
+// provided by the nested .t3 compound (assets/catalog_t3/TransformFromClipSpace.t3, guid 81377edc…).
+// ★NAME FORK: sw registered this atom as "TransformPointsFromClipspace" (after the .hlsl filename),
+// while the .t3's own TiXL-canonical embedded name is "TransformFromClipSpace" — a genuine sw/TiXL
+// name divergence. graph_bridge.cpp's Pass 2 name-alias (keyed by the compound's own Symbol.name)
+// therefore does NOT cover sw's registered name by itself; a new Pass 3 kLegacyNameAlias table maps
+// "TransformFromClipSpace" -> "TransformPointsFromClipspace" so a human-name reference to THIS string
+// still falls through findSpec's tail to the compound. The Points boundary input feeds
+// GetBufferComponents -> the generic ComputeShaderStage's ShaderResources (t0); b0 = TransformsConstBuffer
+// via the `computestage-empty-floatstobuffer-reindex` fork (the .t3's FloatsToBuffer wires ZERO scalars,
+// so its empty output gets skipped by the generic cook's `!b->bytes` filter, shifting TransformsConstBuffer
+// from its wire-order b1 to the ACTUAL bound b0 — see computeshaderstage_transformfromclipspace.metal).
+// Kernel math stays mathv-verified (selftests_mathv_transformfromclipspace.cpp dispatches
+// app/shaders/transformpointsfromclipspace.metal); takeover in
+// t3import_transformfromclipspace_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5. (Leaf cook
+// point_ops_transformpointsfromclipspace.cpp deleted; transformpointsfromclipspace_params.h + .metal
+// stay for mathv. The "Camera" marker port is GONE on the compound — TiXL's own TransformFromClipSpace.t3
+// has ONLY a Points input; the camera comes from the resident buffer cook's TransformsConstBuffer bridge,
+// not a wired Camera op — a structural simplification the retirement inherits from TiXL, not a loss.)
 
 // ---- camera-matrix-into-points seam: SamplePointsByCameraDistance --------------------------------
 // TiXL parity: external/tixl .../Assets/shaders/points/modify/SamplePointsByCameraDistance.hlsl +
