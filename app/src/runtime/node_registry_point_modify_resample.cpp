@@ -38,22 +38,19 @@ static const PointModifyOp _reg_FilterPoints{
        "point.modify"}
 };
 
-// ---- batch 21 (lane point_modify): ReorientLinePoints ----------------------
-// TiXL parity: external/tixl .../point/transform/ReorientLinePoints.cs + .hlsl
-// A count-preserving MODIFIER: re-orients each live point's Rotation so its +Z forward
-// follows the local line tangent (prevLiveNeighbour -> nextLiveNeighbour), blended by
-// Amount via qSlerp. Defaults: Amount=1.0.
-// FORK: the .cs Center/UpVector/WIsWeight/Flip [Input]s are DEAD in the .hlsl kernel
-//       (main() reads only Amount) -> dropped (porting them = inventing dead knobs).
-static const PointModifyOp _reg_ReorientLinePoints{
-      {"ReorientLinePoints",
-       "ReorientLinePoints",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // re-oriented output bag (port 1)
-        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f}},
-       nullptr,
-       "point.transform"}
-};
+// ---- batch 21 (lane point_modify): ReorientLinePoints — RETIRED 2026-07-10 (廢棄節點退場) --------
+// The flat ReorientLinePoints NodeSpec (壓平原子) is retired: its behaviour is now provided by the
+// nested .t3 compound (assets/catalog_t3/ReorientLinePoints.t3, guid 5dbe204c…). Name matches TiXL's
+// own canonical "ReorientLinePoints" exactly — no graph_bridge.cpp legacy-name alias needed (unlike
+// TransformFromClipSpace). Points boundary feeds GetBufferComponents -> the generic ComputeShaderStage's
+// ShaderResources (t0); a FRESH StructuredBufferWithViews (Stride=64, native — no 32->64 legacy-point
+// fork needed here) feeds the UAV (u0). b0 = 9-float tight FloatsToBuffer array (Center.xyz/Amount/
+// UpVector.xyz/WIsWeight/Flip — only cb0[3]=Amount is live, same DROPPED-DEAD-PORTS fork as the flat
+// kernel). Kernel math stays mathv-verified (selftests_mathv_reorientlinepoints.cpp dispatches
+// app/shaders/reorientlinepoints.metal); takeover in t3import_reorientlinepoints_retire_golden.cpp via
+// computeshaderstage_reorientlinepoints.metal (same copy-through + OOB-guard NAMED FORKS ported
+// verbatim). See RETIREMENT_BATTLE_SPEC.md §5. (Leaf cook point_ops_reorientlinepoints.cpp deleted;
+// reorientlinepoints_params.h + reorientlinepoints.metal stay for mathv.)
 
 // ---- batch 36 (lane point_modify): ResampleLinePoints ----------------------
 // TiXL parity: external/tixl .../point/modify/ResampleLinePoints.cs + .hlsl
