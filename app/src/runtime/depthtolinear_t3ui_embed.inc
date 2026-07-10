@@ -1,0 +1,155 @@
+// AUTO-EMBED: external/tixl/Operators/Lib/render/_/_ComputeDepthToLinear.t3ui (byte-faithful).
+// Included by t3import_depthtolinear_golden.cpp (④layout: child/boundary Position constants). Data, not code.
+R"T3(
+{
+  "Id": "ade1d03d-db80-41ad-bcfa-8a2b900e9d41"/*_ComputeDepthToLinear*/,
+  "Description": "An internal helper that converts a depth buffer into a linear texture map. \n\nNote that the TextureMap is not returned but a reference has to be provided as input parameter.\n\nOutput range is only used if one of them is not 0.\n\nConsider using the more convenient [DepthBufferAsGrayScale].",
+  "SymbolTags": "4096",
+  "InputUis": [
+    {
+      "InputId": "50dbf432-ea4d-4d49-8cf4-e946a950b998"/*OutputTexture*/,
+      "Relevancy": "Required",
+      "Position": {
+        "X": 22.425201,
+        "Y": 39.75821
+      }
+    },
+    {
+      "InputId": "63ce243b-48f4-482e-9ddf-a43cf1e4fc5f"/*Mode*/,
+      "Position": {
+        "X": -453.04602,
+        "Y": 320.88635
+      }
+    },
+    {
+      "InputId": "7e1e99e1-3e2a-4960-bcc3-5b7e8e6ae95c"/*OutRange*/,
+      "Position": {
+        "X": -453.04565,
+        "Y": 215.88635
+      }
+    },
+    {
+      "InputId": "831c97ad-40c1-4687-b536-f549bbbccf6f"/*ClampOutput*/,
+      "Position": {
+        "X": -453.04578,
+        "Y": 285.88635
+      }
+    },
+    {
+      "InputId": "9f42b73c-d6f1-4907-ba55-9fb56514aa23"/*Far*/,
+      "Position": {
+        "X": -313.04578,
+        "Y": 180.88635
+      }
+    },
+    {
+      "InputId": "a5f6347a-9c57-46f2-be39-80499b35cdf7"/*Near*/,
+      "Position": {
+        "X": -313.04578,
+        "Y": 145.88635
+      }
+    },
+    {
+      "InputId": "de65c36d-10a7-446f-a4dd-e55ce42f4203"/*DepthBuffer*/,
+      "Relevancy": "Required",
+      "Position": {
+        "X": 243.55765,
+        "Y": 136.87231
+      }
+    }
+  ],
+  "SymbolChildUis": [
+    {
+      "ChildId": "1119d2a2-694b-4c9d-b7d6-75577e31ec4d"/*IntToFloat*/,
+      "Position": {
+        "X": -313.04578,
+        "Y": 320.88635
+      }
+    },
+    {
+      "ChildId": "41c823cf-0a82-40af-960a-e0e097d243f7"/*UavFromTexture2d*/,
+      "Position": {
+        "X": 22.425201,
+        "Y": 74.75821
+      }
+    },
+    {
+      "ChildId": "4280a58b-9ca9-4fc6-a198-d26b468c15c7"/*SamplerState*/,
+      "Position": {
+        "X": 383.55768,
+        "Y": 206.87231
+      }
+    },
+    {
+      "ChildId": "6cfb9e6e-ef16-4d45-a48b-e979df594ca9"/*Vector2Components*/,
+      "Position": {
+        "X": -313.04578,
+        "Y": 215.88635
+      }
+    },
+    {
+      "ChildId": "9dc627b1-70b3-4f98-8117-9dde92094b03"/*GetTextureSize*/,
+      "Position": {
+        "X": 162.4252,
+        "Y": 39.75821
+      }
+    },
+    {
+      "ChildId": "b162581c-efd1-4262-84b2-98d01e1f462c"/*ComputeShaderStage*/,
+      "Style": "Resizable",
+      "Size": {
+        "X": 113.85364,
+        "Y": 270.69095
+      },
+      "Position": {
+        "X": 523.5577,
+        "Y": 31.872314
+      }
+    },
+    {
+      "ChildId": "c5c5a6cd-9141-42fd-998e-1cff844d14ad"/*CalcInt2DispatchCount*/,
+      "Position": {
+        "X": 302.42517,
+        "Y": 4.758209
+      }
+    },
+    {
+      "ChildId": "c611fe55-596b-46e1-9578-e2b55526689d"/*SrvFromTexture2d*/,
+      "Position": {
+        "X": 383.55768,
+        "Y": 136.87231
+      }
+    },
+    {
+      "ChildId": "d205fb7a-172c-419a-9967-909bdbce1137"/*FloatsToBuffer*/,
+      "Position": {
+        "X": -173.04582,
+        "Y": 110.88637
+      }
+    },
+    {
+      "ChildId": "d5396c53-1937-4505-9a8d-e32bdffffcce"/*BoolToFloat*/,
+      "Position": {
+        "X": -313.04578,
+        "Y": 285.88635
+      }
+    },
+    {
+      "ChildId": "d7390be7-385d-4ae4-bf39-f5b6514cdbb2"/*ComputeShader*/,
+      "Position": {
+        "X": 162.4252,
+        "Y": -30.24179
+      }
+    }
+  ],
+  "OutputUis": [
+    {
+      "OutputId": "eff29dae-87c5-43a4-856b-51ac3abf567a"/*Output*/,
+      "Position": {
+        "X": 523.5577,
+        "Y": 241.87231
+      }
+    }
+  ]
+}
+)T3"

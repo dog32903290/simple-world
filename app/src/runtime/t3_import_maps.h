@@ -79,6 +79,20 @@ extern const char* const kCalcInt2DispatchCountGuid;     // render/_dx11/api/Cal
 extern const char* const kExecuteTextureUpdateGuid;      // render/_dx11/fxsetup/ExecuteTextureUpdate.cs:3
 extern const char* const kExecuteTextureUpdateOutSlot;   // ExecuteTextureUpdate.Output (c955f2a2)
 
+// ── STAGE 2 SRV-tex + b0 CB collapse guids (_ComputeDepthToLinear shape, t3_import_texcompute.cpp) ──────
+// An SRV-tex compute .t3 (e.g. _ComputeDepthToLinear) has NO Texture2d allocator — its OutputTexture is a
+// BOUNDARY input (self-allocated at cook from the SRV dims). It adds a SrvFromTexture2d (DepthBuffer→SRV),
+// a FloatsToBuffer b0 CB fed by boundary floats through value ops (IntToFloat/BoolToFloat/Vector2Components),
+// a GetTextureSize + a SamplerState (both elided). These guids drive the shape detection + the CB trace.
+extern const char* const kSrvFromTexture2dTexSlot;       // SrvFromTexture2d.Texture input (d5afa102)
+extern const char* const kSrvFromTexture2dOutSlot;       // SrvFromTexture2d.ShaderResourceView out (dc71f39f)
+extern const char* const kComputeStageShaderResourcesSlot; // ComputeShaderStage.ShaderResources t0.. (88938b09)
+extern const char* const kComputeStageConstantBuffersSlot; // ComputeShaderStage.ConstantBuffers b0.. (34cf06fe)
+extern const char* const kGetTextureSizeGuid;            // render/_dx11/api/GetTextureSize.cs (daec568f, elided)
+extern const char* const kSamplerStateGuid;              // render/_dx11/api/SamplerState.cs (9515d59d, elided — kernel uses no sampler)
+extern const char* const kFloatsToBufferGuid;            // numbers/data/FloatsToBuffer.cs (724da755, the b0 CB assembler)
+extern const char* const kFloatsToBufferParamsSlot;      // FloatsToBuffer.Params MultiInput (49556d12, wire order == cbuffer layout)
+
 // ── REDUNDANT-SUBGRAPH ELISION guids (used by t3_import_collapse.cpp) ─────────────────────────────────
 // A whole class of image-fx wrappers feed the fx child's ImageB from a GradientsToTexture that renders the
 // root's Gradient boundary → a 1D row; sw's atoms rasterize the Gradient row THEMSELVES from a "Gradient"

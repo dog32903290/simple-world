@@ -41,6 +41,17 @@ const char* const kCalcInt2DispatchCountGuid = "cc11774e-82dd-409f-97fb-5be3f274
 const char* const kExecuteTextureUpdateGuid = "6c2f8241-9f4b-451e-8a1d-871631d21163";  // ExecuteTextureUpdate.cs:3
 const char* const kExecuteTextureUpdateOutSlot = "c955f2a2-9823-4844-ac11-98ea07dc50aa"; // Output (.cs:6-7)
 
+// STAGE 2 SRV-tex + b0 CB collapse guids (_ComputeDepthToLinear shape). Verified against the TiXL .cs
+// [Guid]/[Input]/[Output] and the _ComputeDepthToLinear.t3 child/slot ids.
+const char* const kSrvFromTexture2dTexSlot = "d5afa102-2f88-431e-9cd4-af91e41f88f6";       // SrvFromTexture2d.Texture in (.cs:75-76)
+const char* const kSrvFromTexture2dOutSlot = "dc71f39f-3fba-4fc6-b8ef-ce57c82bf78e";       // SrvFromTexture2d.ShaderResourceView out (.cs:10-11)
+const char* const kComputeStageShaderResourcesSlot = "88938b09-d5a7-437c-b6e1-48a5b375d756"; // ComputeShaderStage.ShaderResources (.cs:251-252)
+const char* const kComputeStageConstantBuffersSlot = "34cf06fe-8f63-4f14-9c59-35a2c021b817"; // ComputeShaderStage.ConstantBuffers (.cs:248-249)
+const char* const kGetTextureSizeGuid = "daec568f-f7b4-4d81-a401-34d62462daab";           // GetTextureSize.cs:3
+const char* const kSamplerStateGuid = "9515d59d-0bd5-406b-96da-6a5f60215700";             // SamplerState.cs (_ComputeDepthToLinear.t3 child)
+const char* const kFloatsToBufferGuid = "724da755-2d0c-42ab-8335-8c88ec5fb078";           // FloatsToBuffer.cs (b0 CB assembler)
+const char* const kFloatsToBufferParamsSlot = "49556d12-4cd1-4341-b9d8-c356668d296c";     // FloatsToBuffer.Params MultiInput (.cs:81-82)
+
 // Redundant-subgraph elision guids (rationale in t3_import_maps.h; used by t3_import_collapse.cpp).
 const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5b";
 const char* const kGradientsToTextureGradientsSlot = "588be11f-d0db-4e51-8dbb-92a25408511c";
