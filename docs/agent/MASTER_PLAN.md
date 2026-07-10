@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: d3a8b04
-DIRTY: 1 files
-CENSUS: 611 / 749 done
-BITE: 748 PASS
-STAMP_AT: 2026-07-10T17:44
+HEAD: ecd3564
+DIRTY: clean
+CENSUS: 613 / 749 done
+BITE: 753 PASS
+STAMP_AT: 2026-07-10T18:49
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -56,7 +56,13 @@ STAMP_AT: 2026-07-10T17:44
 - **render-state guid 接線**：5 映射+3 fold，probe 實證 render-state 膠水全清（DrawMeshUnlit 19→12/GridPlane 14→5/BlendWithMask 17→9=「缺 shader」誠實態）。**結構性發現=下一縫座標**：TiXL render-state 是 Execute flat siblings 非嵌套 Command 鏈→cook 時 stamp 到不了 sibling Draw——需 S2a collector 學 MultiInput state-accumulation 或 wire 序重合成嵌套。
 - **柏為 chip 合流**：FlipNormals winding reversal（task_ffd899e3，真 parity bug——TiXL 派兩 kernel sw 只 port 一半）。**另三顆 chip session 還在跑**（ODR shared_quat 遷移+lint 閘/EXPECTED-RED 註解[大概率無事可做]/RETIREMENT_BATTLE_SPEC 更新），等結束通知逐顆收，檔域不碰。
 
-**接力待辦（下一棒）**：㈠ **Execute-siblings state 鏈縫**（render-state 接線的結構性發現，63 顆 render 複合 cook 通的承重線——S2a collector MultiInput state-accumulation，承重縫走全工法 Plan 先行）㈡ render C 桶批量（門已開：screen-quad 小顆照 ColorGradeDepth/新 DrawKind 照 GridPlane，剝離餘裕 65 行）㈢ transpiler 波次 5（§10.5 已 ⑩ 條，注意成本回升趨勢，低垂存量或改按需生產）㈣ texture 縫階段 4（多 UAV+CB live+sampler 活驗+importer fold）㈤ field-render 3 顆接線 ㈥ S 抽查波次 3/4 的驗證降級慣例（GridWalkPoints 集合成員/DeformMesh AMBIGUITY-PINNED）㈦ 三顆柏為 chip 等收 ㈧ PairPointsForLines/Splines 缺 NodeSpec。
+**第六批收官（2026-07-10 17:47-18:49，753/0/0）**：
+- **Execute-siblings state 縫 LIVE（藍圖 `EXECUTE_SIBLINGS_STATE_SEAM_SPEC.md`+build 全鏈）**：route (a) collector 累積（對 route (b) 嵌套重合成——後者靜默丟順序敏感/多-Draw 共享）；四閘咬（takeover/order per-draw 證人/bothleg byte-identical/multidraw）；兩腿共呼 concatRenderSibling（S2c 血訓防分岔）。63 顆 render 複合的 render-state 通路打通。**下一縫=Explicit bare-shader render leaf**（pixel 閘的依賴，藍圖 §5 階段 4 已劃界）。
+- **FieldToImage 落地**（雙 golden 咬）；Render2dField/VisualizeFieldDistance 重分桶（輸出 Command 非 Texture2D，需新 DrawKind+動態 PSO=render DrawKind 軌）。
+- **C 桶 screen-quad：Steps+ConvertEquirectangle 完工**（各 ~1.5hr 快於預估）；**scout 分類再修正**：5 候選僅 2 真 screen-quad（SortPixelGlitch→compute 雙 stage/GlitchDisplace→points-draw/LenseFlareHoop→command 軌/AsciiRender→字型資產前置）。
+- 事故記錄：一 lane pkill 誤殺鄰 lane sweep（自首+對方 resume 收尾）——pkill 模式須帶 worktree 路徑限定。
+
+**接力待辦（下一棒）**：㈠ **Explicit bare-shader render leaf 縫**（Execute-siblings 的 pixel 閘依賴+GridPlane.t3 全通的最後一塊：通用 VS/PS 綁定管線，transpiler -S vert/frag 配方可試——這也是 63 顆 render 複合「缺 shader」誠實態的補完線）㈡ texture 縫階段 4（多 UAV+CB live+sampler 活驗+importer fold）㈢ S 抽查批（三項攢齊：波次 3/4 驗證降級慣例+srcA=One vs SrcAlpha oracle 分歧+RTBD.SourceAlphaBlend importer 丟棄語義——Fable 一單清）㈣ C 桶 mesh 3D 中大顆（DrawMeshCelShading 205/DrawMeshHatched 204，照 GridPlane 的 DrawKind recipe）㈤ transpiler 按需生產（供退場/複合消費驅動，不再盲掃）㈥ 三顆柏為 chip 等收 ㈦ PairPointsForLines/Splines 缺 NodeSpec ㈧ render 71 清單帳目按第六批實勘重分（C 桶純度修正）。
 
 **★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
