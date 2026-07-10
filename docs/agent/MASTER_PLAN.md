@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 8238920
-DIRTY: clean
+HEAD: 56a6a66
+DIRTY: 1 files
 CENSUS: 609 / 749 done
-BITE: 721 PASS
-STAMP_AT: 2026-07-10T13:10
+BITE: 726 PASS
+STAMP_AT: 2026-07-10T14:10
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -35,7 +35,12 @@ STAMP_AT: 2026-07-10T13:10
 - **退場 +2 顆 `8238920`（累計 10 顆）**：MeshVerticesToPoints（首顆 Mesh-SRV）+TransformFromClipSpace（抓修兩機制堵點：graph_bridge Pass 3 kLegacyNameAlias 表解 sw/TiXL 命名分岔死鎖、空 FloatsToBuffer cbuffer 重編號 fork 具名）。
 - **⚠ MASTER_PLAN 前瞻待辦≠既有裁決（本批兩例實錘）**：舊接力㈣「S 給一行修法」㈢「S 給措辭」均查無記錄（是「該去要」不是「已給」）——寫接力段當下就分清「已裁決（引 commit）」vs「待裁決」。
 
-**接力待辦（下一棒）**：㈠ texture 縫階段 2（SRV-tex 讀 tex-out，封印 _ComputeDepthToLinear，藍圖 §5 表列 2，依賴階段 1 已 LIVE）㈡ ReorientLinePoints 退場（R6 綠+修單清完，owner-lock 已空）㈢ transpiler 制度化：把「轉換→selftest 分流」工作流寫進 MATH_VERIFY_WORKFLOW（R 角色量產版）+ 137 顆未 port 首波試產 3-5 顆 ㈣ render 島複合路線裁決（盤點揭露：SrvFromTexture2d 102 顆等 render 膠水最痛但屬「架構外」定性——scout render 島複合能否走 importer fold 等效或需獨立設計）㈤ 52 假 MISSING 的 guid→sw-atom 映射表（機械，ENGINE_GAP_GLUE 發現⑤有修正路徑）㈥ 退場 agent 稱曾 spawn 背景任務補 RETIREMENT_BATTLE_SPEC——查有無孤兒 chip/未合流文件改動。
+**第二批收官（2026-07-10 13:15-14:10，726/0/0）**：
+- **texture 縫階段 2 LIVE `c8b44f3`**（SRV-tex 讀+CB scalar rail+_ComputeDepthToLinear 封印四閘咬；sampler 死膠水正確 elide；已知界線=CB baked 不可 live 覆寫→階段 3 細化）。
+- **transpiler 量產線制度化+首波 3 顆 `56a6a66`**（MATH_VERIFY_WORKFLOW §10 SOP+SimBlendTo/AppendPoints/PointSimulation 全綠）——**成本轉折實證：單 Sonnet session R+D+port+fixer 一次迭代到綠 ~140k/顆（pilot 300-600k）**；分流模型修正=紅主因是 ±1e6 特殊值格浮點病態非 sw fork 邊界（exact 類缺 2b 通道缺口已回寫 §10.3）。
+- **render 島路線裁決（orchestrator，scout 材料）**：採 (a)+(c)——render-STATE 通用摺疊機制早已 DONE（Seam2 四顆 refuter 過，只缺 importer guid 接線；PRODUCTION_187_BACKLOG「設計凍結」條 stale）+26 顆純 SRV 子集由 texture 縫階段 2/3 自然吃；**(b) 63 顆硬光柵管線不賭通用 VS/PS 縫**（DrawMesh 牽動態 shader-graph 材質系統=第三子系統量級大於 compute 縫，sw 11 顆 DrawKind「一顆一刻」是已證節奏）。
+
+**接力待辦（下一棒）**：㈠ ReorientLinePoints 退場（R6 綠+修單清完，owner-lock 已空）㈡ transpiler 量產波次 2（§10 SOP 就緒，每波 5-8 顆 buffer-only 未 port，Sonnet 單 session）㈢ render-state importer guid 接線（機制在 node_registry_draw_renderstate.cpp Seam2，把 63+ 顆 import 從 unmapped 推到「缺 shader」誠實態）㈣ 63 顆硬管線「參數變體 vs 獨立算法」分類 scout（決定 bespoke 路線真實量級——scout 已自指最大不確定）㈤ 52 假 MISSING guid→sw-atom 表（機械，ENGINE_GAP_GLUE 發現⑤）㈥ texture 縫階段 3（buffer 軌 SRV-tex+sampler+CB live 覆寫細化）㈦ 退場 agent 稱曾 spawn 背景任務補 RETIREMENT_BATTLE_SPEC——查孤兒。
 
 **★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
