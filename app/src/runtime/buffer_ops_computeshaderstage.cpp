@@ -72,6 +72,8 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_snaptogrid";  // 退場: point grid-snap (SRV+UAV)
   if (src.find("points/modify/ClearSomePoints.hlsl") != std::string::npos)
     return "computeshaderstage_clearsomepoints";  // 退場: point per-block hash kill (SRV+UAV, b0 float + b1 int)
+  if (src.find("points/modify/SnapToPoints.hlsl") != std::string::npos)
+    return "computeshaderstage_snaptopoints";  // 退場: point index-paired snap (DUAL-SRV t0/t1 + UAV)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 

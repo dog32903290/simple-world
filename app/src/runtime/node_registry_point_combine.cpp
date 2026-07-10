@@ -16,41 +16,18 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
       // replay parity ORACLE stays LIVE in t3import_combinebuffers_golden.cpp (its own concat oracle +
       // the _ExecuteCombineBuffers code-op), independent of this leaf. See RETIREMENT_BATTLE_SPEC §7.2.
 
-      // ---- batch 21: point combine — SnapToPoints --------------------------------
-      // TiXL parity: external/tixl .../point/transform/SnapToPoints.cs (slots) +
-      //              .../Assets/shaders/points/modify/SnapToPoints.hlsl (math)
-      // A 2-input op: each point in Points1 is lerped toward the corresponding
-      // (same-index) point in Points2 using a distance-based smoothstep blend.
-      // Output count = Points1 count (index-paired, NOT nearest-point search).
-      //
-      // TiXL .hlsl cbuffer b0 (BlendFactor/Distance/MaxAmount):
-      //   blendFactor = smoothstep(BlendFactor+Distance, Distance, dist) * MaxAmount
-      //   Position    = lerp(A.Position, SnapPoint.Position, blendFactor)
-      //   W (FX1)     = lerp(A.W, SnapPoint.W, BlendFactor)   // raw BlendFactor, not scaled
-      //
-      // FORK[count-policy]: outCount = Points1 count (NOT sum). SnapToPoints opts into
-      //   OpReg.countFromFirstPointsInput (Points2 is a snap target, not concatenated);
-      //   locked by the -countpolicy graph golden. See point_ops_snaptopoints.cpp.
-      // FORK[count-guard]: Points2 index clamped to (Points2Count-1) when i >= Points2Count.
-      //
-      // Ports (append after CombineBuffers, do NOT insert before it):
-      //   port 0: Points1 — primary bag (input)
-      //   port 1: Points2 — snap-target bag (input)
-      //   port 2: out     — result bag (output)
-      //   port 3: BlendFactor (Float, default 0.0) — smoothstep lower edge + W lerp factor
-      //   port 4: Distance    (Float, default 1.0) — smoothstep upper edge (snap radius)
-      //   port 5: MaxAmount   (Float, default 1.0) — Position blend scale
-      {"SnapToPoints",
-       "SnapToPoints",
-       {{"Points1", "Points1", "Points", true},   // port 0: primary input bag
-        {"Points2", "Points2", "Points", true},   // port 1: snap-target bag (index-paired)
-        {"out", "out", "Points", false},           // port 2: snapped output bag
-        // TiXL .hlsl cbuffer b0 fields (verbatim names, same order as cbuffer):
-        {"BlendFactor", "BlendFactor", "Float", true, 0.0f, 0.0f, 1.0f},  // port 3
-        {"Distance",    "Distance",    "Float", true, 0.0f, 0.0f, 5.0f},  // port 4
-        {"MaxAmount",   "MaxAmount",   "Float", true, 0.0f, 0.0f, 2.0f}}, // port 5
-       nullptr,
-       "point.transform"},
+      // ---- batch 21: point combine — SnapToPoints — RETIRED 2026-07-10 (廢棄節點退場) --------------------
+      // The flat SnapToPoints NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by the
+      // nested .t3 compound (assets/catalog_t3/SnapToPoints.t3, guid 5822b0d8…). A human-name reference to
+      // "SnapToPoints" no longer hits this sink — it falls through findSpec's tail to the compound's name
+      // alias (graph_bridge.cpp refreshCompoundSpecs). The generic ComputeShaderStage (DUAL-SRV Points1 t0 /
+      // Points2 t1 + UAV) cooks the ABI-repacked computeshaderstage_snaptopoints.metal; the compound's
+      // ComputeShaderStage inherently sizes the dispatch from Points1 (t0), preserving the count-from-first
+      // policy. Kernel math stays mathv-verified (selftests_mathv_snaptopoints.cpp dispatches
+      // app/shaders/snaptopoints.metal); takeover in t3import_snaptopoints_retire_golden.cpp. See
+      // RETIREMENT_BATTLE_SPEC §5. (Leaf cook point_ops_snaptopoints.cpp deleted; snaptopoints_params.h +
+      // .metal stay. NB: the catalog .t3 bakes StructuredBufferWithViews Stride 32→64 for sw's 64B SwPoint —
+      // fork legacypoint-stride-32-to-64-swpoint, see the ABI kernel header.)
 
       // ---- point lane: MultiUpdatePoints (TiXL _internal fan-in helper) -------------
       // TiXL parity: external/tixl .../point/_internal/MultiUpdatePoints.{cs,t3}

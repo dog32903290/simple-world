@@ -254,11 +254,9 @@ int runToneMappingSelfTest(bool injectBug);
 // float thresholds. injectBug = flip the CPU-expected RgbToLCh matrix mul direction -> Test A
 // (hand-computed forward LCh) FAILS. Test B = Mode0->Mode1 round-trip back to original.
 int runConvertColorsSelfTest(bool injectBug);
-// SnapToPoints COMBINE op (point_ops_snaptopoints.cpp, batch 21): index-paired lerp of Points1
-// toward Points2 using distance-based smoothstep * MaxAmount. TiXL SnapToPoints.hlsl port.
-// injectBug = MaxAmount=0 -> no snap -> Points1 positions unchanged -> near-P2 assertion FAILS.
-void registerSnapToPointsOp();
-int runSnapToPointsSelfTest(bool injectBug);
+// (SnapToPoints flat atom + its --selftest-snaptopoints RETIRED 2026-07-10, 廢棄節點退場 — the .t3
+//  compound (guid 5822b0d8…) provides it now. Kernel math is mathv-verified (selftests_mathv_snaptopoints.cpp
+//  dispatches app/shaders/snaptopoints.metal), takeover in t3import_snaptopoints_retire_golden.cpp. §5.)
 // PairPointsForLines COMBINE op (point_ops_pairpointsforlines.cpp, batch 24): pairs GPoints[i]
 // with GTargets[i] (cyclic modulo), emits 3 output points per pair [A, B, NaN divider] for use
 // with DrawLines. Output count = max(CountA, CountB) * 3. SetWTo01 sets FX1=0/1 on A/B.

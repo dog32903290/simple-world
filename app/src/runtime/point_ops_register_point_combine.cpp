@@ -9,7 +9,8 @@ namespace sw {
 
 // Leaf register fns (defined in their respective leaf cpp files, no shared header).
 // (CombineBuffers flat atom RETIRED — replaced by the .t3 compound; see node_registry_point_combine.cpp.)
-void registerSnapToPointsOp();      // batch 21: index-paired Points1->Points2 lerp
+// (SnapToPoints flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid 5822b0d8…) provides
+//  it now; mathv verifies the kernel, t3-snaptopoints-retire the takeover. §5.)
 void registerPairPointsForLinesOp();  // batch 24: pair A+B with NaN divider -> DrawLines
 void registerPickPointListOp();       // batch 24: multi-input select by Index
 void registerPairPointsForSplinesOp();        // batch 10: Hermite spline strip per pair
@@ -22,7 +23,7 @@ void registerGrowStrainsOp();                 // 2-input product + GrowthMap tex
 
 void registerPointCombinePointOps() {
   // CombineBuffers flat atom RETIRED (廢棄節點退場 pilot #2) — the .t3 compound provides it now.
-  registerSnapToPointsOp();
+  // SnapToPoints flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerPairPointsForLinesOp();
   registerPickPointListOp();
   registerPairPointsForSplinesOp();
