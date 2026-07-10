@@ -53,6 +53,12 @@ inline Vec3 hlslCross3(Vec3 a, Vec3 b) {
 // HLSL builtin `length(v)` == `sqrt(dot(v,v))`.
 inline float hlslLength3(Vec3 v) { return std::sqrt(hlslDot3(v, v)); }
 
+// HLSL builtin `length(float4)` == `sqrt(x²+y²+z²+w²)`. qSlerp's zero-input guards call `length(a)`
+// on a full float4 quaternion (quat-functions.hlsl :165/:167/:173), so this is the faithful 4D form.
+inline float hlslLength4(Quat q) {
+  return std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+}
+
 // HLSL builtin `normalize(v)` == `v * rsqrt(dot(v,v))`, modeled as `v / sqrt(dot(v,v))` (same
 // normalize(0)->NaN behavior documented in mathv_ref_addnoise.h's detail::hlslNormalize).
 inline Vec3 hlslNormalize3(Vec3 v) {
@@ -132,17 +138,23 @@ inline Quat qLookAt(Vec3 forward, Vec3 up) {
 // mutates it locally at :186-188; a local copy here reproduces that without touching the caller's
 // quaternion, matching HLSL's by-value `in` semantics).
 inline Quat qSlerp(Quat a, Quat b, float t) {
-  // :165-176 -- zero-length-input fast paths. `length(a)==0.0` is an EXACT float compare against
-  // the literal `0.0`, not an epsilon test -- a genuinely-zero (all-four-components-zero) input
-  // quaternion, not merely "small". Ordinary unit quaternions never hit this in practice.
-  if (hlslLength3({a.x, a.y, a.z}) == 0.0f && a.w == 0.0f) {   // length(a)==0 requires all 4 comps 0;
-                                                                // hlslLength3 only covers xyz, so the
-                                                                // w component is checked separately.
-    if (hlslLength3({b.x, b.y, b.z}) == 0.0f && b.w == 0.0f) {
+  // :165-176 -- zero-length-input fast paths. TiXL writes `length(a) == 0.0` on the FULL float4
+  // quaternion (quat-functions.hlsl :165/:167/:173), an EXACT float compare against literal `0.0`,
+  // not an epsilon test. Modeled with hlslLength4 (4D sqrt of the sum of squares), matching that text
+  // byte-for-byte -- NOT the earlier `hlslLength3(xyz)==0 && w==0` split.
+  // KNIFE-EDGE (S's independent ruling): 4D `length` and the (xyz-length==0 && w==0) split are
+  // algebraically equal in EXACT arithmetic (both true iff all four components are 0), but DIVERGE in
+  // a residual flush-to-zero band: with tiny denormal components (~2.6e-23–3.7e-22), x²+y²+z²+w²
+  // underflows to 0 under FTZ so `length()==0` fires, whereas `w==0.0f` on a ~3e-22 denormal is FALSE.
+  // The fuzz special-value grid does not currently place values in that band, so the two forms are
+  // observationally identical today; this uses the literal 4D form so a future GPU-real test in that
+  // band still matches. If such a case ever bites, escalate to a GPU-measured comparison there.
+  if (hlslLength4(a) == 0.0f) {                                 // :165 length(a)==0.0
+    if (hlslLength4(b) == 0.0f) {                               // :167 length(b)==0.0
       return {0.0f, 0.0f, 0.0f, 1.0f};                          // :169 QUATERNION_IDENTITY
     }
     return b;                                                  // :171
-  } else if (hlslLength3({b.x, b.y, b.z}) == 0.0f && b.w == 0.0f) {
+  } else if (hlslLength4(b) == 0.0f) {                          // :173 length(b)==0.0
     return a;                                                  // :175
   }
 

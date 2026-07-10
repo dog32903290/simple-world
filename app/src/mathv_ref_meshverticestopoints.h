@@ -81,6 +81,13 @@ struct MeshVerticesToPointsParams {
   float offsetScale;                               // :9  OffsetScale
 };
 
+// ODR ISOLATION (X's chip task_3f83270f): `detail::qFromMatrix3Precise` / `hlslNormalizeQuat` share
+// symbol names with mathv_ref_addnoise.h + mathv_ref_transformfromclipspace.h but the bodies are not
+// token-identical across files, so as EXTERNAL-linkage inline symbols the linker would collapse them
+// to one arbitrary copy (per-op break-ref blindness). Anonymous namespace = internal linkage = each TU
+// keeps its own copy. (Not migrated to a shared quat:: header: consolidating addnoise's differently-
+// typed detail closure would be a large cross-op change; anon-ns is the ticket's blessed fallback.)
+namespace {
 namespace detail {
 
 struct Vec3 { float x, y, z; };
@@ -124,6 +131,7 @@ inline Quat hlslNormalizeQuat(Quat q) {
 }
 
 }  // namespace detail
+}  // anonymous namespace (internal linkage -- ODR isolation, see the note above namespace detail)
 
 // meshVerticesToPointsOne — one thread of `main()` (:15-31), operating on a single vertex/point
 // pair. Unlike mathv_ref_wrappointposition.h / mathv_ref_addnoise.h, this kernel's HLSL never
