@@ -80,6 +80,8 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_meshverticestopoints";  // 退場: point generator, Mesh SRV -> Point UAV (b0=[OffsetByTBN,W])
   if (src.find("points/modify/TransformPointsFromClipspace.hlsl") != std::string::npos)
     return "computeshaderstage_transformfromclipspace";  // 退場: point camera unproject (b0=TransformsConstBuffer, empty-FloatsToBuffer-reindex fork)
+  if (src.find("points/modify/ReorientLinePoints.hlsl") != std::string::npos)
+    return "computeshaderstage_reorientlinepoints";  // 退場: point neighbour-tangent align (SRV+UAV, copy-through + OOB-guard forks)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 

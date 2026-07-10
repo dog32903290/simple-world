@@ -187,9 +187,10 @@ int runDoyleSpiralPointsSelfTest(bool injectBug);
 // (ClearSomePoints flat atom + its --selftest-clearsomepoints RETIRED 2026-07-10, 廢棄節點退場 — the .t3
 //  compound (guid e570b2e6…) provides it now. Kernel math is mathv-verified (selftests_mathv_clearsomepoints.cpp
 //  dispatches app/shaders/clearsomepoints.metal), takeover in t3import_clearsomepoints_retire_golden.cpp. §5.)
-// ReorientLinePoints MODIFIER golden (point_ops_reorientlinepoints.cpp): align Rotation to the
-// line tangent via qSlerp(Amount). injectBug flips the align test (expect forward AWAY) -> RED.
-int runReorientLinePointsSelfTest(bool injectBug);
+// (ReorientLinePoints flat atom + its --selftest-reorientlinepoints RETIRED 2026-07-10, 廢棄節點退場 —
+//  the .t3 compound (guid 5dbe204c…) provides it now. Kernel math is mathv-verified
+//  (selftests_mathv_reorientlinepoints.cpp dispatches app/shaders/reorientlinepoints.metal), takeover in
+//  t3import_reorientlinepoints_retire_golden.cpp. §5.)
 // SelectPoints MODIFIER golden (point_ops_selectpoints.cpp): volume (sphere/box/plane/zebra/noise)
 // selection written into FX1/FX2. injectBug zeroes the inside-volume strength -> selection FAILS.
 int runSelectPointsSelfTest(bool injectBug);

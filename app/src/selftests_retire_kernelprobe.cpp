@@ -43,6 +43,8 @@ std::string probeResolveComputeKernel(const std::string& src) {
     return "computeshaderstage_meshverticestopoints";
   if (src.find("points/modify/TransformPointsFromClipspace.hlsl") != std::string::npos)
     return "computeshaderstage_transformfromclipspace";
+  if (src.find("points/modify/ReorientLinePoints.hlsl") != std::string::npos)
+    return "computeshaderstage_reorientlinepoints";
   return src;  // unmapped path → unported
 }
 

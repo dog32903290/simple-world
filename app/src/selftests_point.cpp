@@ -69,7 +69,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"doylespiral", runDoyleSpiralPointsSelfTest},
     // (--selftest-clearsomepoints RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound provides
     //  ClearSomePoints now; kernel math in --selftest-mathv-clearsomepoints, takeover in t3-clearsomepoints-retire.)
-    {"reorientlinepoints", runReorientLinePointsSelfTest},
+    // (--selftest-reorientlinepoints RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound provides
+    //  ReorientLinePoints now; kernel math in --selftest-mathv-reorientlinepoints, takeover in t3-reorientlinepoints-retire.)
     {"resamplelinepoints", runResampleLinePointsSelfTest},
     {"subdividelinepoints", runSubdivideLinePointsSelfTest},
     {"selectpoints", runSelectPointsSelfTest},
@@ -182,6 +183,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-blendpoints-retire", runT3BlendPointsRetireGates},  // ★廢棄節點退場: retired flat BlendPoints atom → .t3 compound (guid 2dc5c9d1…) takeover; ②parity COOK-DRIVEN vs the mathv oracle (DUAL-SRV index-paired blend, Position+FX1; computeshaderstage_blendpoints kernel; b0 5 floats; generic-seam per-SRV countB aux extension)
     {"t3-meshverticestopoints-retire", runT3MeshVerticesToPointsRetireGates},  // ★廢棄節點退場: retired flat MeshVerticesToPoints atom → .t3 compound (guid 2467e1ed…) takeover; ②parity COOK-DRIVEN vs the mathv oracle (Mesh SRV → fresh Point UAV, Stride=64 native; computeshaderstage_meshverticestopoints kernel; b0 [OffsetByTBN.x,W])
     {"t3-transformfromclipspace-retire", runT3TransformFromClipSpaceRetireGates},  // ★廢棄節點退場: retired flat TransformPointsFromClipspace atom → .t3 compound (guid 81377edc…) takeover via a graph_bridge.cpp legacy-name alias (sw name diverges from the .t3's own TiXL-canonical "TransformFromClipSpace"); ②parity COOK-DRIVEN vs the mathv oracle (camera unproject; computeshaderstage_transformfromclipspace kernel; b0=TransformsConstBuffer via the empty-FloatsToBuffer-reindex fork)
+    {"t3-reorientlinepoints-retire", runT3ReorientLinePointsRetireGates},  // ★廢棄節點退場: retired flat ReorientLinePoints atom → .t3 compound (guid 5dbe204c…) takeover (name matches TiXL exactly, no legacy alias needed); ②parity COOK-DRIVEN vs the mathv oracle (neighbour-tangent align, qSlerp; computeshaderstage_reorientlinepoints kernel; b0 9-float tight array, only cb0[3]=Amount live; copy-through + OOB-guard forks carried over)
     {"t3-brdflookup", runT3BrdfLookupGates},  // ★TEXTURE-COMPUTE SEAM 首證 (stage 1): _ComputeBRDFLookup.t3 → ComputeShaderStageTex collapse → resident cook + RGBA16 readback vs split-sum BRDF oracle (①takeover ③reference ②parity ④layout under one -bug)
     {"t3-depthtolinear", runT3DepthToLinearGates},  // ★TEXTURE-COMPUTE SEAM stage 2 (SRV-tex read + b0 CB): _ComputeDepthToLinear.t3 (guid ade1d03d…) → collapseTextureComputeStageSrv folds SrvFromTexture2d/UavFromTexture2d/FloatsToBuffer/GetTextureSize/CalcInt2Dispatch/SamplerState onto ONE ComputeShaderStageTex → resident cook (t3xf_depth_source fixture) + R32Float readback vs depth-linearization oracle. ①takeover(SRV wire + CB baked) ③reference ②parity ④layout under one -bug
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
