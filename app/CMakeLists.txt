@@ -537,6 +537,10 @@ add_executable(simple_world
   src/runtime/mesh_ops_loadgltf.cpp
   src/runtime/sw_pbr_scope.cpp
   src/runtime/mesh_pbr_fill.cpp
+  src/runtime/layer2d_fill.cpp
+  src/runtime/screenquad_fill.cpp
+  src/runtime/lines_fill.cpp
+  src/runtime/gridplane_fill.cpp
   src/runtime/pbr_shading_golden.cpp
   src/runtime/delaunay_core.cpp
   src/runtime/mesh_ops_delaunaymesh.cpp

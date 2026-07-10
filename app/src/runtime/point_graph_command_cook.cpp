@@ -49,7 +49,8 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/graph.h"            // Graph/Node/NodeSpec/PortSpec/Connection/pinId/pinNode/findSpec
-#include "runtime/render_command.h"  // RenderCommand + loopRunIterations/execRepeatedlyRunRepetitions/switch*
+#include "runtime/render_command.h"  // RenderCommand
+#include "runtime/render_command_flow.h"  // loopRunIterations/execRepeatedlyRunRepetitions/switch*/executeCollectFirstOnlyForTest
 #include "runtime/stateful_value_ops.h"  // ContextVarMap (complete type for cmdVarPush)
 #include "runtime/point_ops_camera_scope.h"  // C1: resolveActiveCamera/LiveCameraScope/LiveCtxVarScope/...
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite

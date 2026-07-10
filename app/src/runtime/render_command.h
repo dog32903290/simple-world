@@ -66,6 +66,9 @@ enum class DrawKind : uint32_t {
                    // whose primitive comes from the IA-stamped topology, not a per-kind constant (draw_explicit.cpp).
   MeshPbr = 10,    // mesh_draw_pbr_vs/_fs: the LIT mesh (TiXL DrawMesh → mesh-Draw.hlsl). Like Mesh but reads
                    // the scoped material/lights/fog (RenderDrawItem::pbr, mesh_pbr_item.h). Depth-tested (dsMesh).
+  GridPlane = 11,  // gridplane_vs/_fs: hand-crafted (TiXL GridPlane → draw-GridPlane.hlsl) — an
+                   // object-space quad, PROCEDURAL grid pattern (no texture/points). Reuses hasGroup
+                   // (S·R stamp) + hasRenderState/frozen (Seam 2 depth+blend) — zero new branches (gridplane_fill.cpp).
 };
 
 // Per-item blend equation (TiXL SharedEnums.BlendModes, factors from Core/Rendering/
@@ -145,7 +148,7 @@ struct RenderDrawItem {
   // read color (multiplied with per-Point.Color); Lines uses lineWidth, Billboards uses size.
   float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};  // tint (TiXL Color default = white)
   float lineWidth = 0.02f;                     // DrawLines.LineWidth (.t3 default 0.02)
-  float size = 1.0f;                           // DrawBillboards.Scale (.t3 default 1.0)
+  float size = 1.0f;                           // DrawBillboards.Scale (.t3 1.0); ALSO GridPlane.Size (.t3 10.0)
   // DrawClosedLines (TiXL Lib.point.draw.DrawClosedLines → DrawLinesAlt.hlsl GetWrappedIndex): the closed-loop
   // variant of DrawKind::Lines — segment i connects Points[i]→Points[(i+1)%shapePts] (wraps last→first), vs
   // DrawLines' open Points[i]→[i+1]. pointsPerShape>0 splits the bag into that-many-point closed shapes (TiXL
@@ -278,6 +281,9 @@ struct RenderDrawItem {
   bool hasViewport = false;
   float viewport[4] = {0.0f, 0.0f, 0.0f, 0.0f};  // x, y, w, h as [0,1] fractions of the output; w==0 → full target
   float clipScale[2] = {1.0f, 1.0f};             // RepeatView M11, M22 multipliers (aspect/stretch); 1 = identity
+  // DrawKind::GridPlane's grid-density divisor (FS lines() spacing) — its S/T reuse `size`/hasGroup/
+  // hasRenderState above (point_ops_gridplane.cpp); this is the only field GridPlane needed new.
+  float gridScale = 1.0f;  // TiXL GridPlane.Scale (.t3 default 1.0). Read ONLY by DrawKind::GridPlane.
 };
 
 // Seam 2 render-state STAMP helper (the SINGLE shared push both command-cook legs' render-state op fn
@@ -319,75 +325,11 @@ bool& meshDepthDisableForTest();
 // shader branch (constitution). Defined in point_ops_renderstate.cpp; pointer target owned by the selftest.
 RenderCommand*& renderStateCaptureForTest();
 
-// S2a test-only DRIVER flag (the MultiInput Command collector tooth): when true, cookCommand's
-// MultiInput Command branch COLLAPSES to the first wire (the `break` bug) instead of concatenating all
-// N wired Command chains in wire order. So --selftest-execute's -bug leg drops every layer past the
-// first → the composited chain loses items → the golden goes RED. OFF in production (zero behavior
-// change — the loop concatenates every wire). This is a CPU DRIVER flag, NOT a shader bug-branch (no
-// test seam in any .metal — constitution rule); parallel to meshDepthDisableForTest above. Defined in
-// point_ops_execute.cpp; read by the flat (point_graph.cpp) + resident (point_graph_resident.cpp)
-// collectors. Single-input Command ports (Camera/SetRequestedResolution) are unaffected (they already
-// take only the first wire; the flag is a no-op for them).
-bool& executeCollectFirstOnlyForTest();
-
-// S3b Switch (TiXL flow/Switch.cs): the Command-collector SUB-SELECT. Unlike Execute (concat ALL wires),
-// Switch cooks ONLY the index-th wired Command (wrap, negative-safe), -2 = all, -1/empty = none. The
-// SELECTION is a cook-core hook in the SAME MultiInput Command collector branch Execute/SetVarCmd live in:
-// the driver, on a Switch node, reads the Index param + counts the N wired Commands and concatenates only
-// the selected one. switchSelectIndex() is the SINGLE source of truth both the flat (point_graph.cpp) and
-// resident (point_graph_resident.cpp) collectors call, so the wrap/negative/empty math can NEVER diverge
-// (the §3 off-by-one trap: resident wires = primary + extraConns). Defined in point_ops_switch.cpp.
-constexpr int kSwitchSelectAll = -2;   // cook every wire (TiXL Switch.cs index==-2)
-constexpr int kSwitchSelectNone = -1;  // cook no wire (TiXL Switch.cs index==-1 OR count==0)
-// rawIndex = the (truncated-to-int) Switch.Index param; count = number of wired Command inputs gathered.
-// → kSwitchSelectAll / kSwitchSelectNone, or the wrapped index in [0, count) (the single wire to cook).
-int switchSelectIndex(int rawIndex, int count);
-// Test-only DRIVER flag (the Switch sub-select tooth): true → the collector IGNORES the selection and cooks
-// ALL wires (== Execute), so --selftest-switch's -bug leg draws the wrong branch → center-pixel RED. OFF in
-// production (zero behaviour change). A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); read by
-// both collectors, parallel to executeCollectFirstOnlyForTest(). Defined in point_ops_switch.cpp.
-bool& switchIgnoreIndexForTest();
-// SwitchParticleForce (force-rail Switch twin): declarations + full rationale in point_ops.h /
-// point_ops_switchforce.cpp (kept out of this ≤400-line core header).
-
-// ─────────────────────────────── S3c Loop (TiXL flow/Loop.cs) ───────────────────────────────
-// The re-cook keystone: cook the wired SubGraph `Count` times; iteration i writes index→BOTH Float+Int dicts
-// and progress→Float into the live ContextVarMap FIRST, then re-cooks the subtree (so a value-rail Get*Var
-// inside it reads i/progress live), concatenating each iteration's items. Faithful to Loop.cs:23-40: index=i,
-// progress=(Count==1?0:i/(float)(Count-1)), and does NOT restore index/progress after (Loop.cs:21 TODO leaks
-// them — match it). loopRunIterations() is the SINGLE mechanism both the flat + resident collectors call (the
-// var-write + live-scope + re-cook + concat can NEVER fork between legs — the S2c/S3a blood lesson). The leg
-// supplies `cookOneIteration` (fresh-cooks the subtree, returns its items); the helper owns var/scope/concat.
-// `vars` null → no var write (benign no-op-var loop); `count<=0` → empty. A LiveCtxVarScope per iteration
-// makes the nodeParams memo re-resolve Float params FRESH so GetFloatVar(index) differs per iteration.
-void loopRunIterations(int count, const std::string& indexVar, const std::string& progressVar,
-                       struct ContextVarMap* vars, RenderCommand& out,
-                       const std::function<RenderCommand()>& cookOneIteration);
-
-// S3c -bug DRIVER flags (mirror of switchIgnoreIndexForTest / executeCollectFirstOnlyForTest), read by
-// loopRunIterations on BOTH legs. OFF in production (zero behaviour change).
-//   (a) loopBugCookOnceForTest: drop the for-loop → cook the subtree ONCE (one iteration's items) → the
-//       chain has 1 item instead of Count → RED.
-//   (b) loopBugReuseFirstForTest: cook ONCE then replicate that first iteration's items Count times WITHOUT
-//       re-cook / without a fresh var write → every item carries iteration-0's index → all identical → RED.
-// Defined in point_ops_loop.cpp.
-bool& loopBugCookOnceForTest();
-bool& loopBugReuseFirstForTest();
-
-// ─────────────────── S3c ExecRepeatedly: re-cook the MultiInput wires `count` times ───────────────────
-// The Loop SIBLING with no var injection (TiXL ExecRepeatedly.cs:34-53): cooks the COLLECTED Command wires
-// (MultiInput, wire order) `repeatCount` times, concatenating every repetition. No index/progress var (the
-// subtree re-executes for its side-effects). repeatCount clamped [0,100] (ExecRepeatedly.cs:24; driver clamps).
-// execRepeatedlyRunRepetitions() = the SINGLE re-cook mechanism BOTH legs call so it can NEVER fork (S2c/S3a
-// lesson). The leg supplies `cookAllWiresOnce` (fresh-cook every wired source, wire order). count<=0 → empty.
-void execRepeatedlyRunRepetitions(int count, RenderCommand& out,
-                                  const std::function<RenderCommand()>& cookAllWiresOnce);
-
-// S3c ExecRepeatedly -bug DRIVER flag (mirror of loopBugCookOnceForTest), read by
-// execRepeatedlyRunRepetitions on BOTH legs. OFF in production. When true: cook the wires ONCE (drop the
-// repeat loop) → the chain has 1×wires items instead of count×wires → the item-count assertion goes RED.
-// Defined in point_ops_execrepeatedly.cpp.
-bool& execRepeatedlyBugRunOnceForTest();
+// S2a/S3b/S3c flow-control collector declarations (executeCollectFirstOnlyForTest / Switch / loopRunIterations
+// / execRepeatedlyRunRepetitions + their -bug DRIVER flags) PEELED into render_command_flow.h for the
+// line-count ratchet — this header is the RenderCommand rendering surface (DrawKind/RenderDrawItem/Seam 2
+// stamp); collector control-flow is a separate concern. Real consumers include render_command_flow.h
+// directly (mirror of render_command_state.h's split — no re-export from here).
 
 // DrawPoints (v1) -bug DRIVER flag (the parity-gate regression latch): when true, cookDrawPoints reverts to
 // the DEGENERATE DrawKind::Points 4px dead point (no PointSize/tint) instead of the faithful Points2 sprite.

@@ -79,6 +79,7 @@
 // --- no-header shell-tier golden forward-decls (verbatim from the old selftests.cpp top) ---
 namespace sw { int runFieldRenderSelfTest(bool);  // field_render_golden.cpp (shell-tier GPU golden)
 int runFxaaSelfTest(bool);  // point_ops_fxaa.cpp — NVIDIA FXAA 3.11 AA (no point_ops.h line: linecount ratchet at cap)
+int runGridPlaneSelfTest(bool);  // point_ops_gridplane.cpp — GridPlane procedural quad (no point_ops.h line: at cap)
 int runRaymarchFieldOutputSelfTest(bool);  // field_raymarch_output_golden.cpp (production-path field→output golden)
 int runConnectCooksSelfTest(bool);         // connect_cooks_golden.cpp (connect VERB → cook → sphere silhouette)
 int runHandConnectSelfTest(bool);          // ui/connect_verb_selftest.cpp (connect/disconnect verbs → wire edit)

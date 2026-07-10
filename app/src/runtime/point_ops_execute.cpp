@@ -35,7 +35,8 @@
 #include "runtime/point_ops.h"
 
 #include "runtime/point_graph.h"     // CmdCookCtx, registerCmdOp, cookParam
-#include "runtime/render_command.h"  // RenderCommand / RenderDrawItem / executeCollectFirstOnlyForTest
+#include "runtime/render_command.h"  // RenderCommand / RenderDrawItem
+#include "runtime/render_command_flow.h"  // executeCollectFirstOnlyForTest
 
 #include <cstdio>
 #include <vector>

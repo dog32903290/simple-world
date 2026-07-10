@@ -27,6 +27,22 @@ const std::vector<NodeSpec>& drawGizmoSpecs() {
         {"Visibility", "Visibility", "Float", true, -1.0f, -1.0f, 2.0f}},
        nullptr,
        "render.gizmo"},
+      // GridPlane (TiXL Lib.render.gizmo.GridPlane, Guid 935e6597): a Command SOURCE (no input pins) —
+      // a procedural-grid quad, hand-crafted DrawKind::GridPlane (point_ops_gridplane.cpp). Rotation
+      // default X=90 tips the quad flat (a ground-reference gizmo); Size/Scale/Color are shader params.
+      {"GridPlane", "GridPlane",
+       {{"out", "out", "Command", false},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 0.25f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Size", "Size", "Float", true, 10.0f, 0.0f, 1000.0f},
+        {"Scale", "Scale", "Float", true, 1.0f, 0.001f, 100.0f},
+        {"Rotation.x", "Rotation", "Float", true, 90.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1}},
+       nullptr,
+       "render.gizmo"},
   };
   return specs;
 }

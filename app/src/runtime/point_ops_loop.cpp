@@ -45,7 +45,8 @@
 #include "runtime/graph_bridge.h"         // libFromGraph (flat Graph → SymbolLibrary, paths == ids)
 #include "runtime/point_graph.h"          // CmdCookCtx / registerCmdOp / PointGraph
 #include "runtime/point_ops_setvarcmd.h"  // LiveCtxVarScope (engage the live ambient map per iteration)
-#include "runtime/render_command.h"       // RenderCommand + loopRunIterations / loopBug* decls
+#include "runtime/render_command.h"       // RenderCommand
+#include "runtime/render_command_flow.h"  // loopRunIterations / loopBug* decls
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph (production resident path)
 #include "runtime/selftest_registry.h"    // REGISTER_SELFTESTS
 #include "runtime/stateful_value_ops.h"   // ContextVarMap (complete type — touch .floatVars/.intVars)

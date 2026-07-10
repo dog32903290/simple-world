@@ -49,6 +49,7 @@ void registerCameraValueOps();    // camera-A: CamPosition Command no-op hook (v
                                   // cookCameraValueOutputNodes pass; resident_camera_value_cook.cpp)
 void registerCameraWithRotationOp();  // camera-A: rotation-driven camera push (point_ops_camerawithrotation.cpp)
 void registerBlendCamerasOp();        // camera-A: slerp-blend of referenced cameras (point_ops_blendcameras.cpp)
+void registerGridPlaneOp();  // render.gizmo: Command SOURCE (DrawKind::GridPlane hand-crafted quad-shader; point_ops_gridplane.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -99,6 +100,7 @@ void registerDrawPointOps() {
   registerDrawExplicitOp();                      // Command SOURCE (Seam 2: DrawKind::Explicit raw N-vertex draw leaf)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerPbrShadingOps();                      // SetMaterial/SetPointLight/SetFog/UseMaterial/DefineMaterials + DrawMeshPbr (LIT mesh)
+  registerGridPlaneOp();                        // Command SOURCE (DrawKind::GridPlane, hand-crafted procedural-grid quad)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
 
