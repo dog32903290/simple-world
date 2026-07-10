@@ -20,6 +20,15 @@ namespace {
 constexpr const char* kVsName = "sw_field_vertex";
 constexpr const char* kFsName = "sw_field_fragment";
 
+// Function names baked into field_to_image_template.metal (own names — a distinct assembled source per
+// template means no cache-key/name collision risk with kVsName/kFsName above; distinct names are purely
+// for self-documentation at the call site).
+constexpr const char* kFieldToImageVsName = "sw_fieldtoimage_vertex";
+constexpr const char* kFieldToImageFsName = "sw_fieldtoimage_fragment";
+// FIXED out-of-band texture slot for the Gradient row (field_to_image_template.metal's rationale
+// comment — past any realistic Seam-A field-texture count).
+constexpr int kFieldToImageGradientSlot = 30;
+
 // Fragment-buffer base slot for graph-collected structured buffers (point-buffer→field seam). MUST
 // match field_graph.cpp's kBufferBaseSlot (the [[buffer(BASE+i)]] baked into the assembled MSL). Base 3
 // is past the raymarch path's reserved 0=params/1=raymarch/2=camera; the 2D path leaves 1,2 as gaps.
@@ -214,6 +223,95 @@ MTL::Texture* renderField3d(MTL::Device* dev, MTL::CommandQueue* queue,
   paramBuf->release();
   rmBuf->release();
   xfBuf->release();
+  return out;  // caller owns
+}
+
+// Host mirror of field_to_image_template.metal's FieldToImageParams struct — exact byte layout, ALL
+// plain floats (same discipline as RaymarchParamsGpu above). memcpy'd wholesale from FieldToImageParams.
+struct FieldToImageParamsGpu {
+  float centerX, centerY, scale, rotate;         // 0..15
+  float sliceDepth, mode, rangeX, rangeY;        // 16..31
+  float gainX, biasY, pingPong, repeat;          // 32..47
+  float aspect, pad0, pad1, pad2;                // 48..63
+};
+
+MTL::Texture* renderFieldToImage(MTL::Device* dev, MTL::CommandQueue* queue,
+                                 const std::shared_ptr<FieldNode>& root, const std::string& templateMsl,
+                                 const FieldToImageParams& params, MTL::Texture* gradientRow,
+                                 uint32_t w, uint32_t h) {
+  if (!dev || !queue || !root || !gradientRow || w == 0 || h == 0 || templateMsl.empty()) return nullptr;
+
+  // 1. Assemble the field MSL — SAME assembleFieldMSL as the 2D/raymarch paths (reused unchanged).
+  AssembledField asmField = assembleFieldMSL(root, templateMsl);
+  if (asmField.msl.empty()) return nullptr;
+
+  // 2. PSO from the source cache, keyed on srcHash. RGBA32Float output (color; float for golden
+  //    readback — the cook op tonemaps+copies to the driver-owned RGBA8 tc.output, mirrors RaymarchField).
+  const MTL::PixelFormat kFmt = MTL::PixelFormatRGBA32Float;
+  MTL::RenderPipelineState* pso = cachedSourcePSO(dev, asmField.msl.c_str(), asmField.srcHash,
+                                                  kFieldToImageVsName, kFieldToImageFsName, (uint64_t)kFmt);
+  if (!pso) return nullptr;
+
+  MTL::TextureDescriptor* td =
+      MTL::TextureDescriptor::texture2DDescriptor(kFmt, w, h, /*mipmapped=*/false);
+  td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+  td->setStorageMode(MTL::StorageModeShared);
+  MTL::Texture* out = dev->newTexture(td);
+  if (!out) return nullptr;
+
+  // 3. buffer(0): field float-params (same as 2D/raymarch). buffer(1): FieldToImage's own op params.
+  const size_t paramBytes =
+      asmField.floatParams.empty() ? 16 : asmField.floatParams.size() * sizeof(float);
+  MTL::Buffer* paramBuf = dev->newBuffer(paramBytes, MTL::ResourceStorageModeShared);
+  if (!paramBuf) { out->release(); return nullptr; }
+  if (!asmField.floatParams.empty())
+    std::memcpy(paramBuf->contents(), asmField.floatParams.data(),
+                asmField.floatParams.size() * sizeof(float));
+
+  FieldToImageParamsGpu gp{};
+  gp.centerX = params.centerX; gp.centerY = params.centerY;
+  gp.scale = params.scale; gp.rotate = params.rotate;
+  gp.sliceDepth = params.sliceDepth; gp.mode = params.mode;
+  gp.rangeX = params.rangeX; gp.rangeY = params.rangeY;
+  gp.gainX = params.gainX; gp.biasY = params.biasY;
+  gp.pingPong = params.pingPong; gp.repeat = params.repeat;
+  gp.aspect = (float)w / (float)h;
+  gp.pad0 = gp.pad1 = gp.pad2 = 0.0f;
+  MTL::Buffer* opBuf = dev->newBuffer(&gp, sizeof(gp), MTL::ResourceStorageModeShared);
+  if (!opBuf) { paramBuf->release(); out->release(); return nullptr; }
+
+  // 4. Fullscreen-triangle draw. Clear to transparent black (overwritten everywhere by the fragment).
+  MTL::RenderPassDescriptor* rpd = MTL::RenderPassDescriptor::renderPassDescriptor();
+  MTL::RenderPassColorAttachmentDescriptor* ca = rpd->colorAttachments()->object(0);
+  ca->setTexture(out);
+  ca->setLoadAction(MTL::LoadActionClear);
+  ca->setStoreAction(MTL::StoreActionStore);
+  ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 0.0));
+
+  MTL::CommandBuffer* cb = queue->commandBuffer();
+  MTL::RenderCommandEncoder* enc = cb->renderCommandEncoder(rpd);
+  enc->setRenderPipelineState(pso);
+  enc->setFragmentBuffer(paramBuf, 0, 0);
+  enc->setFragmentBuffer(opBuf, 0, 1);
+  enc->setFragmentTexture(gradientRow, (NS::UInteger)kFieldToImageGradientSlot);
+  // Seam A + point-buffer seam: same binding loops as renderField2d/renderField3d (empty for every
+  // existing SDF leaf; the Gradient texture above sits at a FIXED slot out of band from these).
+  for (size_t i = 0; i < asmField.textures.size(); ++i) {
+    if (asmField.textures[i].texture)
+      enc->setFragmentTexture((MTL::Texture*)asmField.textures[i].texture, (NS::UInteger)i);
+  }
+  for (size_t i = 0; i < asmField.buffers.size(); ++i) {
+    if (asmField.buffers[i].buffer)
+      enc->setFragmentBuffer((MTL::Buffer*)asmField.buffers[i].buffer, 0,
+                             (NS::UInteger)(kFieldBufferBaseSlot + i));
+  }
+  enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (NS::UInteger)0, (NS::UInteger)3);
+  enc->endEncoding();
+  cb->commit();
+  cb->waitUntilCompleted();
+
+  paramBuf->release();
+  opBuf->release();
   return out;  // caller owns
 }
 

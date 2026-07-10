@@ -62,4 +62,10 @@ REGISTER_SELFTESTS(/*orderBase=*/26,
 REGISTER_SELFTESTS(/*orderBase=*/382,
     {"field-subdivpattern3d", runFieldSubDivPattern3dGoldenSelfTest},
 );
+// FieldToImage tex-op batch (D-桶 field-render wiring, RaymarchField precedent). Fresh high orderBase —
+// same append-only discipline as the batch above.
+REGISTER_SELFTESTS(/*orderBase=*/1100,
+    {"field-fieldtoimage", runFieldToImageGoldenSelfTest},
+    {"fieldtoimage-output", runFieldToImageOutputSelfTest},
+);
 }  // namespace sw
