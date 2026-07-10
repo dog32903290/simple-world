@@ -198,22 +198,35 @@ inline void transformFromClipSpaceOne(const SwPoint& in, SwPoint& out, uint32_t 
   //                                                CameraToWorld._m20_m21_m22);
   // HLSL's float3x3(rowVec0, rowVec1, rowVec2) constructor from float3 arguments fills BY ROW, so
   // orientationDest is exactly the upper-left 3x3 submatrix of CameraToWorld, copied verbatim.
-  //
-  // :51 -- ...qFromMatrix3Precise(transpose(orientationDest))...
-  // NOTED-QUIRK (transcribed as an algebraic simplification, verified by hand -- same style as
-  // mathv_ref_addnoise.h's getTranslationAndRotation() ex/ey/ez-transpose note): since
-  // orientationDest.m[r][c] == CameraToWorld.m[r][c] for r,c in 0..2, transpose(orientationDest)
-  // .m[r][c] == orientationDest.m[c][r] == CameraToWorld.m[c][r]. This oracle writes those 9
-  // transposed entries directly instead of modeling "extract submatrix, then transpose" as two
-  // separate steps -- the result is identical and sidesteps needing a general 3x3 transpose().
-  const detail::Mat3 transposedOrientation{
-      prm.cameraToWorld.m00, prm.cameraToWorld.m10, prm.cameraToWorld.m20,
-      prm.cameraToWorld.m01, prm.cameraToWorld.m11, prm.cameraToWorld.m21,
-      prm.cameraToWorld.m02, prm.cameraToWorld.m12, prm.cameraToWorld.m22,
+  const detail::Mat3 orientationDest{
+      prm.cameraToWorld.m00, prm.cameraToWorld.m01, prm.cameraToWorld.m02,
+      prm.cameraToWorld.m10, prm.cameraToWorld.m11, prm.cameraToWorld.m12,
+      prm.cameraToWorld.m20, prm.cameraToWorld.m21, prm.cameraToWorld.m22,
   };
 
   // :51 -- float4 newRotation = normalize(qFromMatrix3Precise(transpose(orientationDest)));
-  const detail::Quat qFromCam = detail::qFromMatrix3Precise(transposedOrientation);
+  // FIX (was: literal transpose(orientationDest), a byte-for-byte HLSL transcription -- WRONG in
+  // context; found by D's fuzz driver, fixed here): the R role's isolation rule (never open the
+  // TiXL C# host while transcribing a .hlsl kernel) meant this ref originally modeled
+  // `prm.cameraToWorld` as exactly what the GPU register holds, then applied the shader's own
+  // transpose() on top of that -- correct ONLY if `prm.cameraToWorld` already equals what
+  // production uploads. It does NOT: TiXL's host pre-transposes CameraToWorld before it ever
+  // reaches the cbuffer -- external/tixl/Core/Rendering/TransformBufferLayout.cs:20-24 (comment
+  // "transpose all as mem layout in hlsl constant buffer is row based"):
+  //   CameraToWorld = Matrix4x4.Transpose(cameraToWorld);
+  // So in production the shader's `transpose(orientationDest)` is a SECOND transpose that cancels
+  // the host's first one -- net effect on the logical (pre-host) camera matrix is IDENTITY (no
+  // transpose at all). This mathv fuzz harness dispatches the compiled kernel directly with a
+  // logical camera matrix (bypassing the C# host layer entirely, same convention as every other
+  // mathv_ref_*.h -- see mathv_ref_wrappointposition.h's CameraToWorld._m30 citation), so the ref
+  // must reproduce that same NET semantics, not the shader's literal (host-relative) text.
+  // Symptom that surfaced the bug: D's fuzz driver found the (old, literal-transpose) ref
+  // producing the CONJUGATE quaternion vs an independent quat oracle on asymmetric (non-identity-
+  // rotation) matrices -- transpose(R) of a proper rotation is its inverse, i.e. the conjugate
+  // quaternion -- |dot(ref,oracle)|=0.45/0.41 isolated vs |dot(gpu,oracle)|=1.0000 (the GPU kernel
+  // already nets out correctly; this ref did not). Fix: drop the transpose, feed `orientationDest`
+  // straight into qFromMatrix3Precise.
+  const detail::Quat qFromCam = detail::qFromMatrix3Precise(orientationDest);
   const detail::Quat qCamNormalized = detail::hlslNormalizeQuat(qFromCam);
 
   // :52 -- newRotation = qMul(newRotation, p.Rotation);   (q1=qCamNormalized, q2=point's rotation)
@@ -246,7 +259,8 @@ inline void mathvRefTransformFromClipSpace(const SwPoint* in, SwPoint* out, size
 //
 // 1) CameraToWorld = identity, Position=(3,4,5), Rotation=(0,0,0,1) (identity quat):
 //    v' = (3,4,5,1) * I = (3,4,5,1); w=1 -> Position_out=(3,4,5) (unchanged).
-//    orientationDest = I (upper-left 3x3 of I); transpose(I) = I.
+//    orientationDest = I (upper-left 3x3 of I); fed directly into qFromMatrix3Precise (no
+//    transpose -- see the :51 FIX note above transformFromClipSpaceOne's qFromCam derivation).
 //    qFromMatrix3Precise(I): tr=3>0; S=sqrt(3+1)*2=4; q=((0-0)/4,(0-0)/4,(0-0)/4,0.25*4)=(0,0,0,1).
 //    normalize((0,0,0,1)) = (0,0,0,1) (already unit).
 //    qMul((0,0,0,1), (0,0,0,1)) = (0,0,0,1) (identity*identity=identity). Rotation_out=(0,0,0,1).
@@ -262,17 +276,18 @@ inline void mathvRefTransformFromClipSpace(const SwPoint* in, SwPoint* out, size
 //    expected 90-deg CCW-about-Z row-vector rotation), translation=(0,0,0), Position=(0,0,0)
 //    (Position math is irrelevant to this case; it isolates the Rotation path),
 //    Rotation_in = (0,0,1,0) (a pure 180-deg-about-Z quaternion):
-//    transpose(R): row0=(0,-1,0), row1=(1,0,0), row2=(0,0,1).
-//    qFromMatrix3Precise(transpose(R)): tr=0+0+1=1>0; S=sqrt(1+1)*2=2*sqrt(2)=2.8284271;
-//      qx=(m21-m12)/S=(0-0)/S=0; qy=(m02-m20)/S=(0-0)/S=0; qz=(m10-m01)/S=(1-(-1))/S=2/S=0.7071068;
+//    orientationDest = R (no transpose -- :51 FIX note): m00=0,m01=1,m02=0 / m10=-1,m11=0,m12=0 /
+//      m20=0,m21=0,m22=1.
+//    qFromMatrix3Precise(R): tr=0+0+1=1>0; S=sqrt(1+1)*2=2*sqrt(2)=2.8284271;
+//      qx=(m21-m12)/S=(0-0)/S=0; qy=(m02-m20)/S=(0-0)/S=0; qz=(m10-m01)/S=(-1-1)/S=-2/S=-0.7071068;
 //      qw=0.25*S=0.7071068. Already unit length (0.7071068^2*2=1.0) -> normalize is a no-op.
-//    qCamNormalized = (0, 0, 0.7071068, 0.7071068).
+//    qCamNormalized = (0, 0, -0.7071068, 0.7071068).
 //    qMul(qCamNormalized, (0,0,1,0)):
-//      cross(q1.xyz,q2.xyz) = cross((0,0,0.7071068),(0,0,1)) = (0,0,0) (parallel vectors).
-//      out.xyz = q2.xyz*q1.w + q1.xyz*q2.w + cross = (0,0,1)*0.7071068 + (0,0,0.7071068)*0 + 0
+//      cross(q1.xyz,q2.xyz) = cross((0,0,-0.7071068),(0,0,1)) = (0,0,0) (parallel vectors).
+//      out.xyz = q2.xyz*q1.w + q1.xyz*q2.w + cross = (0,0,1)*0.7071068 + (0,0,-0.7071068)*0 + 0
 //              = (0,0,0.7071068).
-//      out.w = q1.w*q2.w - dot(q1.xyz,q2.xyz) = 0.7071068*0 - (0+0+0.7071068*1) = -0.7071068.
-//    Rotation_out = (0, 0, 0.7071068, -0.7071068).
+//      out.w = q1.w*q2.w - dot(q1.xyz,q2.xyz) = 0.7071068*0 - (0+0+(-0.7071068)*1) = 0.7071068.
+//    Rotation_out = (0, 0, 0.7071068, 0.7071068).
 //
 // 4) Degenerate matrix engineered to hit the w==0 edge: CameraToWorld = identity EXCEPT m33=0
 //    (so the w-column entry that would normally read 1 for an untransformed w-input reads 0
@@ -337,7 +352,7 @@ inline bool mathvRefTransformFromClipSpaceSelfCheck() {
     transformFromClipSpaceOne(in, out, 0, 1, prm);
     ok &= approxEq(out.Rotation.x, 0.0f) && approxEq(out.Rotation.y, 0.0f) &&
           approxEq(out.Rotation.z, 0.7071068f, 1e-4f) &&
-          approxEq(out.Rotation.w, -0.7071068f, 1e-4f);
+          approxEq(out.Rotation.w, 0.7071068f, 1e-4f);
   }
   {  // case 4
     SwPoint in{}, out{};
