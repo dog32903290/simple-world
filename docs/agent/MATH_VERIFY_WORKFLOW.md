@@ -109,6 +109,8 @@ R 與 D **不同 session/worktree**（防同錯互證）；S、X 各自獨立。
 
 **mathv 綠不豁免常規 golden**——mathv 驗 kernel 函數，常規 golden 驗 cook 佈線與 NodeSpec 預設（turbulence TOOTH 1a vs 1b 分工先例）。
 
+**R 工單模板必含（TransformFromClipSpace 教訓，2026-07-10）**：kernel 吃 **host 端預處理資料**（矩陣上傳、pre-transpose、量化…）時，cbuffer 的真實語義可能定義在 **TiXL C# host 層**而非 HLSL 檔面——且 host 效果可能被 HLSL packing 慣例（如預設 column-major，DX11ShaderCompiler.cs ShaderFlags.None）**抵銷或反轉**。R 的隔離規則讓它看不到 C#，所以 R 遇此類輸入**必須標 AMBIGUITY 留給 S 稽核 C# 端**，嚴禁自行假設「檔面轉錄即淨語義」。實證：TFCS 的 host pre-transpose 被 column-major packing 抵銷（HLSL 可見 M≡邏輯 N），D 誤診 ref 錯→fixer 反修→S 挖三層才翻正——kernel rotation 共軛 bug 曾活在 production。旁證鏈可用：同 cbuffer 的其他消費者 shader（如 WrapPointPosition.hlsl `_m30_m31_m32` 用法）+ 姊妹 op 慣例 + kernel 內部同矩陣兩用法互證。
+
 ## 6. pilot：WrapPointPosition → AddNoise → SnapPointsToGrid（三顆各代表一個 eps 類別）
 
 1. **WrapPointPosition**（exact）：kernel 極小；自帶翻譯陷阱範本 floored-mod vs truncated-fmod（`wrappoints.metal:14-21` NAMED FORK＝關3 verdict 形式的原型）；負座標=發散中段。
