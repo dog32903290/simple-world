@@ -1,11 +1,12 @@
-// mesh_modify_golden — --selftest-mesh-flipnormals / --selftest-mesh-recomputenormals /
-// --selftest-mesh-transformuvs. Goldens for the three pure mesh→mesh modify CONSUMERS (Phase C mesh-
-// input leaves). Each op gets TWO legs:
+// mesh_modify_golden — --selftest-mesh-recomputenormals / --selftest-mesh-transformuvs.
+// Goldens for two pure mesh→mesh modify CONSUMERS (Phase C mesh-input leaves). (FlipNormals lived
+// here too until its winding-reversal parity fix forked its production expectation — it now has its
+// own TU, mesh_flipnormals_golden.cpp, per the ≤400-line rule.) Each op gets TWO legs:
 //
 //   FLAT (CPU-readback): QuadMesh → op → debugCookedMesh; assert the exact transformed vertex
-//     attributes vs the hand-derived TiXL shader math (mesh-FlipNormals.hlsl / mesh-RecomputeNormals.hlsl
-//     `computeNormal` / mesh-TransformUVs.hlsl), topology unchanged. injectBug corrupts the op's primary
-//     output field (Normal / Normal+Selection / TexCoord) in the REAL cook → the field assertion fires.
+//     attributes vs the hand-derived TiXL shader math (mesh-RecomputeNormals.hlsl `computeNormal` /
+//     mesh-TransformUVs.hlsl), topology unchanged. injectBug corrupts the op's primary
+//     output field (Normal+Selection / TexCoord) in the REAL cook → the field assertion fires.
 //
 //   ★ PRODUCTION PIXEL (R-2 rule): QuadMesh → op → DrawMeshUnlit → RenderTarget built through the
 //     CANONICAL production path (libFromGraph → buildEvalGraph → cookResident), then read pg.target()
@@ -130,53 +131,6 @@ int productionLeg(const char* opType, const char* tag, bool injectBug) {
 }
 
 }  // namespace
-
-// ============================== FlipNormals ==============================
-int runMeshFlipNormalsGoldenSelfTest(bool injectBug) {
-  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
-  MTL::CommandQueue* q = dev->newCommandQueue();
-  PointGraph pg(dev, nullptr, q, 64, 64);
-
-  Graph g;
-  g.nodes.push_back(makeQuad(1, 0, 0, 0));
-  Node op; op.id = 2; op.type = "FlipNormals"; g.nodes.push_back(op);
-  int quadOut, dummy, opOut, opMeshIn;
-  meshPins("QuadMesh", quadOut, dummy);
-  meshPins("FlipNormals", opOut, opMeshIn);
-  g.connections.push_back({100, pinId(1, quadOut), pinId(2, opMeshIn)});
-
-  EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  meshInjectBug() = injectBug;
-  pg.cook(g, ctx, nullptr, 2);
-  pg.cook(g, ctx, nullptr, 2);  // buffer reuse
-  meshInjectBug() = false;
-
-  const MTL::Buffer* vb = nullptr; const MTL::Buffer* ib = nullptr; uint32_t vc = 0, fc = 0;
-  bool got = pg.debugCookedMesh(2, vb, vc, ib, fc);
-  bool flat = got && vc == 4 && fc == 2;
-  if (flat) {
-    const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb)->contents();
-    // Normal -(0,0,1)=(0,0,-1); Tangent -(1,0,0)=(-1,0,0); Bitangent UNCHANGED (0,1,0); Position kept.
-    bool nOk = n3(v[0].Normal, 0, 0, -1) && n3(v[3].Normal, 0, 0, -1);
-    bool tOk = n3(v[0].Tangent, -1, 0, 0) && n3(v[3].Tangent, -1, 0, 0);
-    bool bOk = n3(v[0].Bitangent, 0, 1, 0) && n3(v[3].Bitangent, 0, 1, 0);  // NOT flipped
-    bool pOk = n3(v[3].Position, 1, 1, 0);  // position untouched (faithful; injectBug flies v0 only)
-    flat = nOk && tOk && bOk && pOk;
-    std::printf("[selftest-mesh-flipnormals] flat: N0=(%.1f,%.1f,%.1f) T0=(%.1f,%.1f,%.1f) "
-                "B0=(%.1f,%.1f,%.1f) nOk=%d tOk=%d bOk=%d pOk=%d\n",
-                v[0].Normal.x, v[0].Normal.y, v[0].Normal.z, v[0].Tangent.x, v[0].Tangent.y,
-                v[0].Tangent.z, v[0].Bitangent.x, v[0].Bitangent.y, v[0].Bitangent.z, nOk, tOk, bOk, pOk);
-  } else {
-    std::printf("[selftest-mesh-flipnormals] flat FAIL: no cooked mesh (got=%d vc=%u fc=%u)\n", got, vc, fc);
-  }
-  q->release(); dev->release(); pool->release();
-
-  int prod = productionLeg("FlipNormals", "selftest-mesh-flipnormals-prod", injectBug);
-  bool ok = flat && prod == 0;
-  std::printf("[selftest-mesh-flipnormals] %s\n", ok ? "PASS" : "FAIL");
-  return ok ? 0 : 1;
-}
 
 // ============================== RecomputeNormals ==============================
 int runMeshRecomputeNormalsGoldenSelfTest(bool injectBug) {
