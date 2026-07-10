@@ -66,6 +66,23 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
                             SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
                             const std::string& t3uiJson);
 
+// TEXTURE-COMPUTE COLLAPSE (TEXTURE_COMPUTE_SEAM_SPEC.md §3, t3_import_texcompute.cpp): if `root` is a
+// texture-OUT compute compound (a ComputeShaderStage whose Uavs is fed by UavFromTexture2d — shape-
+// detected, not guid-keyed), collapse the whole framework subgraph onto ONE tex-track
+// ComputeShaderStageTex atom, filling `sym` (id/name/inputDefs already set by the caller) + registering
+// the atom into `lib`. Returns true on a collapse (caller commits + returns), false on any non-match
+// (SRV-tex read / extra input children / not the shape) → caller falls through to the normal per-child
+// path. `t3uiJson` = the ROOT's own .t3ui (applied here; empty → ④layout N/A).
+bool collapseTextureComputeStage(const crude_json::value& root, Symbol& sym, SymbolLibrary& lib,
+                                 const std::function<void(const std::string&)>& warn,
+                                 const std::string& t3uiJson);
+
+// Single ROOT-collapse entry point (image-fx wrapper OR texture-compute) — keeps the importer's hook one
+// block for the rule-4 line ratchet. Returns true if a collapse fired (caller commits `sym` + returns).
+bool tryCollapseRoot(const crude_json::value& root, const std::string& symGuid, Symbol& sym,
+                     SymbolLibrary& lib, const std::function<void(const std::string&)>& warn,
+                     const std::string& t3uiJson);
+
 // DataSet-timeline seam: read a child's Outputs[].OutputData TimeClip blocks (= SymbolJson.cs:112-131,
 // Type "T3.Core.Animation.TimeClip") into `child.clips`, keyed by the sw output slot name. Split out of
 // t3_import.cpp's Children loop ONLY for the rule-4 line ratchet (self-contained parse). No-op when the

@@ -90,6 +90,13 @@ bool& t3RecurseDisable();
 // = the exact bug 柏為 observed diving into an imported compound).
 bool& t3LayoutDisable();
 
+// Test-only injection seam (texture-compute ①takeover RED case): force collapseTextureComputeStage to
+// no-op → the texture-OUT compute framework subgraph (Texture2d/UavFromTexture2d/CalcInt2DispatchCount/
+// ExecuteTextureUpdate) falls to the normal per-child path (those glue ops become "unmapped skipped")
+// and the stage imports as the buffer ComputeShaderStage, not the tex atom. Off in production. The
+// brdflookup golden flips this to prove the collapse is the load-bearing takeover seam.
+bool& t3TexComputeCollapseDisable();
+
 // Cheap top-level Id peek: parse ONLY the root object's Id (comment-strip + crude_json + lowercase),
 // matching the sym.id importT3Symbol would assign. Lets the boot catalog skip a .t3 whose symbol is
 // already in the lib WITHOUT a full import. Returns false (outId untouched) when there is no usable Id.

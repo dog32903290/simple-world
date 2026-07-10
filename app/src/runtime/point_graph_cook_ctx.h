@@ -301,6 +301,12 @@ struct TexCookCtx {
   // texture through without a copy). Empty/null for every existing tex op (byte-identical).
   std::string cookKey;
   MTL::Texture* redirectTexture = nullptr;
+  // RESOLVED String params of THIS node (texture-compute keystone): the tex-track twin of
+  // BufferCookCtx::strParams / PointCookCtx has none. A generic tex-compute stage
+  // (ComputeShaderStageTex) reads its folded KernelName + Format here — the flat cook threads
+  // &Node::strParams, the resident cook threads &ResidentNode::strInputs (same source the buffer
+  // stage's KernelName rides). null for every existing tex op (no String port → byte-identical).
+  const std::map<std::string, std::string>* strParams = nullptr;
 };
 // A texture operator: execute `command` into `output`. No buffer/command return.
 using PointTexFn = void (*)(TexCookCtx&);

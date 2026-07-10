@@ -168,20 +168,17 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
     }
   }
 
-  // ---- IMAGE-FX COLLAPSE (image-fx-wrapper-collapses-to-tex-atom): if this ROOT is a known image-fx
-  // wrapper (④b table), collapse the whole compound to ONE sw tex atom instead of the normal per-child
-  // map (whose fx-setup child has no atom → empty root). collapseImageFxWrapper builds the atom + wires;
-  // on success we commit the symbol and return. On a shape mismatch it warns and we fall through to the
-  // normal path (which reports the same empty-root diagnostic — no silent success).
-  const std::string collapseType = swTexOpForCollapseRootGuid(symGuid);
-  if (!collapseType.empty()) {
-    if (collapseImageFxWrapper(root, collapseType, sym, lib, warn, t3uiJson)) {
-      refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the atom/helper ports
-      lib.symbols[sym.id] = sym;
-      if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;  // only the TOP import seeds root
-      if (outSymbolId) *outSymbolId = sym.id;
-      return true;
-    }
+  // ---- ROOT COLLAPSE (tryCollapseRoot, t3_import_texcompute.cpp): a thin ROOT may collapse to ONE sw
+  // tex atom instead of the normal per-child map — an image-fx wrapper (image-fx-wrapper-collapses-to-
+  // tex-atom, ④b table) OR a texture-OUT compute compound (TEXTURE_COMPUTE_SEAM_SPEC §3, ComputeShader-
+  // Stage↞UavFromTexture2d → ComputeShaderStageTex). On a collapse we commit the symbol + return; on a
+  // non-match we fall through to the normal per-child path (same empty-root diagnostic — no silent success).
+  if (tryCollapseRoot(root, symGuid, sym, lib, warn, t3uiJson)) {
+    refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the atom/helper ports
+    lib.symbols[sym.id] = sym;
+    if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;  // only the TOP import seeds root
+    if (outSymbolId) *outSymbolId = sym.id;
+    return true;
   }
 
   // ---- TABLE ①: t3 child guid → int childId. Built while walking Children[].

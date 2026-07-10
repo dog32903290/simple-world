@@ -358,6 +358,7 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
       tc.assetTexture = cachedAssetTexture(dev, ai->second, /*mipped=*/false);
   }
   tc.params = tp;
+  tc.strParams = &n->strParams;  // texture-compute keystone: folded KernelName/Format (ComputeShaderStageTex)
   tc.cookKey = flatKey(id);  // TEXREF seam: this node's stash identity (UseTextureReference lookup)
   tx->second(tc);
   // TEXREF publish (RenderTarget.cs:143-148): a node with a WIRED "TexRef" input port publishes its

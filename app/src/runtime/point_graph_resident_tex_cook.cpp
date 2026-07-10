@@ -371,6 +371,7 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
       tc.assetTexture = cachedAssetTexture(dev, ai->second, /*mipped=*/false);
   }
   tc.params = tp;
+  tc.strParams = &n->strInputs;  // texture-compute keystone: folded KernelName/Format (resident str rail)
   tc.cookKey = path;  // TEXREF seam: this node's stash identity (resident key = the node path)
   tx->second(tc);
   // TEXREF publish + redirect (resident mirror of the flat walker's seam — production runs THIS leg).
