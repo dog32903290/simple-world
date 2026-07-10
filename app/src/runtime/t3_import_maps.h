@@ -93,6 +93,14 @@ extern const char* const kSamplerStateGuid;              // render/_dx11/api/Sam
 extern const char* const kFloatsToBufferGuid;            // numbers/data/FloatsToBuffer.cs (724da755, the b0 CB assembler)
 extern const char* const kFloatsToBufferParamsSlot;      // FloatsToBuffer.Params MultiInput (49556d12, wire order == cbuffer layout)
 
+// ── SEAM 2 RENDER-STATE FOLD (t3_import_renderstate.cpp) ───────────────────────────────────────────────
+// The render-state guid→type / slot-name rows live in THEIR OWN table in t3_import_renderstate.cpp (not
+// here) purely to keep t3_import_maps.cpp under the ARCHITECTURE rule-4 line ratchet — it is otherwise
+// the SAME kind of row as everything above (guid → sw atom type name / sw port name). swTypeForSymbolGuid
+// and swSlotNameForGuid below fall back to these two when their own kTable misses.
+std::string swTypeForRenderStateGuid(const std::string& guid);
+std::string swSlotNameForRenderStateGuid(const std::string& swType, const std::string& slotGuid);
+
 // ── REDUNDANT-SUBGRAPH ELISION guids (used by t3_import_collapse.cpp) ─────────────────────────────────
 // A whole class of image-fx wrappers feed the fx child's ImageB from a GradientsToTexture that renders the
 // root's Gradient boundary → a 1D row; sw's atoms rasterize the Gradient row THEMSELVES from a "Gradient"

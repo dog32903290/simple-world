@@ -90,6 +90,34 @@ bool tryCollapseRoot(const crude_json::value& root, const std::string& symGuid, 
 void parseChildTimeClips(const crude_json::value& cv, const std::string& swType, SymbolChild& child,
                          const std::function<void(const std::string&)>& warn);
 
+// ── SEAM 2 RENDER-STATE FOLD (t3_import_renderstate.cpp) ────────────────────────────────────────────
+// RasterizerState/DepthStencilState/BlendState/RenderTargetBlendDescription have NO sw atom — their
+// fields fold directly onto the Rasterizer/OutputMerger child they feed (§ header of the .cpp for the
+// full rationale + the Execute-sibling topology note). Captured HERE (during the per-child walk, keyed
+// by the value-child's own t3 guid) and resolved AFTER Connections[] is parsed (mirrors the ComputeShader
+// Source→KernelName fold already in t3_import.cpp).
+struct RenderStateFoldState {
+  std::map<std::string, std::map<std::string, float>> rasterizer;    // RasterizerState guid -> Rasterizer overrides
+  std::map<std::string, std::map<std::string, float>> depthStencil;  // DepthStencilState guid -> OutputMerger overrides (depth half)
+  std::map<std::string, std::map<std::string, float>> rtbd;          // RenderTargetBlendDescription guid -> OutputMerger overrides (blend half)
+  std::map<std::string, bool> blendState;                            // BlendState guid -> present (2-hop pivot; no fields of its own used)
+};
+
+// If `symbolId` is one of the 4 render-state VALUE-AUTHORING guids, captures its InputValues fields into
+// `state` (keyed by `childGuid`) and returns true (caller must `continue` — it never becomes an sw
+// child). False for any other symbolId (caller proceeds with the normal swType lookup).
+bool captureIfRenderStateValue(const std::string& symbolId, const std::string& childGuid,
+                               const crude_json::value& cv, RenderStateFoldState& state);
+
+// POST-PASS over `connections` (root["Connections"], possibly non-array): resolves which Rasterizer/
+// OutputMerger child each captured struct feeds (RasterizerState/DepthStencilState = 1 hop via
+// Connections[]; RenderTargetBlendDescription = 2 hops, →BlendState→OutputMergerStage) and merges the
+// captured fields into that child's `overrides`. No-op for any guid nothing resolves to (honest drop).
+void foldRenderStateOntoStages(const crude_json::value& connections,
+                               const std::map<std::string, int>& childGuidToId,
+                               const std::map<int, std::string>& childIdToSwType,
+                               std::vector<SymbolChild>& children, const RenderStateFoldState& state);
+
 // ── COMPOUND-RECURSION SEAM internals (t3_import_recurse.cpp) ─────────────────────────────────────────
 // Split out of t3_import.cpp for the rule-4 line ratchet (the walk+fill already sits at ~384 lines).
 
