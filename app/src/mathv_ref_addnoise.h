@@ -78,14 +78,7 @@ struct AddNoiseParams {
   int32_t strengthMode;                                // :23 StrengthMode (register b1)
 };
 
-// ODR ISOLATION (X's chip task_3f83270f): `detail::qFromMatrix3Precise` / `hlslNormalizeQuat` share
-// symbol names with mathv_ref_meshverticestopoints.h + mathv_ref_transformfromclipspace.h but the
-// bodies are not token-identical across files, so as EXTERNAL-linkage inline symbols the linker would
-// collapse them to one arbitrary copy (per-op break-ref blindness). Anonymous namespace = internal
-// linkage = each TU keeps its own copy. (Not migrated to a shared quat:: header: this closure's Vec3 is
-// tixl_noise::V3 plus a noise/hash closure, a large cross-op change; anon-ns is the ticket's fallback.)
-namespace {
-namespace detail {
+namespace { namespace detail {  // anon-ns: internal linkage, ODR-isolates qFromMatrix3Precise (X chip task_3f83270f; rationale in tfcs ref)
 
 using Vec3 = tixl_noise::V3;  // reuse the already-qualified oracle's {x,y,z} float triple.
 
@@ -168,8 +161,7 @@ inline void hash41u(uint32_t x, float& ox, float& oy, float& oz, float& ow) {
   ow = float(w) * inv;
 }
 
-}  // namespace detail
-}  // anonymous namespace (internal linkage -- ODR isolation, see the note above namespace detail)
+}}  // namespace detail + anonymous namespace (internal linkage; ODR isolation, see opening note)
 
 // getNoise — AddNoise.hlsl :29-33 `float3 GetNoise(float3 pos, float3 variation)`.
 inline detail::Vec3 getNoise(detail::Vec3 pos, detail::Vec3 variation, const AddNoiseParams& prm) {
