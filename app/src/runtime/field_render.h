@@ -92,4 +92,42 @@ MTL::Texture* renderField3d(MTL::Device* dev, MTL::CommandQueue* queue,
 // golden (field_raymarch_output_golden.cpp) flips it; runtime owns it (defined in the leaf).
 bool& raymarchFieldInjectBug();
 
+// FieldToImage render-time OP params (field_to_image_template.metal's FieldToImageParams @ buffer(1);
+// host mirror — same discipline as RaymarchParamsGpu in field_render.cpp: exact byte layout, ALL plain
+// floats so a raw memcpy lands every field at the MSL-expected offset). TiXL authority: FieldToImage.cs
+// slots + FieldToImage.t3 defaults (Scale=1, SliceDepth=0, Range=(0,1), GainAndBias=(0.5,0.5) [neutral],
+// Mode=0=MapDistanceToColor, Center=(0,0), Rotate=0, PingPong=false, Repeat=false).
+struct FieldToImageParams {
+  float centerX = 0.0f, centerY = 0.0f;  // FieldToImage.t3 Center
+  float scale = 1.0f;                    // Scale
+  float rotate = 0.0f;                   // Rotate (degrees, matches TiXL radians(Rotate) in-shader)
+  float sliceDepth = 0.0f;               // SliceDepth
+  float mode = 0.0f;                     // Mode: 0 = MapDistanceToColor, 1 = UseColor
+  float rangeX = 0.0f, rangeY = 1.0f;    // Range
+  float gainX = 0.5f, biasY = 0.5f;      // GainAndBias (0.5,0.5) = ApplyGainAndBias identity
+  float pingPong = 0.0f, repeat = 0.0f;  // PingPong / Repeat (bool-as-float, >0.5 = true)
+  // `aspect` is NOT a .t3 input (TiXL derives aspectRatio = TargetWidth/TargetHeight from the render
+  // target's own ResolutionConstBuffer, b3) — the caller passes it precomputed from the output w/h.
+};
+
+// Render the field tree rooted at `root` through field_to_image_template.metal (FieldToImage tex op):
+// SAME assembleFieldMSL as the 2D/raymarch paths (byte-identical cook for every existing SDF leaf), a
+// SEPARATE FieldToImageParams buffer at [[buffer(1)]] carrying the op's own Center/Scale/Rotate/
+// SliceDepth/Mode/Range/GainAndBias/PingPong/Repeat, and `gradientRow` (a 1×N RGBA32Float texture, e.g.
+// from rasterizeGradientRow) bound at the FIXED [[texture(30)]] slot (out of band from Seam A's dynamic
+// field textures). `aspect` = TargetWidth/TargetHeight (the caller derives it from the output w/h — v1
+// has no separate resolution pin, mirrors RaymarchField's "output texture drives the size" shortcut).
+// Output is an RGBA32Float texture (float for golden readback; the cook op tonemaps+copies to RGBA8).
+// Returns an OWNED MTL::Texture* (caller release()s) or nullptr on failure (null root/gradientRow,
+// compile/PSO/alloc failure).
+MTL::Texture* renderFieldToImage(MTL::Device* dev, MTL::CommandQueue* queue,
+                                 const std::shared_ptr<FieldNode>& root, const std::string& templateMsl,
+                                 const FieldToImageParams& params, MTL::Texture* gradientRow,
+                                 uint32_t w, uint32_t h);
+
+// --- FieldToImage TEX op (field_ops_fieldtoimage.cpp) seam --------------------------------------------
+// Process-global inject-bug toggle for the output golden: when true the FieldToImage cook short-circuits
+// to a black clear (mirrors raymarchFieldInjectBug() above). Off in production.
+bool& fieldToImageInjectBug();
+
 }  // namespace sw

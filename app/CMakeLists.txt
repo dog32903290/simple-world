@@ -394,6 +394,7 @@ add_executable(simple_world
   src/runtime/field_node_registry.cpp
   src/runtime/field_graph_builder.cpp
   src/runtime/field_ops_raymarchfield.cpp
+  src/runtime/field_ops_fieldtoimage.cpp
   src/runtime/field_ops_spheresdf.cpp
   src/runtime/field_ops_boxsdf.cpp
   src/runtime/field_ops_boxframesdf.cpp
@@ -442,6 +443,8 @@ add_executable(simple_world
   src/field_render_golden.cpp
   src/field_raymarch_golden.cpp
   src/field_raymarch_output_golden.cpp
+  src/field_ops_fieldtoimage_golden.cpp  # GPU closed-form: renderFieldToImage kernel (--selftest-field-fieldtoimage)
+  src/fieldtoimage_output_golden.cpp     # production-path: SphereSDF->FieldToImage terminal via cookResident (--selftest-fieldtoimage-output)
   src/connect_cooks_golden.cpp  # connect VERB → production cook → sphere silhouette (--selftest-connect-cooks)
   src/particlefield_probe_golden.cpp
   src/vectorfieldforce_field_golden.cpp
@@ -1052,6 +1055,10 @@ target_compile_definitions(simple_world PRIVATE
   # 3D sphere-trace render TEMPLATE (the renderField3d counterpart to the 2D SW_FIELD_TEMPLATE;
   # the camera matrices + ray-march loop; same /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ hooks).
   SW_FIELD_RAYMARCH_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_raymarch_template.metal"
+  # FieldToImage render TEMPLATE (the renderFieldToImage counterpart of the 2D/raymarch templates above;
+  # Center/Scale/Rotate/SliceDepth placement + Mode/Range/GainAndBias/PingPong/Repeat/Gradient remap;
+  # same /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ hooks). field_ops_fieldtoimage.cpp.
+  SW_FIELD_TO_IMAGE_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_to_image_template.metal"
   # SDF point-MODIFY compute TEMPLATE for MovePointsToSDF (raymarch each point of a bag to the field surface;
   # SourcePoints→ResultPoints, the points-modify sibling of the field-into-FORCE templates above). Same
   # string-asset rule; assembleFieldMSL fills the SAME hooks; the cook compiles the result via cachedSourceComputePSO.
