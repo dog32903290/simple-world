@@ -37,13 +37,22 @@
 // different branch than the float GPU for the same nominal input. Classified TRANSCENDENTAL overall
 // (qRotateVec3/normalize/hash11 chain). The WRAPPED branch's axisAngles[] table-index pick (:62) is
 // NOT asserted via mathv_compare.h's built-in exemption channel (§2 2b) -- that channel caps the
-// global exempt fraction at 1%, sized for a residual tail, but hash11's repeated squaring (:64-66)
-// amplifies ordinary fast-math ULP drift in the :50 input sum into a ~7% GPU-vs-CPU disagreement
-// rate on WHICH table row gets picked (measured, see gridWalkPointsHash() below) -- far past what
-// exemptMax tolerates. The fuzz TU instead pre-filters: it only asserts exact Rotation equality on
-// WRAPPED samples whose `hash*6` sits comfortably far from every integer boundary (a TU-local
-// distance check using gridWalkPointsHash(), not mathv_compare.h's global branchDist/envelopeOk
-// machinery) -- Position (hash-independent) is still asserted on every sample unconditionally.
+// global exempt fraction at 1%, sized for a residual tail, and hash11's repeated squaring (:64-66)
+// amplifies ordinary fast-math ULP drift in the :50 input sum into a WHICH-table-row disagreement
+// rate far past what exemptMax tolerates. ACTUAL shipped strategy (selftests_mathv_gridwalkpoints.cpp
+// -- NOT the boundary-distance pre-filter this comment used to describe; gridWalkPointsHash() below
+// is now an unused leftover from that superseded approach, kept as a documented dead helper rather
+// than deleted): every WRAPPED sample is asserted STRUCTURALLY (matchesAnyTableRow -- the GPU's
+// Rotation must equal qFromAngleAxis(axisAngles[k]) for SOME k in 0..5, catching a broken lookup/
+// PI-constant/qFromAngleAxis formula) PLUS, for the n4096 scenario, a COVERAGE gate (all 6 valid
+// quaternions must appear at least once in the GPU's wrapped output -- catches a subset-collapse
+// table-read bug, e.g. index mod 3 or always-row-0, that membership alone can't see). A row-
+// CONSISTENCY rate (GPU row == the CPU ref's specific row) is printed as a DIAGNOSTIC only: the
+// measured baseline is 17.5-28.1% per scenario, i.e. AT CHANCE (1/6) -- fast-math reassociation of
+// the :50 input sum, amplified by hash11's squaring rounds, decorrelates the picks almost
+// completely -- so no consistency threshold can separate healthy from stride-broken (both land at
+// ~1/6) and asserting on it would be a fake tooth (full derivation: the TU's rowsAgree() comment).
+// Position (hash-independent) is still asserted on every sample unconditionally, as before.
 //
 // PROVENANCE (GOLDEN_STANDARD.md P5-safe oracle 判準): zero metal include, zero app/shaders/
 // reference, zero sw math helper (mathv_ref_shared_quat.h is itself a P5-safe oracle).
@@ -115,16 +124,16 @@ struct GridWalkPointsParams {
 };
 
 // gridWalkPointsHash — exposes the :50 hash11(...) result standalone (same formula as the inline
-// computation inside gridWalkPointsOne below). Used by the fuzz TU to detect samples whose
-// `hash*6` value sits within a hair of an integer boundary -- hash11's two internal squaring
-// rounds (:64-66) amplify any GPU-vs-CPU fast-math ULP divergence in the input sum by several
-// orders of magnitude (measured: a 4096-sample sweep showed ~7% of the WRAPPED branch's table-index
-// picks disagreeing between the GPU and this ref -- too large a fraction for mathv_compare.h's
-// existing exemptMax=1% ill-conditioned-lookup channel, §2 2b, which is sized for a residual tail,
-// not a systematic ~7% rate). The TU pre-filters: only samples with `hash*6` comfortably far from
-// every integer boundary get their WRAPPED Rotation asserted exact; near-boundary samples are
-// EXPECTED to diverge and are excluded from that assertion (Position, which never depends on hash,
-// is still asserted for every sample unconditionally).
+// computation inside gridWalkPointsOne below). SUPERSEDED / currently UNUSED by the fuzz TU: an
+// earlier version of selftests_mathv_gridwalkpoints.cpp used this to pre-filter WRAPPED samples
+// whose `hash*6` sits within a hair of an integer boundary before asserting exact Rotation equality
+// (hash11's two internal squaring rounds, :64-66, amplify GPU-vs-CPU fast-math ULP divergence in the
+// input sum by several orders of magnitude, which would otherwise blow past mathv_compare.h's
+// exemptMax=1% ill-conditioned-lookup channel, §2 2b). The TU now instead asserts every WRAPPED
+// sample structurally (matchesAnyTableRow) plus two population-level gates (row-consistency rate +
+// n4096 row-coverage) over the FULL, unfiltered sample set -- see the header note above. Kept here as
+// a documented, still-correct helper (not deleted) in case a future oracle wants the pre-filter
+// technique back.
 inline float gridWalkPointsHash(float positionX, float positionY, float positionZ, int32_t idx,
                                  float seed) {
   using namespace gwp;
