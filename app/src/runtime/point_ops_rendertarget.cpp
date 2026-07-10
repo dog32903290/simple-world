@@ -22,10 +22,13 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/cmd_view_background.h"  // commandViewBackground() — Output-window view bg (terminal Command clear)
-#include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams/DrawScreenQuadParams + bindings
+#include "runtime/draw_params.h"      // DrawBillboardParams + bindings (Points2/Billboards/LinesBuildup stay inline)
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/view_camera_active.h"  // phase-B: activeViewCameraForward (default camera OR the output override)
 #include "runtime/graph.h"            // Graph/Node
+#include "runtime/gridplane_fill.h"   // encodeGridPlaneDraw (DrawKind::GridPlane draw, peeled for ratchet)
+#include "runtime/layer2d_fill.h"     // encodeLayer2dDraw (DrawKind::Layer2d draw, peeled for ratchet)
+#include "runtime/lines_fill.h"       // encodeLinesDraw (DrawKind::Lines draw, peeled for ratchet)
 #include "runtime/mesh_draw_params.h" // MeshDrawParams + MESH_* bindings (DrawKind::Mesh)
 #include "runtime/mesh_pbr_fill.h"    // encodeMeshPbrDraw (DrawKind::MeshPbr draw, peeled for ratchet)
 #include "runtime/point_ops_gpumeasure.h"  // gpuMeasureRecordBufferTime (GPU-time hook, GpuMeasure seam)
@@ -33,6 +36,7 @@
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
 #include "runtime/render_command.h"   // RenderCommand / RenderDrawItem / DrawKind
 #include "runtime/render_command_state.h" // makeFrozenDepthStencilState (executor depth-stencil)
+#include "runtime/screenquad_fill.h"  // encodeScreenQuadDraw (DrawKind::ScreenQuad draw, peeled for ratchet)
 #include "runtime/tixl_point.h"       // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -225,6 +229,10 @@ void cookRenderTarget(TexCookCtx& c) {
   }
   MTL::RenderPipelineState* psoMesh = nullptr;  // lazily built in the Mesh case
   MTL::RenderPipelineState* psoMeshPbr = nullptr;  // lazily built in the MeshPbr case (lit mesh)
+  MTL::RenderPipelineState* psoGridPlane = nullptr;  // pickPSO's legacy slot (GridPlane is ALWAYS
+                                                      // hasRenderState=true in production, so this
+                                                      // never actually materializes there — only the
+                                                      // frozenCache path does; kept for the pickPSO signature).
 
   MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
   auto* ca = pass->colorAttachments()->object(0);
@@ -255,9 +263,10 @@ void cookRenderTarget(TexCookCtx& c) {
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
-      // Point kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh/MeshPbr draw from tex/mesh buffers.
+      // Point kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh/MeshPbr/GridPlane draw from
+      // tex/mesh/no buffers at all (GridPlane is a hardcoded 6-vert quad, no point/mesh input).
       if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d && it.kind != DrawKind::Mesh &&
-          it.kind != DrawKind::MeshPbr && (!it.points || it.count == 0))
+          it.kind != DrawKind::MeshPbr && it.kind != DrawKind::GridPlane && (!it.points || it.count == 0))
         continue;
       applyFrozenRasterEncoderState(enc, it);  // Seam 2: cull/winding/depthBias (no-op default when unstamped)
       applyItemViewport(enc, it, c.output->width(), c.output->height());  // SliceViewPort cell rect (else full)
@@ -310,38 +319,7 @@ void cookRenderTarget(TexCookCtx& c) {
           MTL::RenderPipelineState* use =
               pickPSO(it, &psoLines, "draw_lines_vs", "draw_lines_fs", true, nullptr);
           if (!use) break;
-          enc->setRenderPipelineState(use);
-          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWLINE_Points);
-          DrawLineParams lp{};
-          lp.color[0] = it.color[0]; lp.color[1] = it.color[1];
-          lp.color[2] = it.color[2]; lp.color[3] = it.color[3];
-          lp.lineWidth = it.lineWidth;
-          lp.viewExtent = it.viewExtent;
-          lp.closed = it.lineClosed ? 1u : 0u;
-          // DrawClosedLines: resolve TiXL's PointsPerShape default 0 ("one shape over all points")
-          // to the concrete bag count so the shader's wrap modulo is always >0. Open DrawLines
-          // leaves both 0 → the wrap branch is unreached (byte-identical).
-          lp.pointsPerShape = it.lineClosed
-              ? (it.pointsPerShape > 0 ? it.pointsPerShape : it.count)
-              : 0u;
-          enc->setVertexBytes(&lp, sizeof(lp), DRAWLINE_Params);
-          // Segment count: OPEN draws (count-1) segments (sequential adjacency, TiXL DrawLines).
-          // CLOSED draws one segment PER point — the extra wrap segment closes each shape (last→first),
-          // matching DrawClosedLines' GetWrappedIndex. With pointsPerShape>0 a PARTIAL trailing shape
-          // is discarded (TiXL DrawLinesAlt actualSegmentCount = numShapes*pointsPerShape) so we never
-          // emit a malformed wrap over a half-shape. Each segment = 6 verts (screen-space quad).
-          uint32_t segs;
-          if (!it.lineClosed) {
-            segs = it.count - 1;
-          } else if (it.pointsPerShape > 0) {
-            uint32_t numShapes = it.count / it.pointsPerShape;     // complete shapes only
-            segs = numShapes * it.pointsPerShape;                  // one segment per point in them
-          } else {
-            segs = it.count;                                       // one shape, all points wrap
-          }
-          if (segs == 0) break;
-          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
-                              NS::UInteger((size_t)segs * 6));
+          encodeLinesDraw(enc, it, use);  // whole draw peeled to lines_fill.cpp (ratchet)
           break;
         }
         case DrawKind::LinesBuildup: {
@@ -411,21 +389,7 @@ void cookRenderTarget(TexCookCtx& c) {
             sqSampler = c.dev->newSamplerState(sd);
             sd->release();
           }
-          enc->setRenderPipelineState(use);
-          DrawScreenQuadParams P{};
-          P.color[0] = it.color[0]; P.color[1] = it.color[1];
-          P.color[2] = it.color[2]; P.color[3] = it.color[3];
-          P.position[0] = it.position[0]; P.position[1] = it.position[1];
-          P.width = it.width; P.height = it.height;
-          // TiXL HDR clamp constant float4(1000,1000,1000,1): RGB headroom, alpha capped at 1.
-          // The item carries it so a clamp golden can move the ceiling to exercise the shader.
-          P.clampMax[0] = it.clampMax[0]; P.clampMax[1] = it.clampMax[1];
-          P.clampMax[2] = it.clampMax[2]; P.clampMax[3] = it.clampMax[3];
-          enc->setVertexBytes(&P, sizeof(P), DRAWSQ_Params);
-          enc->setFragmentBytes(&P, sizeof(P), DRAWSQ_Params);
-          enc->setFragmentTexture(const_cast<MTL::Texture*>(it.srcTexture), 0);
-          enc->setFragmentSamplerState(sqSampler, 0);
-          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(6));
+          encodeScreenQuadDraw(enc, it, use, sqSampler);  // whole draw peeled to screenquad_fill.cpp (ratchet)
           break;
         }
         case DrawKind::Layer2d: {
@@ -448,54 +412,12 @@ void cookRenderTarget(TexCookCtx& c) {
             sqSampler = c.dev->newSamplerState(sd);
             sd->release();
           }
-          enc->setRenderPipelineState(use);
-          DrawQuadXfParams P{};
-          P.color[0] = it.color[0]; P.color[1] = it.color[1];
-          P.color[2] = it.color[2]; P.color[3] = it.color[3];
-          P.position[0] = it.position[0]; P.position[1] = it.position[1];
-          P.width = it.width; P.height = it.height;
-          P.clampMax[0] = it.clampMax[0]; P.clampMax[1] = it.clampMax[1];
-          P.clampMax[2] = it.clampMax[2]; P.clampMax[3] = it.clampMax[3];
-          // F1: the EXECUTOR finishes ObjectToClipSpace (TransformBufferLayout.cs:13-16 order:
-          // o2w·worldToCamera·cameraToClipSpace). Cut 2: ObjectToWorld = the SRT stack (TiXL
-          // _ProcessLayer2d) composed HERE — ScaleMode couples viewAspect (camera) + imageAspect
-          // (srcTexture). Cut 3 + camera-B: itemCamera resolves the stamped push + ShiftCamera nudge;
-          // both the SRT viewAspect AND the projection use it (= context's CameraToClipSpace in TiXL).
+          // Cut 3 + camera-B: itemCamera resolves the stamped Camera/Ortho push + ShiftCamera nudge (the
+          // SRT viewAspect AND the projection both use it = context's CameraToClipSpace in TiXL). Whole
+          // draw (ObjectToWorld compose + Group SRT + ObjectToClipSpace + params + bind + draw) peeled to
+          // layer2d_fill.cpp (ratchet).
           LayerCameraForward cam = itemCamera(it);
-          Mat4 objectToWorld{};
-          if (it.layer2dComposeSRT) {
-            // viewAspect = CameraToClipSpace.M22/M11 (_ProcessLayer2d.cs:37). imageAspect = srcW/srcH.
-            float viewAspect = viewAspectFromClip(cam.cameraToClipSpace);
-            float imgW = (float)it.srcTexture->width(), imgH = (float)it.srcTexture->height();
-            float imageAspect = (imgH > 0.0f) ? imgW / imgH : 1.0f;
-            // scale = Scale * Stretch (cs:40), then ScaleMode adjusts scale.X/Y (cs:49-101).
-            float scaleX = it.layerScale * it.layerStretch[0];
-            float scaleY = it.layerScale * it.layerStretch[1];
-            layer2dScaleModeApply((Layer2dScaleMode)it.layerScaleMode, imageAspect, viewAspect, scaleX,
-                                  scaleY);
-            objectToWorld = layer2dObjectToWorld(scaleX, scaleY, it.layerRotateDeg, it.position[0],
-                                                 it.position[1], it.layerPosZ);
-          } else {
-            // Legacy path: the item carries ObjectToWorld verbatim (Cut-1 seam-tooth driving a
-            // hand-built matrix). Kept so the seam-presence golden can drive an arbitrary matrix.
-            for (int i = 0; i < 16; ++i) objectToWorld.m[i] = it.objectToClipSpace[i];
-          }
-          // S2b GROUP SRT: a parent Group op stamped its accumulated transform onto this item (TiXL
-          // Group.cs context.ObjectToWorld = Multiply(groupSRT, prev)). Right-multiply it (row-vector v·M
-          // → the group is the PARENT applied AFTER the child's own O2W = child·group). Identity when no
-          // Group → byte-identical to the pre-S2b path.
-          if (it.hasGroup) {
-            Mat4 grp{}; for (int i = 0; i < 16; ++i) grp.m[i] = it.groupObjectToWorld[i];
-            objectToWorld = mat4Mul(objectToWorld, grp);
-          }
-          Mat4 o2c = objectToClipSpace(objectToWorld, cam.worldToCamera, cam.cameraToClipSpace);
-          for (int i = 0; i < 16; ++i) P.objectToClipSpace[i] = o2c.m[i];
-          P.applyTransform = it.applyTransform ? 1u : 0u;  // drop-mul golden tooth
-          enc->setVertexBytes(&P, sizeof(P), DRAWQUADXF_Params);
-          enc->setFragmentBytes(&P, sizeof(P), DRAWQUADXF_Params);
-          enc->setFragmentTexture(const_cast<MTL::Texture*>(it.srcTexture), 0);
-          enc->setFragmentSamplerState(sqSampler, 0);
-          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(6));
+          encodeLayer2dDraw(enc, it, use, sqSampler, cam);
           break;
         }
         case DrawKind::Mesh: {
@@ -544,6 +466,18 @@ void cookRenderTarget(TexCookCtx& c) {
                             dsDisabled);
           break;
         }
+        case DrawKind::GridPlane: {
+          // Hand-crafted (TiXL GridPlane → draw-GridPlane.hlsl): a procedural-grid quad. PSO always
+          // routes through pickPSO's frozen-blend cache (production items are always hasRenderState=
+          // true — see cookGridPlane); depth/blend/cull/winding all come from the pre-switch generic
+          // Seam-2 code above (zero new branches there). Whole draw in encodeGridPlaneDraw (gridplane_fill.cpp).
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoGridPlane, "gridplane_vs", "gridplane_fs", false, nullptr);
+          if (!use) break;
+          LayerCameraForward cam = itemCamera(it);
+          encodeGridPlaneDraw(enc, it, use, cam);
+          break;
+        }
         case DrawKind::Clear:
           break;  // already skipped above (handled by the pass clear color); explicit for -Wswitch
         case DrawKind::Explicit:  // Seam 2 Draw: NAMED DEFERRED executor leaf — bare-shader render is a no-op (no
@@ -566,6 +500,7 @@ void cookRenderTarget(TexCookCtx& c) {
   if (psoL2[1]) psoL2[1]->release();
   if (psoMesh) psoMesh->release();
   if (psoMeshPbr) psoMeshPbr->release();
+  if (psoGridPlane) psoGridPlane->release();
   for (auto& kv : frozenCache) if (kv.second) kv.second->release();   // Seam 2: materialized blend-PSOs
   for (MTL::DepthStencilState* ds : frozenDSPool) if (ds) ds->release();  // Seam 2: per-item frozen depth-stencils
   if (sqSampler) sqSampler->release();

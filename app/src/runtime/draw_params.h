@@ -181,6 +181,35 @@ enum DrawQuadXfBinding {
   DRAWQUADXF_Params = 0,  // constant DrawQuadXfParams& (vertex + fragment)
 };
 
+// DrawGridPlane cbuffer (b0, vertex + fragment) — TiXL GridPlane → draw-GridPlane.hlsl. Folds BOTH
+// HLSL cbuffers (Transforms b0 + Params b1) into one, mirroring DrawQuadXfParams' collapse (only
+// ObjectToClipSpace is read from the 10-matrix TransformBufferLayout — Layer2d precedent). color/
+// size/scale = GridPlane.Color/Size/Scale (node params; .t3 defaults (1,1,1,0.25)/10.0/1.0).
+// scaleUV = the HLSL VS's per-vertex `output.scale` (mul(float4(1,1,1,1),WorldToObject).xy / Size,
+// draw-GridPlane.hlsl:57) — HOST-HOISTED: it has NO vertex_id dependency (every vertex computes the
+// identical constant, gridplane_fill.cpp computes it ONCE via mat4Inverse instead of the GPU
+// re-deriving it 6× via a shipped WorldToObject). Byte-identical result, one fewer GPU matrix op.
+struct DrawGridPlaneParams {
+#ifdef __METAL_VERSION__
+  float4 color;
+#else
+  float color[4];
+#endif
+  float size;   // GridPlane.Size — object-space quad half-extent multiplier (VS: quadVertex*Size*0.5)
+  float scale;  // GridPlane.Scale — grid density divisor (FS lines() spacing)
+#ifdef __METAL_VERSION__
+  float2 scaleUV;
+  float objectToClipSpace[16];  // row-major m[r*4+c] (field_camera convention, NO transpose)
+#else
+  float scaleUV[2];
+  float objectToClipSpace[16];
+#endif
+};
+
+enum DrawGridPlaneBinding {
+  DRAWGRIDPLANE_Params = 0,  // constant DrawGridPlaneParams& (vertex + fragment)
+};
+
 #ifndef __METAL_VERSION__
 static_assert(sizeof(DrawPoint2Params) == 32, "DrawPoint2Params 32 bytes");
 static_assert(sizeof(DrawLineBuildupParams) == 32, "DrawLineBuildupParams 32 bytes");
@@ -188,4 +217,5 @@ static_assert(sizeof(DrawLineParams) == 32, "DrawLineParams 32 bytes");
 static_assert(sizeof(DrawBillboardParams) == 32, "DrawBillboardParams 32 bytes");
 static_assert(sizeof(DrawScreenQuadParams) == 48, "DrawScreenQuadParams 48 bytes");
 static_assert(sizeof(DrawQuadXfParams) == 128, "DrawQuadXfParams 128 bytes");
+static_assert(sizeof(DrawGridPlaneParams) == 96, "DrawGridPlaneParams 96 bytes");
 #endif

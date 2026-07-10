@@ -79,7 +79,7 @@
 #include "runtime/graph.h"           // Graph/Node/NodeSpec/PortSpec/pinId/setDynamicSpecs/findSpec
 #include "runtime/graph_bridge.h"    // libFromGraph (flat Graph → SymbolLibrary, paths == ids)
 #include "runtime/point_graph.h"     // PointGraph::cook/cookResident, registerBuiltinPointOps, TexCookCtx
-#include "runtime/render_command.h"  // executeCollectFirstOnlyForTest (the collector -bug flag)
+#include "runtime/render_command_flow.h"  // executeCollectFirstOnlyForTest (the collector -bug flag)
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph (the production resident path)
 #include "runtime/tixl_point.h"      // EvaluationContext
 

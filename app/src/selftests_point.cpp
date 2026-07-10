@@ -140,6 +140,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"gizmo-sphere", runGizmoSphereSelfTest},    // C3 gizmo Tranche-1: DrawSphereGizmo (lat/long wireframe rings)
     {"gizmo-grid", runGizmoGridSelfTest},        // C3 gizmo Tranche-1: DrawLineGrid (wireframe grid, adjacent lines lit)
     {"gizmo-locator", runGizmoLocatorSelfTest},  // C3 gizmo Tranche-1: Locator (3-axis cross, geometry only)
+    {"gridplane", runGridPlaneSelfTest},  // GridPlane hand-crafted DrawKind: procedural-grid quad, closed-form center pixel (-bug drops the Seam-2 render-state stamp -> opaque, dimmer)
     {"particlesim-integrate-parity", runParticleSimIntegrateParitySelfTest},  // 骨5: ParticleSystem integrator core cook-through — per-step Δpos == TiXL pow(1-Drag,Speed)·Speed·0.01 closed-form (injectBug=stale linear-drag/missing-0.01 → RED)
     {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a TERMINAL probe: field-into-force bridge consumed (anisotropy≠0 both legs)
     {"vectorfieldforce-field", runVectorFieldForceFieldSelfTest},  // PF-a closed-form: 1 particle field-sampled -> Velocity≈(0.5625A,0,0.5625A)

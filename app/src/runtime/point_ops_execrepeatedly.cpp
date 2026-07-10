@@ -52,7 +52,8 @@
 #include "runtime/graph.h"                // Graph / Node / NodeSpec / PortSpec / pinId / setDynamicSpecs
 #include "runtime/graph_bridge.h"         // libFromGraph (flat Graph → SymbolLibrary)
 #include "runtime/point_graph.h"          // CmdCookCtx / registerCmdOp / PointGraph
-#include "runtime/render_command.h"       // RenderCommand / RenderDrawItem / execRepeatedlyRunRepetitions / *Bug*
+#include "runtime/render_command.h"       // RenderCommand / RenderDrawItem
+#include "runtime/render_command_flow.h"  // execRepeatedlyRunRepetitions / *Bug*
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph (production resident path)
 #include "runtime/selftest_registry.h"    // REGISTER_SELFTESTS
 #include "runtime/tixl_point.h"           // EvaluationContext

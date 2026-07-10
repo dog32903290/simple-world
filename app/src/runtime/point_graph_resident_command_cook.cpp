@@ -43,7 +43,8 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/graph.h"            // NodeSpec/PortSpec/findSpec
-#include "runtime/render_command.h"  // RenderCommand + loopRunIterations/execRepeatedlyRunRepetitions/switch*
+#include "runtime/render_command.h"  // RenderCommand
+#include "runtime/render_command_flow.h"  // loopRunIterations/execRepeatedlyRunRepetitions/switch*/executeCollectFirstOnlyForTest
 #include "runtime/mesh_op_registry.h"  // SwMeshView (resident Mesh gather element)
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / ResidentNode / ResidentInput
 #include "runtime/stateful_value_ops.h"  // ContextVarMap (complete type for cmdVarPush)
@@ -60,8 +61,7 @@ namespace sw {
 using pgdetail::cmdReg;
 using pgdetail::warnCookDepthOnce;
 
-// PickObject selection helpers (defined in point_ops_pickobject.cpp; render_command.h is at its line cap,
-// so the decls ride locally here — same local-extern posture as the flat twin point_graph_command_cook.cpp).
+// PickObject selection helpers (point_ops_pickobject.cpp; local-extern, mirroring the flat twin).
 int pickObjectSelectIndex(int rawIndex, int count);
 bool& pickObjectIgnoreIndexForTest();
 

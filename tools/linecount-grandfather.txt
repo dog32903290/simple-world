@@ -239,6 +239,13 @@ app/src/runtime/point_ops_remapcolor.cpp:471
 # per-item frozen depth-stencil (compare+write) + its release pool. The closed-form MTL mapping肉 lives in
 # point_ops_renderstate.cpp (applyFrozenBlend/makeFrozenDepthStencilState), NOT here. DEBT: the per-DrawKind
 # switch is the standing extract-to-leaves target (the S2b note above); this raises the cap by the seam delta.
+# DEBT PAID (2026-07-10, C-桶 DrawKind::GridPlane prerequisite): the 3 fattest per-DrawKind switch bodies
+# (Layer2d/ScreenQuad/Lines — 70/42/39 lines) peeled VERBATIM into layer2d_fill.cpp/screenquad_fill.cpp/
+# lines_fill.cpp (mesh_pbr_fill.cpp precedent — pure move, each case now a PSO-gate + one encode call).
+# 726→642. Then DrawKind::GridPlane landed (hand-crafted procedural-grid quad, point_ops_gridplane.cpp +
+# gridplane_fill.cpp): 642→661. Cap left at 726 (NOT ratchet-locked down) — deliberately, so the C-桶
+# batch of further hand-crafted DrawKind cases queued behind this one has room to land without
+# immediately re-hitting the wall; 65 lines of real headroom under the unchanged cap.
 app/src/runtime/point_ops_rendertarget.cpp:726
 app/src/runtime/point_ops_repeatatpoints.cpp:452
 app/src/runtime/point_ops_rgbtv.cpp:538
