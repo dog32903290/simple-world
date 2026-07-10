@@ -181,7 +181,9 @@ spirv-cross（1.4.350.1，brew 現成）：SPIR-V → MSL
 ⑥ 寫 selftests_mathv_<op>.cpp fuzz driver（D 角色不變，§1.3 direct-dispatch）
 ⑦ `--selftest-mathv-<op>` 跑到底 → 綠直接收；紅進 §10.3 分流
 ```
-adapter 行數三個實測資料點：AddNoise ~12 行（雙 cbuffer 重組 + GetDimensions 替換）、BRDFLookup 1 行（純 texture kernel，無 CB/SRV/sampler，只需 entry 改名）、本批 SimBlendTo/AppendPoints ~4-6 行（單 cbuffer 已扁平、無 GetDimensions，只需 entry 改名+binding enum 替換）——adapter 成本跟「cbuffer 是否跨暫存器」「是否呼叫 GetDimensions」正相關，不跟 kernel 數學複雜度相關（AddNoise 帶 simplex noise 但 adapter 仍只 12 行；SnapPointsToGrid 數學簡單但 adapter 也要處理同款雙 cbuffer）。
+adapter 行數三個實測資料點：AddNoise ~12 行（雙 cbuffer 重組 + GetDimensions 替換）、BRDFLookup 1 行（純 texture kernel，無 CB/SRV/sampler，只需 entry 改名）、本批 SimBlendTo/AppendPoints ~4-6 行（單 cbuffer 已扁平、無 GetDimensions，只需 entry 改名+binding enum 替換）——adapter 成本跟「cbuffer 是否跨暫存器」「是否呼叫 GetDimensions」正相關，不跟 kernel 數學複雜度相關（AddNoise 帶 simplex noise 但 adapter 仍只 12 行；SnapPointsToGrid 數學簡單但 adapter 也要處理同款雙 cbuffer）。**首波量產第四個資料點**：PointSimulation（單 cbuffer、但撞 GetDimensions）adapter ~12 行，跟 AddNoise 同量級——證實「行數跟 GetDimensions/雙cbuffer 相關、不跟數學複雜度相關」這條規則本身也不看 op 是 exact/branchy/transcendental 哪一類（PointSimulation 帶 qSlerp 但 adapter 仍只 12 行，跟不帶任何 transcendental 的 AddNoise 一樣）。
+
+**首波量產追加發現（分流判準第三格的邊界情況，2026-07-10）**：SimBlendTo（exact 類）撞 mathv_input.h 通用 ±1e6 特殊值格時，(posB-posA) 極小差值被放大 ~1e6 倍導致單 ulp 捨入差異炸開成明顯 absErr——這是 §10.3 表格第三格「ill-conditioned-lookup」的同類現象，但**exact 類在 `mathv_compare.h` 沒有 §2 2b 的豁免通道**（`branchDist`/`envelopeOk` 機制只接在 Transcendental/Branchy 的 `case` 分支裡，Exact 的 `case` 直接判死）。PointSimulation（transcendental 類，qSlerp 的 `sin(halfAngle*t)`）撞同一個 ±1e6 格時可以直接掛 §2 2b 既有豁免通道收斂；SimBlendTo 只能改用**同檔案 measured rtol 加寬**（`rtol` 1e-5→1e-4，附實測 derivation 註解，golden_lint `--audit` 的 MATHV-EPS 規則會抓沒附註解的加寬）。**給下一棒的教訓**：exact 類 op 若對某參數做「小差值 × 大權重」的乘法（lerp/mix 的常見形狀），一撞通用 ±1e6 格幾乎必炸，量產前就該預期到，不必當紅燈驚慌——量測後加寬 rtol 收斂即可，不是 kernel 或 ref 有錯。
 
 ### 10.3 分流判準（紅的兩種對治，不可混淆）
 
