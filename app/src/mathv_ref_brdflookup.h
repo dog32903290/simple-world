@@ -56,6 +56,13 @@ inline void sampleHammersley(uint32_t i, float& u1, float& u2) {
 }
 
 // :38-48 — GGX importance-sampled half-vector for a fixed roughness (tangent space, +Z up).
+//
+// roughness<0.1 KNIFE-EDGE (measured, not a port error): as alpha=roughness²→0, cosTheta below is a
+// 0/0-shaped division; this CPU ref divides exactly (std::sqrt over an exact float divide) while the
+// GPU kernel (app/shaders/computeshaderstage_brdflookup.metal) runs the SAME division in fast-math, so
+// the two diverge hard on that row — MEASURED up to ~4006 LSB (16-bit UNorm, x=1,y=0 at a 512×512
+// dispatch; ~3.4k-3.8k LSB at the smaller golden sizes). The golden (selftests_mathv_brdflookup.cpp)
+// excludes roughness<0.1 from its tight interior check and applies a loose relative check there instead.
 inline void sampleGGX(float u1, float u2, float roughness, float& hx, float& hy, float& hz) {
   const float alpha = roughness * roughness;                                          // :40
   const float cosTheta = std::sqrt((1.0f - u2) / (1.0f + (alpha * alpha - 1.0f) * u2));// :42

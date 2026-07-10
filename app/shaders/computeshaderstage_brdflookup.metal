@@ -17,6 +17,14 @@
 // SEAM: bound by point_ops_computeshaderstagetex.cpp — the allocated shaderWrite output texture is
 // bound at texture(0) (== u0 / the LUT UAV), 2D dispatch over the output W×H (fork
 // computestage-per-kernel-threadgroup: numthreads(32,32,1) in the kernel-metadata table).
+//
+// roughness<0.1 KNIFE-EDGE (measured, not a port error): at low roughness (_371 above) the GGX
+// cosTheta at line 46 (sqrt((1-u2)/(1+(alpha²-1)*u2))) is a 0/0-shaped division as alpha=roughness²→0;
+// this kernel's `sqrt`/division runs fast-math while the CPU oracle (mathv_ref_brdflookup.h) runs exact
+// std:: transcendentals, so the two diverge hard on that row — MEASURED up to ~4006 LSB (16-bit UNorm,
+// x=1,y=0 at a 512×512 dispatch; ~3.4k-3.8k LSB at the smaller golden sizes). Sub-perceptual in practice
+// (the row is bilinear-interpolated in use); the golden (selftests_mathv_brdflookup.cpp) excludes
+// roughness<0.1 from its tight interior check and instead applies a loose relative check there.
 #include <metal_stdlib>
 #include <simd/simd.h>
 
