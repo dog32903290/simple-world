@@ -482,7 +482,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   cookResidentBuffer = [&](const std::string& path, int depth) -> const SwBuffer* {
     auto m = bufferCooked.find(path);
     return m != bufferCooked.end() ? m->second
-        : (bufferCooked[path] = p_->cookResidentBuffer(rg, ctx, rc, nodeParams, cookResidentBuffer, path, depth));
+        : (bufferCooked[path] = p_->cookResidentBuffer(rg, ctx, rc, nodeParams, cookResidentBuffer, cookTexNode, path, depth));  // stage-3 SRV-tex
   };
 
   // Mesh walker body (4th cook flow): forwards to the extracted method PointGraph::Impl::cookResidentMesh

@@ -34,3 +34,17 @@ enum ComputeStageBinding {
   // that never declare buffer(CS_SRVCOUNT_BASE) are unaffected (Metal ignores the extra bound buffer).
   CS_SRVCOUNT_BASE = 16,
 };
+
+// TEXTURE-SRV index partition (TEXTURE_COMPUTE_SEAM_SPEC.md stage 3 — buffer-out stage reads a Texture2D
+// SRV). Metal textures ride their OWN [[texture(n)]] index space and samplers their OWN [[sampler(n)]]
+// space, BOTH independent of the flat buffer-index space above (SPEC §2 "Metal 貼圖走獨立 texture 空間，與
+// buffer-index 不相撞 — 天生留白"). DX11 packs buffer-SRV(t0) + texture-SRV(t1) into ONE t# register space;
+// Metal splits them, so the transpiled MSL assigns the texture-SRVs their own texture(0).. indices while
+// the buffer-SRVs keep CS_SRV_BASE.. — only each currency's INTERNAL order must be preserved (SPEC §6 risk
+// 3). A texture-consuming buffer kernel binds ShaderResourceTexture i at CS_TEX_SRV_BASE+i and the default
+// linear-clamp sampler at CS_SAMPLER_BASE (fork computestage-default-sampler).
+enum ComputeStageTextureBinding {
+  CS_TEX_SRV_BASE = 0,  // texture(0).. for ShaderResourceTextures, in wire order (Metal texture space)
+  CS_MAX_TEX_SRV  = 4,
+  CS_SAMPLER_BASE = 0,  // sampler(0) = the stage's default linear-clamp MTLSamplerState
+};

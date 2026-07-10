@@ -68,7 +68,8 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
     const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
     const std::function<const SwBuffer*(int)>& cookBufferNode,
     const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
-    const std::function<const std::vector<float>*(int)>& cookFloatListNode, int id) {
+    const std::function<const std::vector<float>*(int)>& cookFloatListNode,
+    const std::function<MTL::Texture*(int, int)>& cookTexNode, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
   const NodeSpec* s = findSpec(n->type);
@@ -81,10 +82,27 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   std::vector<float> floatInputs;
   std::vector<std::array<float, 16>> vec4Inputs;
   std::vector<float> floatListInput;  // LIST-CURRENCY BRIDGE: the single FloatList payload (IntListToBuffer)
+  // SRV-TEX gather (TEXTURE_COMPUTE_SEAM stage 3 — CROSS-CURRENCY): a Buffer op with "Texture2D" ports
+  // (ComputeShaderStage.ShaderResourceTextures) cooks each wired upstream tex op into srvTextures, in wire
+  // order — the buffer-rail MIRROR of the texture-into-points gather (point_graph.cpp:259-277). Empty for
+  // every other Buffer op (no Texture2D port) → byte-identical (no setTexture, no sampler in the cook).
+  const MTL::Texture* srvTextures[BufferCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+  int srvTextureCount = 0;
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
     const int inPin = pinId(id, (int)i);
+    if (port.dataType == "Texture2D") {
+      // MultiInput Texture2D: each wire occupies the next SRV-tex slot, wire-declaration order (cap kMax).
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        if (srvTextureCount < BufferCookCtx::kMaxTexInputs)
+          srvTextures[srvTextureCount++] =
+              cookTexNode ? cookTexNode(pinNode(c.fromPin), (c.fromPin - 1) % 100) : nullptr;
+        if (!port.multiInput) break;
+      }
+      continue;
+    }
     if (port.dataType == "FloatList") {
       // LIST-CURRENCY BRIDGE (list-currency seam): a wired FloatList producer's host list rides into the
       // Buffer cook (IntListToBuffer.IntList = single List<int> wire = sw FloatList, integer-valued floats).
@@ -169,6 +187,8 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   bc.ctx = &ctx; bc.nodeId = id;
   bc.inputBuffers = &inputBuffers;
   bc.inputBufferPorts = &inputBufferPorts;
+  for (int k = 0; k < srvTextureCount; ++k) bc.srvTextures[k] = srvTextures[k];  // SRV-tex (stage 3)
+  bc.srvTextureCount = srvTextureCount;
   bc.output = &out;
   bc.params = nodeParams(id);
   bc.strParams = &n->strParams;  // resolved String params (ComputeShaderStage's KernelName)

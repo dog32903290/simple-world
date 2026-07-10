@@ -564,7 +564,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // Cook a BUFFER-flow node (Seam-1 = TiXL Slot<BufferWithViews>). Body in Impl::cookFlatBuffer
   // (point_graph_buffer_cook.cpp, full doc in leaf); thin forwarding slot, cookBufferNode self-recurses.
   cookBufferNode = [&](int id) -> const SwBuffer* {
-    return p_->cookFlatBuffer(g, ctx, nodeParams, cookBufferNode, cookColorListNode, cookFloatListNode, id);
+    return p_->cookFlatBuffer(g, ctx, nodeParams, cookBufferNode, cookColorListNode, cookFloatListNode, cookTexNode, id);  // cookTexNode: ShaderResourceTextures (stage 3)
   };
 
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST

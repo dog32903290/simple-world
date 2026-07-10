@@ -81,6 +81,15 @@ struct BufferCookCtx {
   // legs (flat + resident) fill it alongside inputBuffers.
   const std::vector<std::string>* inputBufferPorts = nullptr;
   const MTL::Texture* inputTexture = nullptr;                  // wired Texture2D input (SrvFromTexture2d)
+  // SRV-TEX INPUTS (TEXTURE_COMPUTE_SEAM_SPEC stage 3): the cooked upstream textures wired onto a
+  // ShaderResourceTextures (Texture2D MultiInput) port, in spec-port/wire order. Mirror of
+  // PointCookCtx::inputTextures — a CROSS-CURRENCY gather (the buffer cook reaches into the tex rail via
+  // cookTexNode, both legs). The stage binds srvTextures[i] at CS_TEX_SRV_BASE+i + a default sampler
+  // (computestage-default-sampler). Empty (count 0) for every buffer-only op → byte-identical (no
+  // setTexture, no sampler). Borrowed, single-frame lifetime (same as inputBuffers).
+  static constexpr int kMaxTexInputs = 4;
+  const MTL::Texture* srvTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+  int srvTextureCount = 0;                                     // # ShaderResourceTextures wired (capped)
   const RenderCommand* inputCommand = nullptr;                 // wired+executed Command (ExecuteBufferUpdate)
   SwBuffer* output = nullptr;                                  // THIS node's output (driver-owned bytes)
   // Driver allocation callback: size THIS node's output buffer to byteSize, return its contents() ptr,

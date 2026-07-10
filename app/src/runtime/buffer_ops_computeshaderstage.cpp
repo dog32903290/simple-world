@@ -82,8 +82,28 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_transformfromclipspace";  // 退場: point camera unproject (b0=TransformsConstBuffer, empty-FloatsToBuffer-reindex fork)
   if (src.find("points/modify/ReorientLinePoints.hlsl") != std::string::npos)
     return "computeshaderstage_reorientlinepoints";  // 退場: point neighbour-tangent align (SRV+UAV, copy-through + OOB-guard forks)
+  if (src.find("img/analyze/cs-GetImageBrightness.hlsl") != std::string::npos)
+    return "computeshaderstage_getimagebrightness";  // stage 3: SRV-tex read → uint UAV reduction (texture-into-buffer seal)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
+
+// Per-kernel dispatch shape (default: 1D over the SRV/UAV element count, tg 64 — every buffer/point kernel).
+// A texture-reduction kernel (GetImageBrightness) instead dispatches 2D over its SRV TEXTURE's W×H (fork
+// computestage-buffer-stage-2d-from-srvtex-dispatch, TEXTURE_COMPUTE_SEAM §3.4), tg 8×8 = HLSL numthreads —
+// the buffer-rail twin of the tex stage's per-kernel threadgroup table (point_ops_computeshaderstagetex.cpp).
+struct StageDispatch { bool twoDFromSrvTex = false; uint32_t tgx = 64, tgy = 1; };
+StageDispatch stageDispatchFor(const std::string& kernel) {
+  StageDispatch d;
+  if (kernel == "computeshaderstage_getimagebrightness") { d.twoDFromSrvTex = true; d.tgx = 8; d.tgy = 8; }
+  return d;
+}
+
+// injectBug hook (stage-3 seal ①gather tooth): when set, the cook SKIPS the texture-SRV bind (= the cross-
+// currency gather off / setTexture dropped) — the kernel then reads an UNBOUND texture (Metal: get_width()==0
+// → the edge-guard returns → the reduction adds nothing → the UAV stays at its zero-init) → the readback
+// diverges from the brightness oracle. A real cook-path perturbation (a dropped bind, not an assert flip).
+// Default false in production; the seal golden toggles it. File-scope so the golden reads it.
+bool g_stageSkipTexture = false;
 
 void cookComputeShaderStage(BufferCookCtx& c) {
   if (!c.output || !c.lib || !c.dev || !c.queue) return;
@@ -119,6 +139,16 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   const uint32_t numStructs = srvs.empty() ? uavs.front()->elementCount : srvs.front()->elementCount;
   if (numStructs == 0) { *c.output = *uavs.front(); return; }  // nothing to do; still forward the (empty) UAV
 
+  // TEXTURE-SRV inputs (TEXTURE_COMPUTE_SEAM_SPEC stage 3): a buffer-out kernel that reads a Texture2D SRV
+  // (DX11's t1 texture-view, split off the buffer t# space onto Metal's own texture index — SPEC §2/§6.3).
+  // The importer folds SrvFromTexture2d → the ShaderResourceTextures port; the cook driver gathers the
+  // cooked upstream texture cross-currency into c.srvTextures (both cook legs). A DEFAULT linear-clamp
+  // MTLSamplerState is bound whenever any texture is present (fork computestage-default-sampler): TiXL
+  // discards the SamplerStates wire at import (t3_import_maps.cpp:152), so the stage supplies a sensible
+  // default (attributesfromimagechannels.cpp:118-141 precedent) — per-op sampler params are a later
+  // refinement. A kernel that only .Load()s (no .Sample) ignores the bound sampler (Metal drops an unused
+  // sampler binding). Empty srvTextures → this block is a no-op → every buffer-only kernel is byte-identical.
+  const int nTex = c.srvTextureCount < CS_MAX_TEX_SRV ? c.srvTextureCount : CS_MAX_TEX_SRV;
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
   enc->setComputePipelineState(pso);
@@ -128,6 +158,23 @@ void cookComputeShaderStage(BufferCookCtx& c) {
     enc->setBuffer(const_cast<MTL::Buffer*>(srvs[i]->bytes), 0, CS_SRV_BASE + (int)i);
   for (size_t i = 0; i < uavs.size() && i < (size_t)CS_MAX_UAV; ++i)
     enc->setBuffer(const_cast<MTL::Buffer*>(uavs[i]->bytes), 0, CS_UAV_BASE + (int)i);
+  // texture-SRVs at CS_TEX_SRV_BASE.. + the default linear-clamp sampler (see block comment above).
+  // g_stageSkipTexture (seal ①gather injectBug): drop the texture bind → the kernel reads an unbound texture.
+  const bool bindTex = !g_stageSkipTexture;
+  for (int i = 0; i < nTex && bindTex; ++i)
+    if (c.srvTextures[i])
+      enc->setTexture(const_cast<MTL::Texture*>(c.srvTextures[i]), CS_TEX_SRV_BASE + i);
+  MTL::SamplerState* samp = nullptr;
+  if (nTex > 0 && bindTex) {
+    MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
+    sd->setMinFilter(MTL::SamplerMinMagFilterLinear);
+    sd->setMagFilter(MTL::SamplerMinMagFilterLinear);
+    sd->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
+    sd->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
+    samp = c.dev->newSamplerState(sd);
+    sd->release();
+    if (samp) enc->setSamplerState(samp, CS_SAMPLER_BASE);
+  }
   enc->setBytes(&numStructs, sizeof(numStructs), CS_CB_BASE + 3);  // dispatch bound (see fork)
   // AUX per-SRV element counts (computestage-per-srv-elementcount): every wired SRV's count in t# order.
   // numStructs above stays the front SRV's count for existing kernels; a dual-SRV kernel that needs a
@@ -136,12 +183,22 @@ void cookComputeShaderStage(BufferCookCtx& c) {
   uint32_t srvCounts[CS_MAX_SRV] = {0};
   for (size_t i = 0; i < srvs.size() && i < (size_t)CS_MAX_SRV; ++i) srvCounts[i] = srvs[i]->elementCount;
   enc->setBytes(srvCounts, sizeof(srvCounts), CS_SRVCOUNT_BASE);
-  const uint32_t tg = 64;
-  enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(numStructs, tg), 1, 1),
-                            MTL::Size::Make(tg, 1, 1));
+  const StageDispatch disp = stageDispatchFor(kernel);
+  if (disp.twoDFromSrvTex && nTex > 0 && c.srvTextures[0]) {
+    // 2D dispatch over the SRV texture (GetImageBrightness reduction) = GetTextureSize/CalcInt2DispatchCount.
+    const uint32_t tw = (uint32_t)c.srvTextures[0]->width(), th = (uint32_t)c.srvTextures[0]->height();
+    enc->dispatchThreadgroups(
+        MTL::Size::Make(calcDispatchCount(tw, disp.tgx), calcDispatchCount(th, disp.tgy), 1),
+        MTL::Size::Make(disp.tgx, disp.tgy, 1));
+  } else {
+    const uint32_t tg = 64;
+    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(numStructs, tg), 1, 1),
+                              MTL::Size::Make(tg, 1, 1));
+  }
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
+  if (samp) samp->release();  // per-cook sampler (attributesfromimagechannels precedent); PSO stays cached
 
   // Output the WRITTEN UAV buffer (the StructuredBufferWithViews buffer, now filled). ExecuteBufferUpdate
   // forwards this same buffer downstream (fork computeshaderstage-dispatch-in-cook).
@@ -161,6 +218,11 @@ NodeSpec makeSpec() {
       {"ConstantBuffers", "Buffer", "Buffer", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
       {"ShaderResources", "Buffer", "Buffer", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
       {"Uavs", "Buffer", "Buffer", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
+      // ShaderResourceTextures: MultiInput<Texture2D> SRV read (TEXTURE_COMPUTE_SEAM stage 3; folded from
+      // SrvFromTexture2d). DX11 packs buffer-SRV + texture-SRV into ONE t# space; Metal splits them, so a
+      // texture-SRV rides its OWN texture-index (CS_TEX_SRV_BASE) here, apart from ShaderResources (buffer).
+      {"ShaderResourceTextures", "ShaderResourceTextures", "Texture2D", true, 0.0f, 0.0f, 0.0f,
+       Widget::Slider, {}, false, 1, true},
       // KernelName: the MSL kernel to dispatch (folded from ComputeShader.Source at import). String port.
       {"KernelName", "KernelName", "String", true},
   };
@@ -171,4 +233,9 @@ NodeSpec makeSpec() {
 const BufferOp _reg_computeshaderstage(makeSpec(), cookComputeShaderStage);
 
 }  // namespace
+
+// Golden hook (t3import_getimagebrightness_golden.cpp ①gather injectBug): drop the texture-SRV bind → the
+// kernel reads an unbound texture → the reduction adds nothing → the readback diverges from the oracle.
+bool& computeShaderStageSkipTexture() { return g_stageSkipTexture; }
+
 }  // namespace sw
