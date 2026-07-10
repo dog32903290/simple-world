@@ -29,10 +29,24 @@
 //   preserved (the tex cook already runs dependency-first). Named, not silent.
 // • computestage-default-sampler: this stage-1 kernel (BRDF) declares NO sampler/SRV; per-op samplers
 //   are stage 3. (No sampler bound here.)
+//
+// ── STAGE 2 (TEXTURE_COMPUTE_SEAM_SPEC §5 table row 2): SRV-tex read + b0 CB (first sealed: depth-to-
+//   linear). A stage whose kernel reads a Texture2D SRV takes the SRV-TEX PATH: the first wired
+//   ShaderResourceTextures = the SRV (bound at the kernel's srv texture index), its GetDimensions drives
+//   the output allocation + 2D dispatch (fork computestagetex-srv-in-self-allocates-output — sw's tex-track
+//   producer idiom allocates its own output at the input's W×H, folding away TiXL's OutputTexture boundary
+//   input + GetTextureSize + CalcInt2DispatchCount; for depth-to-linear input.dims==output.dims so exact),
+//   and the b0 CB rides the SCALAR CB0..CB{n-1} Float ports (fork computestagetex-cb-scalar-rail: the tex
+//   currency carries no Buffer, so the importer bakes FloatsToBuffer's Params — in wire order == the
+//   cbuffer layout — onto CB# ports; the cook packs them tightly at buffer(0)). Live re-wiring of the CB
+//   params through the compound boundary is a later refinement (fork computestagetex-cb-defaults-baked:
+//   the authored .t3 defaults are baked, same spirit as stage-1's baked Size). The generator path (BRDF,
+//   no SRV) is unchanged.
 #include "runtime/point_ops.h"
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <map>
 #include <string>
 
@@ -70,14 +84,34 @@ std::string texKernelNameFor(const std::string& src) {
   if (src.find('/') == std::string::npos && src.find(".hlsl") == std::string::npos) return src;
   if (src.find("3d/rendering/ComputeBrdfLookupTexture-cs.hlsl") != std::string::npos)
     return "computeshaderstage_brdflookup";  // stage 1: 1UAV-tex pure generator (split-sum BRDF LUT)
+  if (src.find("img/post-fx/depth-to-linear.hlsl") != std::string::npos)
+    return "computeshaderstage_depthtolinear";  // stage 2: 1SRV-tex+1UAV-tex+b0 CB (depth linearization)
   return src;  // unmapped path → the PSO lookup fails loudly (no silent wrong kernel)
 }
 
-// Per-kernel threadgroup dims (fork computestage-per-kernel-threadgroup): the .hlsl numthreads(...).
-// Default 8×8 for an unlisted kernel (a safe 2D tile). BRDF = numthreads(32,32,1) (…-cs.hlsl:64).
-void texKernelThreadgroup(const std::string& kernel, uint32_t& tgx, uint32_t& tgy) {
-  tgx = 8; tgy = 8;
-  if (kernel == "computeshaderstage_brdflookup") { tgx = 32; tgy = 32; }
+// Per-kernel dispatch/binding metadata (data-driven, ARCHITECTURE rule 7 — one row per texture-out
+// kernel ported). numthreads (fork computestage-per-kernel-threadgroup) + the Metal texture indices the
+// transpiled MSL assigns to the SRV read / UAV write (transpiler binding, verified against the .metal
+// signature) + the b0 CB float count (0 = generator, no CB) + the output PixelFormat when the .t3 has NO
+// Texture2d allocator (SRV-tex path; Invalid → the folded Format strParam supplies it, the BRDF path).
+struct TexKernelMeta {
+  uint32_t tgx = 8, tgy = 8;
+  int srvTexIndex = -1;   // Metal texture index of the SRV read (-1 = generator, no SRV input)
+  int uavTexIndex = 0;    // Metal texture index of the UAV output write
+  int cbFloatCount = 0;   // # tightly-packed floats in the b0 CB (0 = no CB)
+  MTL::PixelFormat outFmt = MTL::PixelFormatInvalid;  // Invalid → use the folded Format strParam (BRDF)
+};
+
+TexKernelMeta texKernelMeta(const std::string& kernel) {
+  TexKernelMeta m;
+  if (kernel == "computeshaderstage_brdflookup") {  // numthreads(32,32,1); u0→texture(0); no SRV/CB
+    m.tgx = 32; m.tgy = 32; m.uavTexIndex = 0;
+  } else if (kernel == "computeshaderstage_depthtolinear") {  // numthreads(16,16,1)
+    // transpiler: CB(b0)→buffer(0), InputTexture(t0)→texture(0), OutputTexture(u0)→texture(1).
+    m.tgx = 16; m.tgy = 16; m.srvTexIndex = 0; m.uavTexIndex = 1; m.cbFloatCount = 6;
+    m.outFmt = MTL::PixelFormatR32Float;  // RWTexture2D<float> (no Texture2d allocator in the .t3)
+  }
+  return m;
 }
 
 // Texture2d Format enum (SharpDX.DXGI.Format string, folded from the Texture2d child) → MTL::PixelFormat.
@@ -101,12 +135,28 @@ void cookComputeShaderStageTex(TexCookCtx& c) {
       texKernelNameFor(texStrParam(c.strParams, "KernelName", std::string()));
   if (kernel.empty()) return;  // no shader → nothing to dispatch (TiXL _cs==null early-return)
 
-  const uint32_t W = (uint32_t)std::lround(cookParam(c, "OutW", 512.0f));
-  const uint32_t H = (uint32_t)std::lround(cookParam(c, "OutH", 512.0f));
-  if (W == 0 || H == 0) return;
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, kernel.c_str());
+  if (!pso) return;  // unported/unknown kernel → loud fail (no silent black), no redirect
+  const TexKernelMeta meta = texKernelMeta(kernel);
 
-  const MTL::PixelFormat fmt =
-      texFormatFor(texStrParam(c.strParams, "Format", "R16G16B16A16_UNorm"));
+  // SRV-TEX PATH (stage 2): the first wired ShaderResourceTextures = the SRV read. Its GetDimensions
+  // drives the output allocation + dispatch (fork computestagetex-srv-in-self-allocates-output). The
+  // GENERATOR path (BRDF, meta.srvTexIndex<0) sizes from OutW/OutH + Format instead. `srv` is null when
+  // an SRV-tex kernel's ShaderResourceTextures is unwired → nothing to read (early return, no redirect).
+  const MTL::Texture* srv = (c.inputTextureCount > 0) ? c.inputTextures[0] : nullptr;
+  uint32_t W = 0, H = 0;
+  MTL::PixelFormat fmt = MTL::PixelFormatInvalid;
+  if (meta.srvTexIndex >= 0) {
+    if (!srv) return;  // SRV-tex kernel, no input texture → nothing to dispatch
+    W = (uint32_t)srv->width();
+    H = (uint32_t)srv->height();
+    fmt = meta.outFmt;  // per-kernel output format (no Texture2d allocator in the SRV-tex .t3)
+  } else {
+    W = (uint32_t)std::lround(cookParam(c, "OutW", 512.0f));
+    H = (uint32_t)std::lround(cookParam(c, "OutH", 512.0f));
+    fmt = texFormatFor(texStrParam(c.strParams, "Format", "R16G16B16A16_UNorm"));
+  }
+  if (W == 0 || H == 0) return;
   if (fmt == MTL::PixelFormatInvalid) return;  // unmapped Format → loud fail (§6 risk 5)
 
   // Allocate the shaderWrite output texture (fork computestage-allocates-uav-texture). Cache-keyed by
@@ -114,9 +164,6 @@ void cookComputeShaderStageTex(TexCookCtx& c) {
   MTL::Texture* out =
       cachedScratchTex(c.dev, (uint64_t)fmt, W, H, c.cookKey + ".csstex", /*shaderWrite=*/true);
   if (!out) return;
-
-  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, kernel.c_str());
-  if (!pso) return;  // unported/unknown kernel → loud fail (no silent black), no redirect
 
   if (g_texStageSkipDispatch) {
     // injectBug: UAV not bound / dispatch dropped → clear to black so the readback is a clean divergence.
@@ -134,15 +181,25 @@ void cookComputeShaderStageTex(TexCookCtx& c) {
     return;
   }
 
-  // Bind the allocated texture as the UAV (u0 == Metal texture(0)) and dispatch 2D over W×H.
-  uint32_t tgx = 8, tgy = 8;
-  texKernelThreadgroup(kernel, tgx, tgy);
+  // Pack the b0 CB (scalar rail CB0..CB{n-1}, fork computestagetex-cb-scalar-rail; wire order == the
+  // cbuffer layout). Tightly packed floats → setBytes at buffer(0), matching the transpiled struct.
+  float cb[16] = {0};
+  const int cbN = meta.cbFloatCount < 16 ? meta.cbFloatCount : 16;
+  for (int i = 0; i < cbN; ++i) {
+    char key[8];
+    std::snprintf(key, sizeof(key), "CB%d", i);
+    cb[i] = cookParam(c, key, 0.0f);
+  }
+
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
   enc->setComputePipelineState(pso);
-  enc->setTexture(out, 0);  // RWTexture2D<float4> LUT : register(u0) → texture(0)
-  enc->dispatchThreadgroups(MTL::Size::Make(ceilDiv(W, tgx), ceilDiv(H, tgy), 1),
-                            MTL::Size::Make(tgx, tgy, 1));
+  if (cbN > 0) enc->setBytes(cb, sizeof(float) * (size_t)cbN, 0);  // b0 → buffer(0)
+  if (meta.srvTexIndex >= 0 && srv)
+    enc->setTexture(const_cast<MTL::Texture*>(srv), meta.srvTexIndex);  // SRV read (t0)
+  enc->setTexture(out, meta.uavTexIndex);  // UAV write (u0)
+  enc->dispatchThreadgroups(MTL::Size::Make(ceilDiv(W, meta.tgx), ceilDiv(H, meta.tgy), 1),
+                            MTL::Size::Make(meta.tgx, meta.tgy, 1));
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
@@ -160,11 +217,25 @@ NodeSpec makeSpec() {
   spec.category = "render/texture";
   spec.ports = {
       {"Output", "Output", "Texture2D", false},
+      // ShaderResourceTextures: MultiInput<Texture2D> SRV read (stage 2; folded from SrvFromTexture2d).
+      // The first wire drives dispatch/output size (input GetDimensions). Unwired for a generator (BRDF).
+      {"ShaderResourceTextures", "ShaderResourceTextures", "Texture2D", true, 0.0f, 0.0f, 0.0f,
+       Widget::Slider, {}, false, 1, /*multiInput=*/true},
       {"KernelName", "KernelName", "String", true},  // folded from ComputeShader.Source
-      {"Format", "Format", "String", true},          // folded from Texture2d.Format
-      {"OutW", "OutW", "Float", true, 512.0f, 1.0f, 8192.0f},  // baked from Size.X
-      {"OutH", "OutH", "Float", true, 512.0f, 1.0f, 8192.0f},  // baked from Size.Y
+      {"Format", "Format", "String", true},          // folded from Texture2d.Format (generator path)
+      {"OutW", "OutW", "Float", true, 512.0f, 1.0f, 8192.0f},  // baked from Size.X (generator path)
+      {"OutH", "OutH", "Float", true, 512.0f, 1.0f, 8192.0f},  // baked from Size.Y (generator path)
   };
+  // b0 CB scalar rail (fork computestagetex-cb-scalar-rail): CB0..CB7 pinless Float ports the importer
+  // bakes from FloatsToBuffer.Params (wire order == the cbuffer layout). The cook packs meta.cbFloatCount
+  // of them at buffer(0). Pinless (Inspector-only) — these are folded, not canvas-wired. 8 covers the
+  // sealed depth kernel's 6-float CB with headroom; a bigger CB extends this row count.
+  for (int i = 0; i < 8; ++i) {
+    char id[8];
+    std::snprintf(id, sizeof(id), "CB%d", i);
+    spec.ports.push_back({id, id, "Float", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {},
+                          /*pinless=*/true});
+  }
   spec.evaluate = nullptr;
   return spec;
 }
