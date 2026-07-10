@@ -13,29 +13,31 @@
 // never ported for this op (NAMED FORK "fork-camera-one-matrix-per-op", cited in both the .metal and
 // the params header). This TU binds the REAL single-matrix ABI, not a fictitious 10-matrix array.
 //
-// ── KNOWN FINDING (ref bug, NOT an epsilon issue — §7 "手推 == GPU ≠ ref -> ref 錯") ────────────────
-// mathv_ref_transformfromclipspace.h's Rotation path (:196-221) transcribes the raw HLSL text's
-// `qFromMatrix3Precise(transpose(orientationDest))` LITERALLY, including the `transpose()` call. But
-// transformpointsfromclipspace.metal's own header (:7-28, an already-battle-tested NAMED FORK with a
-// real-TiXL numeric anchor at eye=(3,2,4)) documents that TiXL's C# host PRE-TRANSPOSES every matrix
-// before upload, so HLSL's own `_mRC` accessor already reads a transposed view — a fact invisible to a
-// literal HLSL-only transcription (R's isolation rule explicitly forbids opening the C# host,
-// mathv_ref_transformfromclipspace.h:174-175 "out of scope"). sw's ABI does NOT pre-transpose
-// (params.h: "NO host transpose"), so the .metal kernel compensates by reading the matrix's COLUMNS
-// with NO extra transpose() call — the CORRECT, already-validated behavior. R's ref, performing its
-// OWN transpose step on top of that same convention, computes the QUATERNION CONJUGATE (negated x,y,z;
-// same w) of the correct answer whenever CameraToWorld's upper-left 3×3 is NOT symmetric (i.e. almost
-// always for a real rotation). This is independently CONFIRMED (not pattern-guessed) via
-// `runtime/quat_host.h`'s `qFromMatrix3PreciseHost` — a pre-existing, independently-authored,
-// already-in-production host oracle (used by point_ops_transformpointsfromclipspace.cpp's own
-// rotExactPass leg) that predates this ticket and was derived without reference to this TU or to R's
-// file. See checkRotationConventionDiagnostic() in the probes TU for the measured per-matrix evidence
-// table. CONSEQUENCE: the ROTATION-bearing teeth are EXPECTED RED against R's ref for any
-// non-symmetric matrix — this is the correct, honest signal (a real, now well-evidenced ref bug), not
-// a driver bug. The Position-only PRIMARY case and the diagonal-matrix special cases are unaffected
-// and stay GREEN. D role is not permitted to edit mathv_ref_transformfromclipspace.h (ticket rule) —
-// this finding routes to R for a fix (transpose must be dropped, or equivalently the ref should feed
-// qFromMatrix3Precise the RAW (untransposed) upper-left 3×3, matching quat_host.h's convention).
+// ── PINNED PARITY (rotation: ref transpose == TiXL net semantics; both sides GREEN) ─────────────────
+// HISTORY: D's fuzz driver first found the Rotation teeth RED and (correctly, on the evidence D had)
+// routed a "ref conjugate bug" to R. A first fixer (a3068d8) responded by DROPPING R's
+// `qFromMatrix3Precise(transpose(orientationDest))` transpose to match sw's then-buggy 抽column kernel.
+// S's semantic audit REVERSED that verdict and the orchestrator re-verified it by hand: the literal
+// transpose IS TiXL's true net semantics, and it was the KERNEL (抽column) that was wrong, not the ref.
+// The evidence chain (all line numbers verified against external/tixl SHA 395c4c55):
+//   1. TiXL compiles with NO row-major flag (DX11ShaderCompiler.cs:38 `ShaderFlags.None`) -> HLSL
+//      cbuffers pack COLUMN-MAJOR, which CANCELS the host's `Matrix4x4.Transpose`
+//      (TransformBufferLayout.cs:24). Net: the HLSL-visible matrix M ≡ the logical matrix N (`M._mRC ==
+//      N[R][C]`). The .cs comment "hlsl constant buffer is row based" is itself WRONG.
+//   2. Self-証: WrapPointPosition.hlsl:45 reads `CameraToWorld._m30_m31_m32` AS the camera WORLD
+//      POSITION — only consistent with M≡N (translation in row 3, row-vector convention).
+//   3. The Position path proves the convention closed-form: sw's mul4row(N,v)==v·N matches the ref and
+//      the whole 188928-sample corpus is GREEN under M≡N. Given M≡N, the HLSL Rotation code
+//      `qFromMatrix3Precise(transpose(orientationDest=rows of M))` is FORCED to be Shepperd(transpose(R))
+//      on the logical 3×3 R — there is no remaining freedom. So the ref's transpose is CORRECT.
+// THE FIX (this branch): ref restores the transpose (Shepperd(transpose(R))); the .metal kernel is
+// restored to 抽row (float3x3 whose COLUMNS are R's ROWS ≡ HLSL transpose(orientationDest)); both now
+// compute Shepperd(transpose(R)). CONSEQUENCE: the ROTATION teeth are GREEN. The independent numeric
+// anchor S pinned (eye=(3,2,4) LookAt -> Rotation == (-0.179,0.311,0.060,0.932), an ASYMMETRIC case so
+// conjugate!=self) is a dedicated tooth (checkPinnedEyeTooth in the probes TU) guarding against a future
+// re-drop of the transpose. checkRotationConventionDiagnostic cross-checks gpu/ref against
+// runtime/quat_host.h fed the SAME transpose(R) (so the oracle carries the correct convention, not the
+// conjugate) — see its note. The Position PRIMARY case and the diagonal special cases stay GREEN.
 //
 // Ordinary (non-anonymous) namespace on purpose (snaptogrid precedent): this header is meant to be
 // textually identical across the two TUs that include it.
@@ -196,6 +198,7 @@ bool checkRotationTooth(const TfcsDispatch& disp);
 bool checkSpecialMatrixTooth(const TfcsDispatch& disp);
 bool checkWZeroTooth(const TfcsDispatch& disp);
 bool checkRotationConventionDiagnostic(const TfcsDispatch& disp);
+bool checkPinnedEyeTooth(const TfcsDispatch& disp);  // S's eye=(3,2,4) anti-conjugate anchor
 
 }  // namespace mathv_tfcs_shared
 }  // namespace sw

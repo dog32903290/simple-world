@@ -33,7 +33,6 @@
 #include "runtime/field_camera.h"              // Mat4 / pointCameraMatrices / mat4TransformPointDivW (golden)
 #include "runtime/graph.h"                     // Graph/Node/pinId (flat-driver leg)
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, PointGraph
-#include "runtime/quat_host.h"                  // qFromMatrix3PreciseHost (rotation golden, host twin)
 #include "runtime/tex_op_cache.h"              // cachedComputePSO
 #include "runtime/resident_eval_graph.h"       // buildEvalGraph (resident leg)
 #include "runtime/transformpointsfromclipspace_params.h"  // TpfcsParams, TPFCS_* bindings
@@ -102,11 +101,13 @@ void registerTransformPointsFromClipspaceOp() {
 //      lives in (2b) — the default camera's C2W≈identity makes the quaternion ≈ identity, where the
 //      conjugate bug is invisible). injectBug (identity) -> Position passthrough -> posPass RED.
 //
-//  (2b) ROTATION exact-value, NON-AXIS-ALIGNED camera (the conjugate-bug tooth): drive a known off-axis
-//      camera (eye=(3,2,4)) via directLegCustomC2W. Expected quaternion = qFromMatrix3PreciseHost on the
-//      c2w 3×3 read row-major (== TiXL's GPU view after the TransformBufferLayout cbuffer-transpose). Assert
-//      |dot(q_gpu, q_expected)| ≈ 1 (sign ambiguity, mirrors meshverticestopoints). The 抽row conjugate bug
-//      (which default-camera legs cannot see) yields the inverse rotation → |dot| ≈ 0.74 ≠ 1 → RED.
+//  (2b) ROTATION exact-value, NON-AXIS-ALIGNED camera (the conjugate-regression tooth): drive a known
+//      off-axis camera (eye=(3,2,4)) via directLegCustomC2W. Expected quaternion = a HARD-CODED LITERAL
+//      derived from TiXL's HLSL net semantics (Shepperd(transpose(R)) = (-0.179,0.311,0.060,0.932); see the
+//      leg-(2b) note for the WrapPointPosition.hlsl:45 + DX11ShaderCompiler.cs:38 chain) — NOT a live
+//      Shepperd reconstruction (that would be circular). Assert |dot(q_gpu, q_expected)| ≈ 1 (sign
+//      ambiguity, mirrors meshverticestopoints). A re-dropped transpose (抽column) yields the conjugate
+//      (which default-camera legs cannot see) → |dot| ≈ 0.74 ≠ 1 → RED.
 //
 //  (3) FLAT-DRIVER gather leg: a real flat Graph RadialPoints(#1) -> TransformPointsFromClipspace(#2)
 //      cooked through PointGraph::cook; read the cooked Points buffer via debugCookedBuffer. The flat
@@ -321,14 +322,24 @@ int runTransformPointsFromClipspaceSelfTest(bool injectBug) {
                         out[0].Rotation.z * out[0].Rotation.z + out[0].Rotation.w * out[0].Rotation.w);
   bool rotUnit = std::fabs(rn0 - 1.0f) < 1e-3f;
 
-  // ── (2b) ROTATION exact-value leg — NON-AXIS-ALIGNED camera (bites the conjugate bug) ────────────
+  // ── (2b) ROTATION exact-value leg — NON-AXIS-ALIGNED camera (the conjugate-regression tooth) ─────
   // The default camera's C2W≈identity makes the orientation quaternion ≈ identity, where conjugate==self —
-  // so the conjugate (抽row) bug HIDES. Drive a known off-axis camera (eye=(3,2,4)) so the orientation is a
-  // proper rotation: 抽column → the TiXL GPU quaternion; 抽row → its conjugate. Expected quaternion computed
-  // host-side via qFromMatrix3PreciseHost on the c2w 3×3 read DIRECTLY row-major (== the GPU view after the
-  // TransformBufferLayout cbuffer-transpose). Compare via |dot(q_gpu, q_expected)| ≈ 1 (quaternion sign
-  // ambiguity, mirrors the meshverticestopoints golden). At eye=(3,2,4): q_expected ≈ (0.179,-0.311,-0.060,
-  // 0.932); the conjugate ≈ (-0.179,0.311,0.060,0.932) → |dot| ≈ |1-2(x²+y²+z²)| ≈ 0.74 ≠ 1 → RED.
+  // so a re-drop of the transpose (抽column) would HIDE. Drive a known off-axis camera (eye=(3,2,4)) so the
+  // orientation is a proper (asymmetric) rotation: 抽row → the TiXL quaternion; 抽column → its conjugate.
+  // The expected quaternion is a HARD-CODED LITERAL derived from TiXL's HLSL NET SEMANTICS — NOT a TiXL GPU
+  // capture and NOT a live Shepperd reconstruction (which would be circular: reconstructing the anchor with
+  // the same qFromMatrix3Precise the kernel uses can only confirm self-consistency, never the transpose
+  // decision — S's audit, quat_host.h "对 transpose 决策零信息量"). The derivation chain:
+  //   • WrapPointPosition.hlsl:45 reads CameraToWorld._m30_m31_m32 as the camera WORLD position, and
+  //     DX11ShaderCompiler.cs:38 (ShaderFlags.None → column-major packing cancels the host transpose) ⇒
+  //     the HLSL-visible matrix M ≡ the logical camera matrix N sw stores row-major. The Position path
+  //     proves that convention closed-form (leg (1)). Given M≡N, the raw HLSL rotation code
+  //     `qFromMatrix3Precise(transpose(orientationDest=rows of M))` is FORCED to Shepperd(transpose(R)).
+  //   • For eye=(3,2,4): Shepperd(transpose(R)) = (-0.179403, 0.310522, 0.059801, 0.931566) (rotates +X
+  //     onto the camera right axis). Independently re-derived via field_camera.cpp + a bare Shepperd on
+  //     transpose(R). The conjugate (0.179,-0.311,-0.060,0.932) has |dot| ≈ |1-2(x²+y²+z²)| ≈ 0.74.
+  // Compare via |dot(q_gpu, q_expected)| ≈ 1 (quaternion sign ambiguity, mirrors meshverticestopoints). A
+  // re-drop of the transpose in either ref or kernel → gpu = the conjugate → |dot| ≈ 0.74 ≠ 1 → RED.
   float rotDot = 0.0f; bool rotExactPass = false;
   {
     SwPoint rin[1];
@@ -338,12 +349,8 @@ int runTransformPointsFromClipspaceSelfTest(bool injectBug) {
     RaymarchTransforms rt = raymarchTransforms(eye, target, up, kDefaultCamFovDegrees, 1.0f, 0.01f, 1000.0f);
     SwPoint rout[1];
     directLegCustomC2W(dev, q, lib, rt.cameraToWorld.m, rin, 1, rout);
-    // Expected: qFromMatrix3Precise on c2w 3×3 read row-major (a[R][C] = c2w[R*4+C]). qMul'd with identity
-    // input rotation = that quaternion. (The conjugate bug would yield the inverse → |dot| << 1.)
-    float a33[3][3];
-    for (int R = 0; R < 3; ++R)
-      for (int C = 0; C < 3; ++C) a33[R][C] = rt.cameraToWorld.m[R * 4 + C];
-    float qe[4]; qFromMatrix3PreciseHost(a33, qe);
+    // Hand-derived TiXL net-semantics anchor (Shepperd(transpose(R)) at eye=(3,2,4)); see leg note above.
+    const float qe[4] = {-0.179403f, 0.310522f, 0.059801f, 0.931566f};
     rotDot = std::fabs(rout[0].Rotation.x * qe[0] + rout[0].Rotation.y * qe[1] +
                        rout[0].Rotation.z * qe[2] + rout[0].Rotation.w * qe[3]);
     rotExactPass = std::fabs(rotDot - 1.0f) < 1e-3f;

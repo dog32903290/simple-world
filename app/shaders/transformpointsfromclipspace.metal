@@ -8,24 +8,24 @@
 // (m[r*4+c]); mul4row(M,v) == v·M_rowmajor reproduces HLSL `mul(rowVec, M)`. NO host transpose, NO
 // column-major float4x4 reinterpret here.
 //
-// ★ROTATION CONVENTION (cbuffer-transpose backward-trace — NOT the mesh-op analogy, which does NOT hold
-// here; see WHY below): TiXL feeds `qFromMatrix3Precise(transpose(orientationDest))` where
-// `orientationDest = float3x3(CameraToWorld._m00_m01_m02, _m10_m11_m12, _m20_m21_m22)` (the three ROWS of
-// the HLSL CameraToWorld 3×3). The decisive fact the first port missed: TransformBufferLayout.cs uploads
-// EVERY matrix already `Matrix4x4.Transpose`d ("mem layout in hlsl constant buffer is row based"), so HLSL
-// `CameraToWorld._m{r}{c}` reads `cameraToWorld_numerics[c][r]`. SW stores the SAME numerics matrix
-// ROW-MAJOR with NO cbuffer transpose, so `P.CameraToWorld[r*4+c] == cameraToWorld_numerics[r][c] ==
-// HLSL CameraToWorld._m{c}{r}` (off by ONE transpose vs the GPU view). Threading that transpose through
-// `transpose(orientationDest)` and the MSL `m[col][row]` reader (quat.metal.h: HLSL `_mRC == m[C][R]`)
-// collapses to: the float3x3 MSL must receive is `float3x3(camCol0,camCol1,camCol2)` built from the
-// matrix's 3×3 COLUMNS (P.CameraToWorld[0],[4],[8] / [1],[5],[9] / [2],[6],[10]) — NOT its rows.
-//   ★WHY the mesh-op analogy is WRONG here: meshverticestopoints assembles its float3x3 from a
-//   freshly-built T/B/N basis (no upstream cbuffer-transpose convention), so its `float3x3(rows)≡
-//   transpose` shortcut is self-consistent. This matrix arrives from the fixed row-major TransformBuffer
-//   layout, so the same shortcut double-counts a transpose and yields the rotation's CONJUGATE (the
-//   inverse orientation). Anchored vs real TiXL at eye=(3,2,4): 抽column → (0.179,-0.311,-0.060,0.932)
-//   (== TiXL GPU); 抽row → (-0.179,0.311,0.060,0.932) (== the conjugate). Default camera C2W≈identity so
-//   conjugate==self → the bug hid until a non-axis-aligned camera leg bit it.
+// ★ROTATION CONVENTION (pinned parity — the mesh-op identity DOES hold here; the "cbuffer-transpose
+// backward-trace" that once argued for 抽column was WRONG, reversed by S's semantic audit): TiXL feeds
+// `qFromMatrix3Precise(transpose(orientationDest))` where `orientationDest =
+// float3x3(CameraToWorld._m00_m01_m02, _m10_m11_m12, _m20_m21_m22)` (the three ROWS of the HLSL
+// CameraToWorld 3×3). The HLSL-visible matrix M ≡ the logical camera matrix N that sw stores row-major:
+// TiXL compiles with NO row-major flag (DX11ShaderCompiler.cs:38 `ShaderFlags.None`) so its cbuffers pack
+// COLUMN-MAJOR, which CANCELS the host's `Matrix4x4.Transpose` (TransformBufferLayout.cs:24) — the .cs
+// comment "hlsl constant buffer is row based" is itself wrong. (Self-証: WrapPointPosition.hlsl:45 reads
+// `CameraToWorld._m30_m31_m32` AS the camera world position — only true if M≡N.) So orientationDest == R
+// (rows of N), and HLSL `transpose(orientationDest)` is a REAL transpose of the logical 3×3: the net
+// Rotation semantics is Shepperd(transpose(R)). MSL float3x3(v0,v1,v2) builds v0,v1,v2 as COLUMNS and
+// qFromMatrix3Precise reads m[col][row], so MSL `float3x3(camRow0,camRow1,camRow2)` (columns = R's rows)
+// ≡ HLSL `transpose(float3x3(rows))` — the exact form qFromMatrix3Precise expects (SAME identity the mesh
+// op uses for its TBN basis; here the three vectors are the matrix's 3×3 ROWS).
+//   Anchored vs real TiXL at eye=(3,2,4): 抽row → (-0.179,0.311,0.060,0.932) (== TiXL; +X rotated onto
+//   the camera right axis); 抽column → (0.179,-0.311,-0.060,0.932) (== the CONJUGATE / inverse orientation
+//   — the bug S retired). Default camera C2W≈identity so conjugate==self → 抽column hid until a
+//   non-axis-aligned camera leg bit it. Pinned by point_ops golden leg (2b) + the mathv conjugate tooth.
 //
 // NAMED FORK vs the .cs/.hlsl:
 //   • fork-camera-default-only-v1 / fork-camera-one-matrix-per-op: the host computes ONLY CameraToWorld
@@ -63,13 +63,16 @@ kernel void transformpointsfromclipspace(device const SwPoint*    src [[buffer(T
   pInWorld.xyz /= pInWorld.w;
   p.Position = packed_float3(pInWorld.x, pInWorld.y, pInWorld.z);
 
-  // Rotation: feed qFromMatrix3Precise the matrix's 3×3 COLUMNS (see the cbuffer-transpose note above).
-  // 抽column reproduces TiXL's GPU quaternion exactly; 抽row would compute its conjugate (inverse).
-  float3 camCol0 = float3(P.CameraToWorld[0], P.CameraToWorld[4], P.CameraToWorld[8]);
-  float3 camCol1 = float3(P.CameraToWorld[1], P.CameraToWorld[5], P.CameraToWorld[9]);
-  float3 camCol2 = float3(P.CameraToWorld[2], P.CameraToWorld[6], P.CameraToWorld[10]);
-  float3x3 orientDest = float3x3(camCol0, camCol1, camCol2);
-  float4 newRotation = normalize(qFromMatrix3Precise(orientDest));
+  // Rotation: HLSL feeds qFromMatrix3Precise(transpose(orientationDest)) where orientationDest =
+  // float3x3(rows m00.., m10.., m20..) of the logical camera 3×3 R. MSL float3x3(v0,v1,v2) builds
+  // v0,v1,v2 as COLUMNS, and MSL qFromMatrix3Precise reads m[col][row], so a float3x3 whose COLUMNS
+  // are R's ROWS reproduces Shepperd(transpose(R)) exactly (see the ★ROTATION note above). The 3×3
+  // ROWS of the row-major CameraToWorld:
+  float3 camRow0 = float3(P.CameraToWorld[0], P.CameraToWorld[1], P.CameraToWorld[2]);
+  float3 camRow1 = float3(P.CameraToWorld[4], P.CameraToWorld[5], P.CameraToWorld[6]);
+  float3 camRow2 = float3(P.CameraToWorld[8], P.CameraToWorld[9], P.CameraToWorld[10]);
+  float3x3 orientDestT = float3x3(camRow0, camRow1, camRow2);  // == HLSL transpose(orientationDest)
+  float4 newRotation = normalize(qFromMatrix3Precise(orientDestT));
   p.Rotation = qMul(newRotation, p.Rotation);  // TiXL :52 qMul(newRotation, p.Rotation)
 
   dst[i] = p;

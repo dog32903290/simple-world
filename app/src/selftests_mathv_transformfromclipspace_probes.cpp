@@ -12,8 +12,9 @@
 //     pattern this triggers against ref is instrumented by checkRotationConventionDiagnostic (an
 //     isolated, minimal repro, not guessed from aggregate stats — D 儀器化紀律).
 //
-// See selftests_mathv_transformfromclipspace_shared.h for the KNOWN FINDING banner (ref's rotation
-// conjugate bug) that checkRotationConventionDiagnostic below independently confirms.
+// See selftests_mathv_transformfromclipspace_shared.h for the PINNED PARITY banner (rotation ==
+// Shepperd(transpose(R)) on BOTH sides after S's audit) that checkRotationConventionDiagnostic below
+// cross-checks and checkPinnedEyeTooth anchors to an absolute literal (S's eye=(3,2,4) case).
 //
 // ZONE: shell tier (app/src/ root, mathv support). Same zone as the TU it splits from. Crosses
 // runtime for quat_host.h (pure host math, no Metal/platform — same leaf class as tixl_point.h).
@@ -32,8 +33,9 @@ using mathv::Rng;
 
 // ── TOOTH ROTATION: random affine matrix (composeMat16, generically NON-symmetric upper-left 3x3 --
 // quirk probe ② non-orthogonal-matrix coverage) + random UNIT-quaternion Rotation, compared against
-// R's ref over Position(3)+Rotation(4)=7 lanes. EXPECTED RED for generic (asymmetric) matrices per
-// the shared header's KNOWN FINDING banner -- that is the correct, evidenced signal, not a driver bug.
+// R's ref over Position(3)+Rotation(4)=7 lanes. GREEN: ref restores Shepperd(transpose(R)) and the
+// kernel is restored to 抽row (columns = R's rows ≡ transpose), so both sides agree on asymmetric
+// matrices too (the a3068d8 conjugate divergence is retired -- shared header PINNED PARITY banner).
 bool checkRotationTooth(const TfcsDispatch& disp) {
   Comparator cmp("mathv-transformfromclipspace-rotation", EpsSpec::transcendental(), 6);
   Rng rng(mathv::mathvSeed("transformfromclipspace-rotation"));
@@ -158,15 +160,16 @@ bool checkWZeroTooth(const TfcsDispatch& disp) {
   return dispatchOk && cmp.verdict();
 }
 
-// ── ROTATION-CONVENTION DIAGNOSTIC (instrumented finding, D 儀器化紀律 — measured, not guessed) ──
+// ── ROTATION-CONVENTION DIAGNOSTIC (instrumented cross-check, D 儀器化紀律 — measured, not guessed) ──
 // Isolates qCamNormalized (Rotation_in pinned to identity so qMul(q,identity)==q) and cross-checks
-// GPU / ref against `runtime/quat_host.h`'s qFromMatrix3PreciseHost -- a pre-existing, INDEPENDENT,
-// already-in-production host oracle (point_ops_transformpointsfromclipspace.cpp's rotExactPass leg)
-// that was authored without reference to this ticket or to R's file. This tooth's PASS/FAIL gate is
-// ONLY "gpu matches the independent oracle" (confirms the KERNEL is right); ref's result is printed
-// as measured evidence, not silently re-gated -- checkRotationTooth above already carries that RED
-// honestly. See selftests_mathv_transformfromclipspace_shared.h's KNOWN FINDING banner for the full
-// derivation.
+// GPU / ref against `runtime/quat_host.h`'s qFromMatrix3PreciseHost. NOTE (S's audit): quat_host's
+// formula is Shepperd(whatever matrix it is FED) and carries ZERO information about the transpose
+// decision on its own -- fed the RAW rows it computes Shepperd(R) (the CONJUGATE), which is exactly
+// what made the a3068d8 mistake look self-consistent (buggy kernel == buggy oracle). So this diagnostic
+// now feeds the oracle transpose(R) (a33[R][C] = M[C*4+R]) -- the CORRECT TiXL net convention -- so the
+// oracle computes Shepperd(transpose(R)) matching the fixed kernel+ref. The ABSOLUTE anchor that pins
+// the convention to a literal (not another Shepperd call) is checkPinnedEyeTooth. This tooth's gate is
+// "gpu matches the (correctly-fed) oracle"; ref's result is printed as evidence (now also matching).
 bool checkRotationConventionDiagnostic(const TfcsDispatch& disp) {
   struct Case { const char* tag; Mat16 M; };
   std::vector<Case> cases = {
@@ -189,9 +192,11 @@ bool checkRotationConventionDiagnostic(const TfcsDispatch& disp) {
     mathv_ref::transformFromClipSpaceOne(pin, refOut, 0, 1, rprm);
     std::vector<SwPoint> src(1, pin), dst;
     bool dispatched = disp.dispatch(hp, src, dst) && dst.size() == 1;
+    // Feed the oracle transpose(R): a33[R][C] = M[C*4+R] -> qFromMatrix3PreciseHost computes
+    // Shepperd(transpose(R)), the correct TiXL net convention (see this tooth's header note).
     float a33[3][3];
     for (int R = 0; R < 3; ++R)
-      for (int C = 0; C < 3; ++C) a33[R][C] = cs.M[(size_t)(R * 4 + C)];
+      for (int C = 0; C < 3; ++C) a33[R][C] = cs.M[(size_t)(C * 4 + R)];
     float qe[4];
     qFromMatrix3PreciseHost(a33, qe);
     float gq[4] = {dispatched ? dst[0].Rotation.x : 0.0f, dispatched ? dst[0].Rotation.y : 0.0f,
@@ -210,6 +215,61 @@ bool checkRotationConventionDiagnostic(const TfcsDispatch& disp) {
     allOk = allOk && gpuOk;
   }
   return allOk;
+}
+
+// ── PINNED EYE=(3,2,4) TOOTH (S's numeric judgment, the anti-conjugate anchor) ────────────────────
+// The ONLY tooth here that pins the Rotation to an ABSOLUTE LITERAL rather than to another Shepperd
+// call -- so it cannot be fooled by a circular oracle. Both the CameraToWorld matrix and the expected
+// quaternion are hard-coded 32-bit constants:
+//   • Matrix = raymarchTransforms(eye=(3,2,4), target=origin, up=+Y).cameraToWorld (LookAt inverse,
+//     GraphicsMath.cs LookAtRH -> field_camera.cpp). Its upper-left 3x3 is a proper rotation R, so
+//     it is ASYMMETRIC -> transpose(R) != R -> Shepperd(transpose(R)) != its own conjugate. This is
+//     the REASON a symmetric case cannot pin the transpose (conjugate==self hides the sign).
+//   • Expected Rotation = Shepperd(transpose(R)) = (-0.179403, 0.310522, 0.059801, 0.931566)
+//     (rotates +X onto the camera's right axis). DERIVED from TiXL's HLSL net semantics, NOT from a
+//     TiXL GPU capture: WrapPointPosition.hlsl:45 + DX11ShaderCompiler.cs:38 pin M≡N (see the shared
+//     header PINNED PARITY banner), and the position path proves that convention closed-form; the raw
+//     HLSL rotation code then forces Shepperd(transpose(R)). Re-derived independently by the
+//     orchestrator via field_camera.cpp + a bare Shepperd on transpose(R).
+// A future re-drop of the transpose (ref or kernel) yields the conjugate (0.179,-0.311,-0.060,0.932)
+// -> x/y/z signs flip -> abs diff ~0.36/0.62/0.12 >> 2e-3 -> RED. Guards both ref and gpu.
+bool checkPinnedEyeTooth(const TfcsDispatch& disp) {
+  // eye=(3,2,4) CameraToWorld, row-major m[r*4+c] (see header note for provenance).
+  const Mat16 M = {{
+      0.80000001f, -0.00000001f, -0.60000002f, 0.0f,
+     -0.22283441f,  0.92847675f, -0.29711255f, 0.0f,
+      0.55708605f,  0.37139070f,  0.74278140f, 0.0f,
+      3.00000048f,  2.00000024f,  4.00000048f, 1.00000012f,
+  }};
+  const float qExpected[4] = {-0.179403f, 0.310522f, 0.059801f, 0.931566f};
+  const float eps = 2e-3f;  // float32 gpu vs literal; conjugate diverges by ~0.36 so this is tight.
+
+  HostParams hp{};
+  for (int k = 0; k < 16; ++k) hp.CameraToWorld[k] = M[(size_t)k];
+  mathv_ref::TransformFromClipSpaceParams rprm{mat4FromArray(M)};
+
+  // identity input Rotation isolates qCamNormalized (qMul(qCam, identity) == qCam).
+  SwPoint pin{}; pin.Position = SW_PACKED3{0.0f, 0.0f, 0.0f};
+  pin.Rotation = SW_FLOAT4{0.0f, 0.0f, 0.0f, 1.0f};
+  std::vector<SwPoint> src(1, pin), dst;
+  bool dispatched = disp.dispatch(hp, src, dst) && dst.size() == 1;
+
+  SwPoint refOut{};
+  mathv_ref::transformFromClipSpaceOne(pin, refOut, 0, 1, rprm);
+
+  float g[4] = {dispatched ? dst[0].Rotation.x : 0.0f, dispatched ? dst[0].Rotation.y : 0.0f,
+                dispatched ? dst[0].Rotation.z : 0.0f, dispatched ? dst[0].Rotation.w : 0.0f};
+  float r[4] = {refOut.Rotation.x, refOut.Rotation.y, refOut.Rotation.z, refOut.Rotation.w};
+  bool gpuOk = dispatched, refOk = true;
+  for (int k = 0; k < 4; ++k) {
+    gpuOk = gpuOk && std::fabs(g[k] - qExpected[k]) < eps;
+    refOk = refOk && std::fabs(r[k] - qExpected[k]) < eps;
+  }
+  printf("[mathv-transformfromclipspace-pinned-eye324] gpu=(%.4f,%.4f,%.4f,%.4f) "
+         "ref=(%.4f,%.4f,%.4f,%.4f) expected=(%.4f,%.4f,%.4f,%.4f) gpuOk=%s refOk=%s\n",
+         g[0], g[1], g[2], g[3], r[0], r[1], r[2], r[3], qExpected[0], qExpected[1], qExpected[2],
+         qExpected[3], gpuOk ? "yes" : "NO(conjugate?)", refOk ? "yes" : "NO(conjugate?)");
+  return gpuOk && refOk;
 }
 
 }  // namespace mathv_tfcs_shared

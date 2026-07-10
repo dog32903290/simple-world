@@ -7,13 +7,14 @@
 // (400-line ratchet split, selftests_mathv_snappointstogrid precedent).
 //
 // See the shared header for: the ABI CORRECTION (real single-matrix TpfcsParams vs the ticket's
-// assumed 10-matrix array) and the KNOWN FINDING (ref's rotation-conjugate bug, independently
-// confirmed via runtime/quat_host.h in the probes TU's checkRotationConventionDiagnostic).
+// assumed 10-matrix array) and the PINNED PARITY note (rotation = Shepperd(transpose(R)) on BOTH
+// sides after S's audit reversed the a3068d8 transpose-drop; both GREEN).
 //
 // This TU owns: the PRIMARY Position-only 3-layer generic fuzz (exact/affine class, GREEN) + the
 // injectBug leg (perturbs P[0]=RotX, a continuous dependency) + registration. The probes TU owns:
-// TOOTH ROTATION (quirk ②, EXPECTED RED per the known finding) / TOOTH SPECIAL MATRICES
-// (symmetric-safe, GREEN) / quirk probe ① w=0 edge / the rotation-convention diagnostic.
+// TOOTH ROTATION (quirk ②, GREEN — ref+kernel both Shepperd(transpose(R))) / TOOTH SPECIAL MATRICES
+// (symmetric-safe, GREEN) / quirk probe ① w=0 edge / the rotation-convention diagnostic / the pinned
+// eye=(3,2,4) anti-conjugate tooth.
 //
 // ZONE: shell tier; crosses runtime only for SwPoint + the params ABI header (via the shared header).
 #include "selftests_mathv_transformfromclipspace_shared.h"
@@ -101,18 +102,21 @@ int runMathvTransformFromClipSpaceSelfTest(bool injectBug) {
   bool passSpecial = mathv_tfcs_shared::checkSpecialMatrixTooth(disp);
   bool passWZero = mathv_tfcs_shared::checkWZeroTooth(disp);
   bool passDiagnostic = mathv_tfcs_shared::checkRotationConventionDiagnostic(disp);
+  bool passPinned = mathv_tfcs_shared::checkPinnedEyeTooth(disp);
 
   ParityReport rep("selftest-mathv-transformfromclipspace");
   rep.expectTrue("position(3-layer fuzz, transcendental -- measured note at c.eps)", passPos,
                 passPos ? 1.0 : 0.0);
-  rep.expectTrue("rotation(random-affine + random-quat vs ref -- KNOWN FINDING, see shared header)",
+  rep.expectTrue("rotation(random-affine + random-quat vs ref -- Shepperd(transpose(R)), both GREEN)",
                 passRotation, passRotation ? 1.0 : 0.0);
   rep.expectTrue("specialMatrix(identity/translation/180rot/degenerate/perspective, symmetric-safe)",
                 passSpecial, passSpecial ? 1.0 : 0.0);
   rep.expectTrue("wZeroEdge(quirk probe (1): division-by-zero Inf/NaN parity)", passWZero,
                 passWZero ? 1.0 : 0.0);
-  rep.expectTrue("rotationConventionDiagnostic(gpu vs INDEPENDENT quat_host oracle)", passDiagnostic,
+  rep.expectTrue("rotationConventionDiagnostic(gpu vs quat_host oracle fed transpose(R))", passDiagnostic,
                 passDiagnostic ? 1.0 : 0.0);
+  rep.expectTrue("pinnedEye324(anti-conjugate anchor: Rotation==(-0.179,0.311,0.060,0.932))", passPinned,
+                passPinned ? 1.0 : 0.0);
   return rep.finish();
 }
 
