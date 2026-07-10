@@ -120,6 +120,84 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // ComputeShader (Gfx/ComputeShader.cs) has NO standalone sw atom — its Source string folds onto the
       // ComputeShaderStage's KernelName (fork computeshader-source-folded-onto-stage, applied in a post-pass
       // in t3_import.cpp). Deliberately NOT in this table (it must NOT become a child); the fold pass handles it.
+
+      // ---- ENGINE_GAP_GLUE.md 發現⑤ (2026-07-10, docs/agent/census/ENGINE_GAP_GLUE.md): a nested .t3 child
+      // whose SymbolId is the guid of ANOTHER TiXL op sw ALREADY has a hand-coded atom for (a "flattened"
+      // op — e.g. SimForceOffset.t3 embeds AddNoise, FadingSlideShow.t3 embeds Blend) used to fall through to
+      // "unmapped SymbolId … skipped" because TABLE ③'s prior 85 rows only covered TiXL's own framework
+      // glue (FloatsToBuffer/GetBufferComponents/…), never sw's OWN ported atoms. SAME mechanism as every row
+      // above (guid → sw findSpec() type NAME) — the data source just widens from the framework whitelist to
+      // node_health.sh's flattened-op census. Regenerate this exact row set: intersect
+      // `node_health.sh --class flattened` (op → TiXL relpath) against every guid that appears as a
+      // `"SymbolId": "<guid>"` value in ANY OTHER .t3 under external/tixl/Operators/Lib (i.e. genuinely
+      // embedded somewhere), keeping only names present verbatim in `--dump-nodespec-types` (a real,
+      // routable findSpec() hit — not a leaf-filename/comment false-positive).
+      //   ★NOT here: guids of flattened ops that have since been RETIRED to a nested .t3 compound (AddNoise/
+      //     BlendPoints/ClearSomePoints/CombineBuffers/MeshVerticesToPoints/ReorientLinePoints/SnapPointsToGrid/
+      //     SnapToPoints/TransformFromClipSpace/TransformPoints/WrapPointPosition — 11 as of this commit).
+      //     Mapping THEIR guid here would route through the wrong branch: t3_import.cpp:223-231 treats any
+      //     non-empty swType as an ATOM (`atomicSymbolFromSpec`, expects `evaluate!=nullptr`+flat ports), but
+      //     a retired op's findSpec(name) now resolves (when it resolves at all) to a COMPOUND spec
+      //     (evaluate==nullptr) via graph_bridge.cpp's name-fallback — atomicSymbolFromSpec would build a
+      //     hollow, childless stand-in instead of the real subgraph. Those guids are correctly left OUT of
+      //     this table; they resolve instead via t3ResolveNestedCompound's GENERIC nested-compound recursion
+      //     (t3_import_recurse.cpp), which already works with ZERO code change the moment the retired op's
+      //     `assets/catalog_t3/<Name>.t3` sits alongside the embedding .t3 in the SAME resolver-indexed
+      //     folder (verified: --probe-import against a copy of SimForceOffset.t3 placed in assets/catalog_t3/
+      //     resolves its embedded AddNoise child cleanly through the already-retired compound).
+      //   ★EXCLUDED (genuine gaps, not fixable by a guid row): `DrawMesh` (no sw atom under any name — TiXL's
+      //     PBR-shaded full mesh draw; sw's DrawMeshUnlit is a materially different, simpler op) and
+      //     `PairPointsForLines`/`PairPointsForSplines` (sw HAS a working cook via `registerPointOp`, but
+      //     NEITHER has a NodeSpec entry in node_registry_point_combine.cpp — findSpec() misses; that is a
+      //     separate NODE-REGISTRATION gap, not a guid-mapping one — flagged for its own lane, not patched here).
+      {"946da16c-f536-4887-b764-af9468f22c0f", "Blur"},                    // image/fx/blur/Blur.t3
+      {"7da55d23-0bd1-457b-a036-9b6b51d2e34b", "BlendWithMask"},           // image/use/BlendWithMask.t3
+      {"27b0e1af-cb2e-4603-83f9-5c9b042d87e6", "Blob"},                    // image/generate/basic/Blob.t3
+      {"1a411be2-1757-4019-8ce2-e29f808ed839", "CheckerBoard"},            // image/generate/basic/CheckerBoard.t3
+      {"42d86738-d644-47c8-ab92-cc426d958e51", "ColorGrade"},              // image/color/ColorGrade.t3
+      {"c276f4eb-f19c-405b-b247-3db159677571", "CombineMeshes"},           // mesh/modify/CombineMeshes.t3
+      {"d5516087-f7dd-44d4-a7e1-3c18767de921", "ConvertColors"},           // image/color/ConvertColors.t3
+      {"2d62dd4b-9597-4569-a09e-495abf880e34", "DepthBufferAsGrayScale"},  // image/use/DepthBufferAsGrayScale.t3
+      {"1b149f1f-529c-4418-ac9d-3871f24a9e38", "Displace"},                // image/fx/distort/Displace.t3
+      {"9123651a-5df8-4f85-9e14-2068f33e2ff1", "DrawBoxGizmo"},            // render/gizmo/DrawBoxGizmo.t3
+      {"1998f949-5c0a-4f39-82cf-b0bda31f7f21", "DrawSphereGizmo"},         // render/gizmo/DrawSphereGizmo.t3
+      {"18251874-5d5a-4384-8dcd-fcf297e54886", "FilterPoints"},            // point/modify/FilterPoints.t3
+      {"5a0b0485-7a55-4bf4-ae23-04f51d890334", "FractalNoise"},            // image/generate/noise/FractalNoise.t3
+      {"b5102fba-f05b-43fc-aa1d-613fe1d68ad2", "Grain"},                   // image/generate/noise/Grain.t3
+      {"592a2b6f-d4e3-43e0-9e73-034cca3b3900", "ImageLevels"},             // image/analyze/ImageLevels.t3
+      {"f7366bdc-86b2-4951-8788-3826126ed8c2", "KochKaleidoskope"},        // image/fx/distort/KochKaleidoskope.t3 (leaf filename forks English spelling; registered NodeSpec.type matches TiXL exactly)
+      {"4ae9e2f5-7cb3-40b0-a662-0662e8cb7c68", "LinePoints"},              // point/generate/LinePoints.t3
+      {"bb4803d2-0c23-470a-94a8-c477e4f7dd8c", "LinearSamplePointAttributes"}, // point/modify/LinearSamplePointAttributes.t3
+      {"191e5057-4da4-447e-b7cf-e9e0ed8c5dd8", "MapPointAttributes"},      // point/modify/MapPointAttributes.t3
+      {"22a3cd4e-02b3-44d7-ad2b-aab5810c5e88", "NGon"},                    // image/generate/basic/NGon.t3
+      {"acc71a14-daad-4b36-b0bc-cf0a796cc5d9", "OrientPoints"},            // point/transform/OrientPoints.t3
+      {"25db2a97-38b2-4503-8842-fab3922d7a6c", "PointTrailFast"},          // point/generate/PointTrailFast.t3
+      {"3352d3a1-ab04-4d0a-bb43-da69095b73fd", "RadialPoints"},            // point/generate/RadialPoints.t3
+      {"ec0675d7-6b72-4b15-b141-80bdd2367cd8", "RandomizePoints"},         // point/modify/RandomizePoints.t3
+      {"4f89b41b-1643-442b-bec8-9f9ef2173baa", "Raster"},                  // image/generate/pattern/Raster.t3
+      {"68e0d0cb-1e57-4e9c-9f22-bd7927ddb4c5", "RecomputeNormals"},        // mesh/modify/RecomputeNormals.t3
+      {"780edb20-f83f-494c-ab17-7015e2311250", "RepeatAtPoints"},          // point/generate/RepeatAtPoints.t3
+      {"bf7fcd04-0cf6-4518-86cc-48f74483d98d", "RoundedRect"},             // image/generate/basic/RoundedRect.t3
+      {"cb28a67e-80cb-460a-8130-00e3cd85b7c2", "RyojiPattern2"},           // image/generate/pattern/RyojiPattern2.t3
+      {"695d20dc-d1fe-4648-80fb-e1159b8aead4", "SelectPointsWithSDF"},     // point/modify/SelectPointsWithSDF.t3
+      {"86b61bcf-4eaa-4f77-a535-8a1dc876aada", "SetPointAttributes"},      // point/modify/SetPointAttributes.t3
+      {"7a08d73e-1aea-479f-8d36-ecb119d75c3a", "SimDirectionalOffset"},    // point/sim/SimDirectionalOffset.t3
+      {"9c378944-9a57-4ae4-a88e-36c07244bcf7", "SimForceOffset"},          // point/sim/SimForceOffset.t3
+      {"5f846187-e109-45d1-97e0-ae95e3e7d9ba", "SimNoiseOffset"},          // point/sim/SimNoiseOffset.t3
+      {"697bbc2d-0b2e-4013-bbc3-d58a28a79f31", "SoftTransformPoints"},     // point/transform/SoftTransformPoints.t3
+      {"1a241222-200b-417d-a8c7-131e3b48cc36", "SpherePoints"},            // point/generate/SpherePoints.t3
+      {"3f0f0c40-482d-4d79-a201-b4651a0cd3a8", "SplitMeshVertices"},       // mesh/modify/SplitMeshVertices.t3
+      {"d9a71078-8296-4a07-b7de-250d4e2b95ac", "Tint"},                    // image/color/Tint.t3
+      // NOTE: 32e18957 (TransformImage) is ALSO kTransformImageGuid (used by t3_import_collapse.cpp's
+      // image-fx collapse pass to ELIDE an identity-copy TransformImage helper — RemapColor.t3 shape). No
+      // conflict: the collapse pass checks that guid literally BEFORE reaching swTypeForSymbolGuid (its own
+      // dedicated pre-check, t3_import_collapse.cpp:193), so it keeps eliding inside a collapse root exactly
+      // as before; THIS row only fires from the generic per-child loop (t3_import.cpp), routing a REAL
+      // (non-collapse-root) TransformImage embedding to sw's actual image-transform atom.
+      {"32e18957-3812-4f64-8663-18454518d005", "TransformImage"},         // image/transform/TransformImage.t3
+      {"026e6917-6e6f-4ee3-b2d4-58f4f1de74c9", "TransformMesh"},           // mesh/modify/TransformMesh.t3
+      {"208a86b5-55cc-460a-86e6-2b17da818494", "TransformMeshUVs"},        // mesh/modify/TransformMeshUVs.t3
+      {"3f955def-cf86-4bd4-be98-ff1adea8c495", "ValueRaster"},             // image/generate/pattern/ValueRaster.t3
   };
   auto it = kTable.find(t3Lc(guid));
   return it != kTable.end() ? it->second : std::string();
