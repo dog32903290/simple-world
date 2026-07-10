@@ -73,12 +73,11 @@ bool frozenEq(const FrozenRenderState& a, const FrozenRenderState& b) {
 
 // The closed-form GridPlane frozen oracle — GridPlane.t3's DepthStencilState + BlendState/RTBD + RasterizerState
 // children transcribed (mirror of point_ops_gridplane.cpp:81-94 gridPlaneFrozenState, which is anon-namespace
-// and thus not linkable here). ONE documented divergence from that hand-crafted tuple: the IMPORTED OutputMerger
-// sets rt.srcA=One (the census alpha-channel convenience constant — t3_import_renderstate.cpp:87-88 DROPS
-// RTBD.SourceAlphaBlend), whereas the hand-crafted GridPlane op reads the raw BlendState's SourceAlphaBlend=
-// SourceAlpha. srcA is the alpha-channel SOURCE factor (unread by the census's opaque-alpha RGBA-target render),
-// so the flat-import path faithfully reproduces every OTHER field of the oracle; this gate anchors the
-// collector's accumulated output to it.
+// and thus not linkable here). BYTE-IDENTICAL to that hand-crafted tuple (S-review batch-3 closed the prior
+// documented divergence: t3_import_renderstate.cpp now captures RTBD.SourceAlphaBlend as an override instead of
+// dropping it, so the flat-import path's OutputMerger reads GridPlane.t3's authored SourceAlphaBlend=SourceAlpha
+// — same as the hand-crafted op — rather than falling back to the OM convenience constant One). gridPlaneSibs()
+// below carries the matching {"SourceAlphaBlend", 2.0f} override on its OutputMerger sibling.
 FrozenRenderState gridPlaneExpected() {
   FrozenRenderState st;  // struct defaults = DX11 (fill Solid, depth Less/Write, blend off, topology TriangleList)
   st.cullMode = (uint32_t)Dx11Cull::None;         // RasterizerState CullMode=None
@@ -88,8 +87,8 @@ FrozenRenderState gridPlaneExpected() {
   st.rt.srcRGB = (uint32_t)Dx11Blend::SrcAlpha;
   st.rt.dstRGB = (uint32_t)Dx11Blend::InvSrcAlpha;
   st.rt.opRGB = (uint32_t)Dx11BlendOp::Add;
-  st.rt.srcA = (uint32_t)Dx11Blend::One;          // ← OM convenience (gridPlaneFrozenState uses SrcAlpha)
-  st.rt.dstA = (uint32_t)Dx11Blend::InvSrcAlpha;  // OM enabled-const = InvSrcAlpha (== GridPlane's DestAlphaBlend)
+  st.rt.srcA = (uint32_t)Dx11Blend::SrcAlpha;     // RTBD's own authored SourceAlphaBlend (now captured)
+  st.rt.dstA = (uint32_t)Dx11Blend::InvSrcAlpha;  // RTBD's authored DestinationAlphaBlend (== the OM default too)
   st.rt.opA = (uint32_t)Dx11BlendOp::Add;
   return st;
 }
@@ -149,6 +148,7 @@ std::vector<Sib> gridPlaneSibs() {
         {"SourceBlend", 2.0f},        // SrcAlpha
         {"DestinationBlend", 3.0f},   // InvSrcAlpha
         {"BlendOp", 0.0f},            // Add
+        {"SourceAlphaBlend", 2.0f},   // SrcAlpha (GridPlane.t3's authored RTBD.SourceAlphaBlend, now captured)
         {"DepthEnable", 1.0f},
         {"DepthWrite", 0.0f},
         {"DepthCompare", 1.0f}}},     // Less

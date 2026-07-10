@@ -27,6 +27,18 @@
 // (TwistAxis outside {0,1,2} -> post-twist position is exactly TwistPivot, since zero-vector + TwistPivot
 // = TwistPivot) as the AMBIGUITY-PINNED expected behavior for THIS transpiled kernel — not a production
 // semantics claim; see selftests_mathv_deformmesh.cpp's dedicated "twistAxisOutOfRangeUB" tooth.
+//
+// UNREACHABLE-FROM-AUTHORED-CONTENT (S-review batch-3, closing the loop so this doesn't get re-dug):
+// the out-of-{0,1,2} case this pin covers can NEVER occur from a real authored .t3 — TwistAxis is
+// declared `InputSlot<int>` with `MappedType = typeof(SetAxis)` (DeformMesh.cs:47-48), where SetAxis
+// is the 3-value enum `{X, Y, Z}` (DeformMesh.cs:57-62, ordinals 0/1/2), AND the .t3ui inspector pins
+// `Min: 0, Max: 2, ClampMin: true, ClampMax: true` on that same slot (DeformMesh.t3ui:91-94) — a
+// combo-box UI with clamped bounds that make 3/4/-1/etc unreachable through the editor. So the pin
+// above is exercised ONLY by this file's synthetic mathv fuzz (which drives TwistAxis outside the
+// authored-legal range on purpose, to nail the transpiler's own UB resolution), never by production
+// content. KEEP the pin as-is (S decision: maintain, not remove) — it is the correct behavior for the
+// unreachable case IF the kernel is ever driven off-spec, and removing it would just make that path
+// silently undefined again.
 #pragma once
 
 #ifdef __METAL_VERSION__

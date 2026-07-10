@@ -337,12 +337,16 @@ uint32_t frozenDeltaForRenderStateOp(const std::string& opType, const std::map<s
     d.rt.srcRGB = (uint32_t)blendFactorFromIndex((int)std::lround(pget(p, "SourceBlend", 1.0f)));       // One
     d.rt.dstRGB = (uint32_t)blendFactorFromIndex((int)std::lround(pget(p, "DestinationBlend", 0.0f)));  // Zero
     d.rt.opRGB  = (uint32_t)blendOpFromIndex((int)std::lround(pget(p, "BlendOp", 0.0f)));               // Add
-    // Alpha channel: SrcAlpha=One; DstAlpha is a CONSTANT InverseSourceAlpha (TiXL DefaultRenderingStates.cs
-    // sets DestinationAlphaBlend=InverseSourceAlpha for BOTH Normal :68 AND Additive :112 — NOT derived from
-    // dstRGB); AlphaOp ALWAYS Add. Blend OFF → opaque One/Zero. (Latched by --selftest-outputmerger-cookthrough.)
-    d.rt.srcA = (uint32_t)Dx11Blend::One;
-    d.rt.dstA = d.rt.enabled ? (uint32_t)Dx11Blend::InvSrcAlpha : (uint32_t)Dx11Blend::Zero;
-    d.rt.opA  = (uint32_t)Dx11BlendOp::Add;
+    // Alpha channel: SourceAlphaBlend/DestinationAlphaBlend/AlphaBlendOperation are real overrides now (S-review
+    // batch-3: t3_import_renderstate.cpp captures RTBD's alpha sub-slots when a .t3 authors them — GridPlane.t3
+    // SourceAlphaBlend=SourceAlpha, PickBlendMode.t3 all three). Unauthored default = TiXL's own convenience
+    // constant (DefaultRenderingStates.cs: srcA=One, dstA=InverseSourceAlpha for BOTH Normal :68 AND Additive
+    // :112 — NOT derived from dstRGB, and NOT conditioned on BlendEnable either per that same source: a disabled
+    // OM never reads rt.srcA/dstA/opA at all, applyFrozenBlend short-circuits before touching them). AlphaOp
+    // default Add. (Latched by --selftest-outputmerger-cookthrough + --selftest-execute-siblings-state gate1.)
+    d.rt.srcA = (uint32_t)blendFactorFromIndex((int)std::lround(pget(p, "SourceAlphaBlend", 1.0f)));       // One
+    d.rt.dstA = (uint32_t)blendFactorFromIndex((int)std::lround(pget(p, "DestinationAlphaBlend", 3.0f)));  // InvSrcAlpha
+    d.rt.opA  = (uint32_t)blendOpFromIndex((int)std::lround(pget(p, "AlphaBlendOperation", 0.0f)));        // Add
     bool depthEnable = pget(p, "DepthEnable", 0.0f) > 0.5f;  // sw 2D default: depth inert (Always/no-write)
     d.depthCompare = depthEnable
         ? (uint32_t)compareFromIndex((int)std::lround(pget(p, "DepthCompare", 1.0f)))  // default Less
