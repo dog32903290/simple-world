@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # tools/agent_worktree_setup.sh — one-shot worktree bootstrap for subagents.
 #
-# Every worktree agent in 批次6–8 independently rediscovered (and paid for) the same三件事:
+# Every worktree agent in 批次6–8 independently rediscovered (and paid for) the same四件事:
 #   1. the worktree opens on a STALE base (often a54b8c0) -> must ff to the main repo's HEAD
 #   2. app/third_party is gitignored vendored code -> missing in the worktree, cmake can't configure
-#   3. cmake configures + builds FROM SCRATCH (~minutes) -> with ccache it's mostly cache hits
+#   3. external/ (external/tixl ground-truth) is gitignored too -> missing in the worktree;
+#      any task that reads TiXL HLSL source (mathv R role, §10 transpiler, parity checks) dies —
+#      three separate mathv agents (波次1–3) manually `ln -s` this before this fix landed.
+#   4. cmake configures + builds FROM SCRATCH (~minutes) -> with ccache it's mostly cache hits
 # This script is the ritual, written down once. Run it as the FIRST command in any worktree:
 #
 #   bash "<main-repo>/tools/agent_worktree_setup.sh"          (from anywhere inside the worktree)
@@ -33,6 +36,15 @@ else
   if [ ! -e "$WT_ROOT/app/third_party" ]; then
     ln -s "$MAIN_ROOT/app/third_party" "$WT_ROOT/app/third_party"
     echo "[worktree-setup] symlinked app/third_party"
+  fi
+
+  # 2b. external/ (gitignored: external/tixl ground-truth + vuo-downloads) -> symlink from the
+  # main tree. `git worktree` never checks out gitignored paths, so a fresh worktree has no
+  # external/tixl at all — any mathv R-role read of TiXL HLSL, or §10 transpiler grep, fails
+  # with a bare "No such file or directory" that looks like a missing-clone problem but isn't.
+  if [ ! -e "$WT_ROOT/external" ]; then
+    ln -s "$MAIN_ROOT/external" "$WT_ROOT/external"
+    echo "[worktree-setup] symlinked external/"
   fi
 fi
 
