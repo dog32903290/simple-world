@@ -70,6 +70,8 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_addnoise";  // 退場: point simplex-noise displace (SRV+UAV)
   if (src.find("points/_internal/SnapPointsToGrid.hlsl") != std::string::npos)
     return "computeshaderstage_snaptogrid";  // 退場: point grid-snap (SRV+UAV)
+  if (src.find("points/modify/ClearSomePoints.hlsl") != std::string::npos)
+    return "computeshaderstage_clearsomepoints";  // 退場: point per-block hash kill (SRV+UAV, b0 float + b1 int)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 

@@ -33,6 +33,8 @@ std::string probeResolveComputeKernel(const std::string& src) {
     return "computeshaderstage_addnoise";
   if (src.find("points/_internal/SnapPointsToGrid.hlsl") != std::string::npos)
     return "computeshaderstage_snaptogrid";
+  if (src.find("points/modify/ClearSomePoints.hlsl") != std::string::npos)
+    return "computeshaderstage_clearsomepoints";
   return src;  // unmapped path → unported
 }
 

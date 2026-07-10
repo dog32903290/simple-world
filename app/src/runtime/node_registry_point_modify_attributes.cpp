@@ -166,31 +166,15 @@ static const PointModifyOp _reg_SoftTransformPoints{
        "point.transform"}
 };
 
-// ---- batch 20 (lane point_modify): ClearSomePoints -------------------------
-// TiXL parity: external/tixl .../point/modify/ClearSomePoints.cs + .hlsl
-// A count-preserving MODIFIER: per-point hash(Resolution,Seed,Repeat,blockIdx) <= Ratio
-// kills the point by setting p.Scale = NAN. Ratio=0 → no kill; Ratio=1 → all killed.
-// Defaults from ClearSomePoints.t3 (GUID-keyed):
-//   Ratio=0.0, Seed=0, Repeat=0, Resolution=0.
-// NOTE: the .cs defines Spaces/OffsetModes/Interpolations enums but NONE are [Input] slots
-// in the .cs source — they are leftover dead code (the .hlsl kernel has no such branches).
-// We match: no enum ports.
-static const PointModifyOp _reg_ClearSomePoints{
-      {"ClearSomePoints",
-       "ClearSomePoints",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // killed output bag (port 1)
-        // .cs Ratio (float, default 0.0) — fraction of points to kill; 0=none, 1=all
-        {"Ratio", "Ratio", "Float", true, 0.0f, 0.0f, 1.0f},
-        // .cs Seed (int, default 0) — hash seed
-        {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 100.0f},
-        // .cs Repeat (int, default 0) — period for the hash pattern; 0 = aperiodic
-        {"Repeat", "Repeat", "Float", true, 0.0f, 0.0f, 1000.0f},
-        // .cs Resolution (int, default 0) — block size; points in same block share one hash
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr,
-       "point.modify"}
-};
+// ---- batch 20 (lane point_modify): ClearSomePoints — RETIRED 2026-07-10 (廢棄節點退場) ---------------
+// The flat ClearSomePoints NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by the
+// nested .t3 compound (assets/catalog_t3/ClearSomePoints.t3, guid e570b2e6…). A human-name reference to
+// "ClearSomePoints" no longer hits this sink — it falls through findSpec's tail to the compound's name
+// alias (graph_bridge.cpp refreshCompoundSpecs). The generic ComputeShaderStage (SRV+UAV, b0 float Ratio +
+// b1 int Seed/Repeat/Resolution) cooks the ABI-repacked computeshaderstage_clearsomepoints.metal. Kernel
+// math stays mathv-verified (selftests_mathv_clearsomepoints.cpp dispatches app/shaders/clearsomepoints.metal);
+// takeover in t3import_clearsomepoints_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5. (Leaf cook
+// point_ops_clearsomepoints.cpp deleted; clearsomepoints_params.h + .metal stay.)
 
 }  // namespace
 }  // namespace sw

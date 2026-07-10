@@ -25,7 +25,8 @@ void registerTransformSomePointsOp();
 //  provides it now; mathv verifies the kernel, t3-wrappointposition-retire the takeover. §5.)
 // (SnapPointsToGrid flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid bc88304a…)
 //  provides it now; mathv verifies the kernel, t3-snappointstogrid-retire the takeover. §5.)
-void registerClearSomePointsOp();
+// (ClearSomePoints flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid e570b2e6…)
+//  provides it now; mathv verifies the kernel, t3-clearsomepoints-retire the takeover. §5.)
 void registerReorientLinePointsOp();
 void registerSelectPointsOp();
 void registerSoftTransformPointsOp();
@@ -68,7 +69,7 @@ void registerPointModifyPointOps() {
   registerTransformSomePointsOp();   // Points → Points (TRS weighted by W channel, lane P, batch 18)
   // WrapPointPosition flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   // SnapPointsToGrid flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
-  registerClearSomePointsOp();       // Points → Points (per-point hash kill, batch 20)
+  // ClearSomePoints flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerReorientLinePointsOp();    // Points → Points (align rotation to line tangent, batch 21)
   registerSelectPointsOp();          // Points → Points (volume selection -> FX1/FX2, batch 21)
   registerSoftTransformPointsOp();   // Points → Points (volume falloff soft transform, batch 21)
