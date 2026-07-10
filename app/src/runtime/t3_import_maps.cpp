@@ -26,6 +26,21 @@ const char* const kCombineBuffersCsInSlot = "d91e52f2-52c6-4533-ac14-f5b2ce8b4c0
 // symbol exposes (positional scalar rail — Hue/Sat/Exposure… land here in wire order).
 const char* const kFxSetupFloatParamsSlot = "2929c4c9-6d6a-47b7-b80e-d7a1f90b6945";
 
+// TEXTURE-COMPUTE COLLAPSE guids (t3_import_texcompute.cpp). Verified against the TiXL .cs [Guid]/[Input]/
+// [Output] and the _ComputeBRDFLookup.t3 child/slot ids.
+const char* const kComputeShaderStageGuid = "8bef116d-7d1c-4c1b-b902-25c1d5e925a9";  // ComputeShaderStage.cs:5
+const char* const kComputeStageUavsSlot = "599384c2-bf6c-4953-be74-d363292ab1c7";    // Uavs (.cs:257-258)
+const char* const kComputeStageOutputSlot = "c382284f-7e37-4eb0-b284-bc735247f26b";  // Output (.cs:8-9)
+const char* const kUavFromTexture2dGuid = "84e02044-3011-4a5e-b76a-c904d9b4557f";    // UavFromTexture2d.cs:3
+const char* const kUavFromTexture2dOutSlot = "83d2dcfd-3850-45d8-bb1b-93fe9c9f4334"; // .cs:6-7 (UAV output)
+const char* const kSrvFromTexture2dGuid = "c2078514-cf1d-439c-a732-0d7b31b5084a";    // SrvFromTexture2d.cs:3 (stage 2)
+const char* const kTexture2dGuid = "f52db9a4-fde9-49ca-9ef7-131825c34e65";           // Texture2d (UAV alloc)
+const char* const kTexture2dFormatSlot = "67cd82c3-504b-4c80-8c49-5b303733ed52";     // Format InputValue
+const char* const kTexture2dSizeSlot = "b77088a9-2676-4caa-809a-5e0f120d25d7";       // Size input
+const char* const kCalcInt2DispatchCountGuid = "cc11774e-82dd-409f-97fb-5be3f2746f9d"; // CalcInt2DispatchCount.cs:3
+const char* const kExecuteTextureUpdateGuid = "6c2f8241-9f4b-451e-8a1d-871631d21163";  // ExecuteTextureUpdate.cs:3
+const char* const kExecuteTextureUpdateOutSlot = "c955f2a2-9823-4844-ac11-98ea07dc50aa"; // Output (.cs:6-7)
+
 // Redundant-subgraph elision guids (rationale in t3_import_maps.h; used by t3_import_collapse.cpp).
 const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5b";
 const char* const kGradientsToTextureGradientsSlot = "588be11f-d0db-4e51-8dbb-92a25408511c";

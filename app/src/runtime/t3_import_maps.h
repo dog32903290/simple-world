@@ -60,6 +60,25 @@ const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& 
 // The fx-setup FloatParams MultiInput slot guid (2929c4c9) — the positional scalar rail all wrappers share.
 extern const char* const kFxSetupFloatParamsSlot;
 
+// ── TEXTURE-COMPUTE COLLAPSE guids (TEXTURE_COMPUTE_SEAM_SPEC §3, t3_import_texcompute.cpp) ────────────
+// A texture-OUT compute .t3 (e.g. _ComputeBRDFLookup) is a fixed subgraph: a ComputeShaderStage whose
+// Uavs is fed by UavFromTexture2d (rail split fork computeshaderstage-splits-by-uav-currency), a Texture2d
+// allocator (Size + Format), a CalcInt2DispatchCount (elided), an ExecuteTextureUpdate forwarder, and a
+// ComputeShader (Source). sw collapses the WHOLE subgraph onto ONE tex-track ComputeShaderStageTex atom.
+// These guids drive the shape detection + fold (SymbolIds + the load-bearing slot ids).
+extern const char* const kComputeShaderStageGuid;        // Gfx/ComputeShaderStage.cs:5 (the stage symbol)
+extern const char* const kComputeStageUavsSlot;          // ComputeShaderStage.Uavs (599384c2)
+extern const char* const kComputeStageOutputSlot;        // ComputeShaderStage.Output (c382284f)
+extern const char* const kUavFromTexture2dGuid;          // render/_dx11/api/UavFromTexture2d.cs:3
+extern const char* const kUavFromTexture2dOutSlot;       // UavFromTexture2d.UnorderedAccessView (83d2dcfd)
+extern const char* const kSrvFromTexture2dGuid;          // render/_dx11/api/SrvFromTexture2d.cs (stage 2 — excludes)
+extern const char* const kTexture2dGuid;                 // Texture2d.cs (f52db9a4, the UAV texture allocator)
+extern const char* const kTexture2dFormatSlot;           // Texture2d.Format InputValue (67cd82c3)
+extern const char* const kTexture2dSizeSlot;             // Texture2d.Size input (b77088a9)
+extern const char* const kCalcInt2DispatchCountGuid;     // render/_dx11/api/CalcInt2DispatchCount.cs:3 (elided)
+extern const char* const kExecuteTextureUpdateGuid;      // render/_dx11/fxsetup/ExecuteTextureUpdate.cs:3
+extern const char* const kExecuteTextureUpdateOutSlot;   // ExecuteTextureUpdate.Output (c955f2a2)
+
 // ── REDUNDANT-SUBGRAPH ELISION guids (used by t3_import_collapse.cpp) ─────────────────────────────────
 // A whole class of image-fx wrappers feed the fx child's ImageB from a GradientsToTexture that renders the
 // root's Gradient boundary → a 1D row; sw's atoms rasterize the Gradient row THEMSELVES from a "Gradient"

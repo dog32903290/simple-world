@@ -184,6 +184,19 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
     }
   }
 
+  // ---- TEXTURE-COMPUTE COLLAPSE (TEXTURE_COMPUTE_SEAM_SPEC §3): a texture-OUT compute .t3 (a
+  // ComputeShaderStage whose Uavs is fed by UavFromTexture2d) collapses onto ONE tex-track
+  // ComputeShaderStageTex atom. SHAPE-detected (not guid-keyed) → generic across the 66 texture-bound
+  // compute compounds. On a non-match (SRV-tex read / extra input children / not the shape) it returns
+  // false and we fall through to the normal per-child map path.
+  if (collapseTextureComputeStage(root, sym, lib, warn, t3uiJson)) {
+    refineInputTypesFromWires(sym, lib);
+    lib.symbols[sym.id] = sym;
+    if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;
+    if (outSymbolId) *outSymbolId = sym.id;
+    return true;
+  }
+
   // ---- TABLE ①: t3 child guid → int childId. Built while walking Children[].
   std::map<std::string, int> childGuidToId;
   std::map<int, std::string> childIdToSwType;
