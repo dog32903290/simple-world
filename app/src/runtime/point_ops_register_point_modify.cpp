@@ -46,7 +46,9 @@ void registerAttributesFromImageChannelsOp();
 void registerLinearSamplePointAttributesOp();
 void registerMapPointAttributesOp();
 void registerSetAttributesWithPointFieldsOp();
-void registerTransformPointsFromClipspaceOp();
+// (TransformPointsFromClipspace flat atom RETIRED 2026-07-10, 廢棄節點退場 — the .t3 compound (guid
+//  81377edc…) provides it now via graph_bridge.cpp's Pass 3 legacy-name alias; mathv verifies the
+//  kernel, t3-transformfromclipspace-retire the takeover. §5.)
 void registerSamplePointsByCameraDistanceOp();
 void registerSortPointsOp();
 void registerMoveToSdfOp();
@@ -89,7 +91,7 @@ void registerPointModifyPointOps() {
   registerLinearSamplePointAttributesOp(); // Points → Points (sample texture by point index, route channels into attributes; texture-into-points seam)
   registerMapPointAttributesOp();          // Points → Points (bake host Curve/Gradient into scratch tex, sample per point; bake-into-point seam)
   registerSetAttributesWithPointFieldsOp();  // Points + FieldPoints(inputs[1]) → Points (gravity-field offset/orient/color/W; 2nd-Points + bake-into-point seam)
-  registerTransformPointsFromClipspaceOp();  // Points → Points (unproject via CameraToWorld; camera-matrix-into-points seam)
+  // TransformPointsFromClipspace flat atom RETIRED (廢棄節點退場) — the .t3 compound provides it now.
   registerSamplePointsByCameraDistanceOp();  // Points → Points (scale W by camera-depth WForDistance curve; camera-matrix + bake-into-point seams)
   registerSortPointsOp();                    // Points → Points (reorder by camera-distance; camera-matrix-into-points seam, converged-sort fork)
   registerMoveToSdfOp();                     // Points → Points (raymarch each point to a wired SDF surface; SDF point-modify seam, direct-Field gather)

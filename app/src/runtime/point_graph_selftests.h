@@ -245,15 +245,11 @@ int runMapPointAttributesSelfTest(bool injectBug);
 // = FieldPoints) + bake-into-point seam; injectBug severs FieldPoints → passthrough → pos/color RED.
 int runSetAttributesWithPointFieldsSelfTest(bool injectBug);
 
-// TransformPointsFromClipspace golden (point_ops_transformpointsfromclipspace.cpp): the FIRST Points op
-// to consume the camera-matrix-into-points seam (PointCookCtx::cameraToWorld). A count-preserving
-// MODIFIER: unproject each point through CameraToWorld (mul(float4(pos,1),CameraToWorld) /w) → Position,
-// and post-multiply its Rotation by qFromMatrix3Precise(transpose(CameraToWorld 3×3)). v1 fork: default
-// camera + identity ObjectToWorld (CameraToWorld = inverse(WorldToCamera)). Golden (4 legs, R-2): direct-
-// cook closed-form (host mat4TransformPointDivW == GPU Position) + flat-driver (PointGraph::cook +
-// debugCookedBuffer) + resident (cookResident production) + a Rotation leg. injectBug binds an IDENTITY
-// CameraToWorld → passthrough → diverges from the unproject expectation → RED.
-int runTransformPointsFromClipspaceSelfTest(bool injectBug);
+// (TransformPointsFromClipspace flat atom + its --selftest-transformpointsfromclipspace RETIRED
+//  2026-07-10, 廢棄節點退場 — the .t3 compound (guid 81377edc…) provides it now via graph_bridge.cpp's
+//  Pass 3 legacy-name alias. Kernel math is mathv-verified (selftests_mathv_transformfromclipspace.cpp
+//  dispatches app/shaders/transformpointsfromclipspace.metal), takeover in
+//  t3import_transformfromclipspace_retire_golden.cpp. See RETIREMENT_BATTLE_SPEC §5.)
 
 // SamplePointsByCameraDistance golden (point_ops_samplepointsbycameradistance.cpp): the SECOND camera-
 // matrix-into-points seam consumer (PointCookCtx::objectToCamera) AND a rider of the bake-into-point seam
