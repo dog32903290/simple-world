@@ -28,6 +28,7 @@
 #include "runtime/graph.h"           // NodeSpec / PortSpec / findSpec
 #include "runtime/graph_bridge.h"    // atomicSymbolFromSpec
 #include "runtime/t3_import_maps.h"  // the tex-compute glue guids
+#include "runtime/t3_import_texcompute_cb.h"  // resolveCbScalar + the CB-source value-op guids (split)
 
 namespace sw {
 
@@ -45,6 +46,17 @@ bool& t3TexComputeCollapseDisable() {
   return flag;
 }
 
+// Test seam (STAGE 2 CB-LIVE ⑤liveness RED tooth): when set, collapseTextureComputeStageSrv forces the
+// WHOLE b0 CB back to BAKED (the pre-CB-live behaviour) instead of WIRING the direct-boundary scalars
+// (Near/Far) live. The liveness gate seeds a non-default Near/Far via buildEvalGraph's boundaryFloatInputs;
+// WIRED → the cooked output tracks the seed, force-BAKED → the output is frozen at the .t3 defaults →
+// diverges from the seeded oracle → BITE. A real cook-path revert, not an assert flip. Mirrors
+// t3TexComputeCollapseDisable(). Default false in production.
+bool& computeShaderStageTexForceBakeCb() {
+  static bool flag = false;
+  return flag;
+}
+
 namespace {
 
 // A child's InputValue string by slot guid (Texture2d.Format / ComputeShader.Source).
@@ -55,102 +67,6 @@ std::string childInputValueStr(const crude_json::value& child, const char* slotG
       return iv["Value"].get<crude_json::string>();
   }
   return std::string();
-}
-
-// ── STAGE 2 CB-trace guids (the value ops that feed FloatsToBuffer.Params in the SRV-tex shape). Baking
-//    the b0 CB = tracing each Params wire (in order == cbuffer layout) back to a boundary scalar through
-//    these 1-hop value ops. File-local: a tracing detail, not part of the shared guid map. ─────────────
-constexpr const char* kIntToFloatSym = "17db8a36-079d-4c83-8a2a-7ea4c1aa49e6";
-constexpr const char* kIntToFloatInSlot = "01809b63-4b4a-47be-9588-98d5998ddb0c";       // IntValue
-constexpr const char* kBoolToFloatSym = "9db2fcbf-54b9-4222-878b-80d1a0dc6edf";
-constexpr const char* kBoolToFloatInSlot = "253b9ae4-fac5-4641-bf0c-d8614606a840";       // BoolValue
-constexpr const char* kBoolToFloatFalseSlot = "24ffa0a7-9195-4b38-9c88-37cf4c3afc36";    // ForFalse (def 0)
-constexpr const char* kBoolToFloatTrueSlot = "0a53a4ff-4dfb-455a-b70b-0d7eed5e5f22";     // ForTrue (def 1)
-constexpr const char* kVec2ComponentsSym = "0946c48b-85d8-4072-8f21-11d17cc6f6cf";
-constexpr const char* kVec2ComponentsInSlot = "36f14238-5bb8-4521-9533-f4d1e8fb802b";    // Value (vec2)
-constexpr const char* kVec2ComponentsYOut = "305d321d-3334-476a-9fa3-4847912a4c58";      // Y output (X = anything else)
-
-// Read a boundary Input[].DefaultValue as a float. comp: 0 = scalar/vec.X, 1 = vec.Y. bool → 0/1.
-float boundaryDefaultFloat(const crude_json::value& root, const std::string& slotId, int comp) {
-  if (!root["Inputs"].is_array()) return 0.0f;
-  for (const crude_json::value& iv : root["Inputs"].get<crude_json::array>()) {
-    if (!iv.is_object() || lc(asStr(iv, "Id")) != lc(slotId)) continue;
-    const crude_json::value& dv = iv["DefaultValue"];
-    if (dv.is_number()) return (float)dv.get<crude_json::number>();
-    if (dv.is_boolean()) return dv.get<crude_json::boolean>() ? 1.0f : 0.0f;
-    if (dv.is_object()) {
-      const char* k = comp == 1 ? "Y" : "X";
-      if (dv[k].is_number()) return (float)dv[k].get<crude_json::number>();
-    }
-    return 0.0f;
-  }
-  return 0.0f;
-}
-
-// The FIRST wire feeding (dstGuid, dstSlot): out (srcGuid, srcSlot). false if none.
-bool wireInto(const crude_json::value& root, const std::string& dstGuid, const std::string& dstSlot,
-              std::string& srcGuid, std::string& srcSlot) {
-  if (!root["Connections"].is_array()) return false;
-  for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
-    if (!wv.is_object()) continue;
-    if (lc(asStr(wv, "TargetParentOrChildId")) == dstGuid && lc(asStr(wv, "TargetSlotId")) == dstSlot) {
-      srcGuid = lc(asStr(wv, "SourceParentOrChildId"));
-      srcSlot = lc(asStr(wv, "SourceSlotId"));
-      return true;
-    }
-  }
-  return false;
-}
-
-// A child's InputValue as a float (numbers/bools), else `def` (BoolToFloat ForTrue/ForFalse fallback).
-float childInputValueFloat(const crude_json::value& child, const char* slotGuid, float def) {
-  if (!child["InputValues"].is_array()) return def;
-  for (const crude_json::value& iv : child["InputValues"].get<crude_json::array>()) {
-    if (!iv.is_object() || lc(asStr(iv, "Id")) != lc(slotGuid)) continue;
-    if (iv["Value"].is_number()) return (float)iv["Value"].get<crude_json::number>();
-    if (iv["Value"].is_boolean()) return iv["Value"].get<crude_json::boolean>() ? 1.0f : 0.0f;
-  }
-  return def;
-}
-
-// The child object with lowercased Id == guid (for reading a value op's InputValues).
-const crude_json::value* childByGuid(const crude_json::value& root, const std::string& guid) {
-  if (!root["Children"].is_array()) return nullptr;
-  for (const crude_json::value& cv : root["Children"].get<crude_json::array>())
-    if (cv.is_object() && lc(asStr(cv, "Id")) == guid) return &cv;
-  return nullptr;
-}
-
-// Resolve ONE FloatsToBuffer.Params source (srcGuid, srcSlot) to a baked CB float, tracing the standard
-// scalar value ops one hop to a boundary Input default (fork computestagetex-cb-defaults-baked):
-//   • boundary            → the boundary scalar default
-//   • IntToFloat          → (float) its IntValue source's boundary int
-//   • BoolToFloat         → its BoolValue source's boundary bool ? ForTrue : ForFalse
-//   • Vector2Components    → its Value source's boundary vec2 [X|Y] (by which output slot fed Params)
-float resolveCbScalar(const crude_json::value& root,
-                      const std::map<std::string, std::string>& childSym, const std::string& srcGuid,
-                      const std::string& srcSlot) {
-  if (isBoundaryGuid(srcGuid)) return boundaryDefaultFloat(root, srcSlot, 0);
-  auto sit = childSym.find(srcGuid);
-  if (sit == childSym.end()) return 0.0f;
-  const std::string& s = sit->second;
-  std::string bg, bs;
-  if (s == kIntToFloatSym) {
-    if (wireInto(root, srcGuid, kIntToFloatInSlot, bg, bs) && isBoundaryGuid(bg))
-      return boundaryDefaultFloat(root, bs, 0);
-  } else if (s == kBoolToFloatSym) {
-    const crude_json::value* cv = childByGuid(root, srcGuid);
-    const float fTrue = cv ? childInputValueFloat(*cv, kBoolToFloatTrueSlot, 1.0f) : 1.0f;
-    const float fFalse = cv ? childInputValueFloat(*cv, kBoolToFloatFalseSlot, 0.0f) : 0.0f;
-    if (wireInto(root, srcGuid, kBoolToFloatInSlot, bg, bs) && isBoundaryGuid(bg))
-      return boundaryDefaultFloat(root, bs, 0) != 0.0f ? fTrue : fFalse;
-    return fFalse;
-  } else if (s == kVec2ComponentsSym) {
-    const int comp = (lc(srcSlot) == std::string(kVec2ComponentsYOut)) ? 1 : 0;
-    if (wireInto(root, srcGuid, kVec2ComponentsInSlot, bg, bs) && isBoundaryGuid(bg))
-      return boundaryDefaultFloat(root, bs, comp);
-  }
-  return 0.0f;
 }
 
 }  // namespace
@@ -298,7 +214,7 @@ bool collapseTextureComputeStageSrv(const crude_json::value& root, Symbol& sym, 
     else if (sid == lc(kGetTextureSizeGuid)) { /* elide (dispatch from SRV GetDimensions) */ }
     else if (sid == lc(kCalcInt2DispatchCountGuid)) { /* elide */ }
     else if (sid == lc(kSamplerStateGuid)) { /* elide (kernel indexes SRV directly, no sampler) */ }
-    else if (sid == kIntToFloatSym || sid == kBoolToFloatSym || sid == kVec2ComponentsSym) { /* CB source */ }
+    else if (sid == kCbIntToFloatSym || sid == kCbBoolToFloatSym || sid == kCbVec2ComponentsSym) { /* CB source */ }
     else sawUnknown = true;
   }
   if (stageGuid.empty() || uavGuid.empty() || srvGuid.empty()) return false;  // not the SRV-tex shape
@@ -327,15 +243,30 @@ bool collapseTextureComputeStageSrv(const crude_json::value& root, Symbol& sym, 
   if (boundaryOutSlot.empty()) { warn("t3 texcompute(srv): no compound output wire, not collapsed"); return false; }
   if (srvBoundaryInSlot.empty()) { warn("t3 texcompute(srv): SRV not fed from a boundary input, not collapsed"); return false; }
 
-  // ── CB trace: bake FloatsToBuffer.Params (in wire order == the cbuffer layout) onto CB0..CB{n-1}. ──
-  std::vector<float> cb;
+  // ── CB trace: FloatsToBuffer.Params in wire order == the cbuffer layout. Each Params source is one of
+  //    two kinds (fork computestagetex-cb-live-boundary-wire, TEXTURE_COMPUTE_SEAM_SPEC §5 row 2 "留白"
+  //    now closed):
+  //      • a DIRECT boundary scalar (Near/Far) → a LIVE WIRE boundary.slot → stage.CB{i}: changing the
+  //        compound's Near/Far input flows through to the kernel (the CB is no longer frozen at import).
+  //      • a value-op-mediated scalar (IntToFloat/BoolToFloat/Vector2Components) → BAKED onto CB{i} (fork
+  //        computestagetex-cb-defaults-baked; live re-wiring THROUGH a value op = a later refinement, the
+  //        CB port is a scalar Float so a vec-component / bool / int op still folds to a constant).
+  //    computeShaderStageTexForceBakeCb() forces the WHOLE CB baked (the ⑤liveness gate's injectBug).
+  struct CbEntry { bool live = false; std::string boundarySlot; float baked = 0.0f; };
+  std::vector<CbEntry> cb;
+  const bool forceBakeCb = computeShaderStageTexForceBakeCb();
   if (!fbGuid.empty()) {
     for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
       if (!wv.is_object()) continue;
-      if (lc(asStr(wv, "TargetParentOrChildId")) == fbGuid &&
-          lc(asStr(wv, "TargetSlotId")) == lc(kFloatsToBufferParamsSlot))
-        cb.push_back(resolveCbScalar(root, childSym, lc(asStr(wv, "SourceParentOrChildId")),
-                                     lc(asStr(wv, "SourceSlotId"))));
+      if (lc(asStr(wv, "TargetParentOrChildId")) != fbGuid ||
+          lc(asStr(wv, "TargetSlotId")) != lc(kFloatsToBufferParamsSlot))
+        continue;
+      const std::string sg = lc(asStr(wv, "SourceParentOrChildId"));
+      const std::string ss = lc(asStr(wv, "SourceSlotId"));
+      CbEntry e;
+      if (!forceBakeCb && isBoundaryGuid(sg)) { e.live = true; e.boundarySlot = ss; }  // direct boundary scalar
+      else e.baked = resolveCbScalar(root, childSym, sg, ss);                            // value-op-mediated / forced
+      cb.push_back(e);
     }
   }
 
@@ -349,7 +280,8 @@ bool collapseTextureComputeStageSrv(const crude_json::value& root, Symbol& sym, 
   stage.id = 1;
   stage.symbolId = "ComputeShaderStageTex";
   if (!kernelSource.empty()) stage.strOverrides["KernelName"] = kernelSource;  // texKernelNameFor at cook
-  for (size_t i = 0; i < cb.size() && i < 8; ++i) stage.overrides["CB" + std::to_string(i)] = cb[i];
+  for (size_t i = 0; i < cb.size() && i < 8; ++i)
+    if (!cb[i].live) stage.overrides["CB" + std::to_string(i)] = cb[i].baked;  // baked entries only
   sym.children.push_back(stage);
   sym.nextChildId = 2;
 
@@ -359,6 +291,17 @@ bool collapseTextureComputeStageSrv(const crude_json::value& root, Symbol& sym, 
   sc.srcChild = kSymbolBoundary; sc.srcSlot = srvBoundaryInSlot;
   sc.dstChild = 1; sc.dstSlot = "ShaderResourceTextures";
   sym.connections.push_back(sc);
+
+  // LIVE CB wires: boundary scalar (Near/Far) → stage.CB{i}. Added after the child so dstChild=1 exists;
+  // at flatten, buildEvalGraph's boundaryFloatInputs seeds these boundary inputs → the CB tracks them
+  // (fork computestagetex-cb-live-boundary-wire). No wire = the CB entry was baked above.
+  for (size_t i = 0; i < cb.size() && i < 8; ++i) {
+    if (!cb[i].live) continue;
+    SymbolConnection cc;
+    cc.srcChild = kSymbolBoundary; cc.srcSlot = cb[i].boundarySlot;
+    cc.dstChild = 1; cc.dstSlot = "CB" + std::to_string(i);
+    sym.connections.push_back(cc);
+  }
 
   // Output wire: stage.Output → boundary output (ExecuteTextureUpdate-less; the stage outputs the texture).
   SymbolConnection oc;
