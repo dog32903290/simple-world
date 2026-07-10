@@ -97,6 +97,12 @@ bool& t3LayoutDisable();
 // brdflookup golden flips this to prove the collapse is the load-bearing takeover seam.
 bool& t3TexComputeCollapseDisable();
 
+// Test-only injection seam (SRV-tex CB-LIVE ⑤liveness RED case): force collapseTextureComputeStageSrv to
+// BAKE the whole b0 CB (Near/Far included) instead of WIRING the direct-boundary scalars live. The depth
+// liveness gate seeds a non-default Near/Far via buildEvalGraph; WIRED tracks the seed, force-BAKED freezes
+// at the .t3 defaults → the seeded oracle diverges → BITE. Off in production.
+bool& computeShaderStageTexForceBakeCb();
+
 // Cheap top-level Id peek: parse ONLY the root object's Id (comment-strip + crude_json + lowercase),
 // matching the sym.id importT3Symbol would assign. Lets the boot catalog skip a .t3 whose symbol is
 // already in the lib WITHOUT a full import. Returns false (outId untouched) when there is no usable Id.

@@ -63,6 +63,10 @@ static const char* kT3ui =
 const char* const kGuid = "ade1d03d-db80-41ad-bcfa-8a2b900e9d41";
 const char* const kDepthBufferInputId = "de65c36d-10a7-446f-a4dd-e55ce42f4203";  // boundary DepthBuffer (Texture2D)
 const char* const kOutputId = "eff29dae-87c5-43a4-856b-51ac3abf567a";            // boundary Output
+// CB-LIVE (task 2): Near/Far are DIRECT-boundary scalars → CB0/CB1 wired LIVE (the rest of the CB is
+// value-op-mediated → baked). These boundary slot ids feed buildEvalGraph's boundaryFloatInputs seed.
+const char* const kNearInputId = "a5f6347a-9c57-46f2-be39-80499b35cdf7";  // boundary Near  → CB0 (live)
+const char* const kFarInputId = "9f42b73c-d6f1-4907-ba55-9fb56514aa23";   // boundary Far   → CB1 (live)
 
 // .t3ui Position constants (verbatim from _ComputeDepthToLinear.t3ui).
 constexpr float kStageX = 523.5577f, kStageY = 31.872314f;      // ComputeShaderStage child
@@ -141,7 +145,12 @@ int runDepthParity(bool injectBug) {
     }
   if (repointed == 0) { printf("[depth-seam] ②parity FAIL: no SRV wire to repoint\n"); pool->release(); return 1; }
 
-  ResidentEvalGraph g = buildEvalGraph(lib, rootId);
+  // CB0/CB1 (Near/Far) are LIVE-wired to the boundary (task 2), so the parity cook must SEED them = the
+  // .t3 defaults [Near,Far] the oracle uses (buildEvalGraph boundary injection = a real parent wiring
+  // producers into Near/Far). CB2..CB5 stay baked. Unseeded → CB0/CB1 fall to the stage-child default (0)
+  // → Near=Far=0 → division blow-up; seeding is the SAME live path the ⑤liveness gate moves off-default.
+  ResidentEvalGraph g =
+      buildEvalGraph(lib, rootId, {{kNearInputId, {kCB[0]}}, {kFarInputId, {kCB[1]}}});
   initResidentCache(g);
 
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
@@ -252,13 +261,23 @@ int runT3DepthToLinearGates(bool injectBug) {
       if (c.srcChild == kSymbolBoundary && c.srcSlot == kDepthBufferInputId &&
           c.dstChild == stage->id && c.dstSlot == "ShaderResourceTextures")
         srvWired = true;
-    // b0 CB baked onto CB0..CB5 == the hand-derived .t3 defaults (INDEPENDENT oracle for the fold).
-    cbOk = true;
-    for (int i = 0; i < 6; ++i) {
+    // b0 CB (task 2 CB-LIVE): CB0/CB1 (Near/Far) are LIVE-WIRED boundary→stage (NOT baked); CB2..CB5
+    // (OutRange/Clamp/Mode, value-op-mediated) stay BAKED == the hand-derived .t3 defaults [0,0,0,0].
+    // A wrong wire target/baked value reddens (INDEPENDENT oracle for the fold's CB extraction).
+    bool cb0Wired = false, cb1Wired = false;
+    for (const SymbolConnection& c : csym->connections)
+      if (c.srcChild == kSymbolBoundary && c.dstChild == stage->id) {
+        if (c.dstSlot == "CB0" && c.srcSlot == kNearInputId) cb0Wired = true;
+        if (c.dstSlot == "CB1" && c.srcSlot == kFarInputId) cb1Wired = true;
+      }
+    const bool cb01NotBaked = !stage->overrides.count("CB0") && !stage->overrides.count("CB1");
+    bool cbBakedOk = true;
+    for (int i = 2; i < 6; ++i) {
       auto it = stage->overrides.find("CB" + std::to_string(i));
       const float v = (it != stage->overrides.end()) ? it->second : 0.0f;
-      if (std::fabs(v - kCB[i]) > 1e-4f) cbOk = false;
+      if (std::fabs(v - kCB[i]) > 1e-4f) cbBakedOk = false;
     }
+    cbOk = cb0Wired && cb1Wired && cb01NotBaked && cbBakedOk;
   }
   const bool g1green = imported && csym && !csym->atomic && stage && noUnmapped && srvWired && cbOk;
   const bool g1bit = imported && (!stage || !noUnmapped);  // -bug: no tex stage + unmapped warnings
