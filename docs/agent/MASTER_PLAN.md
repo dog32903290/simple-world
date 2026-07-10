@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: b19a815
-DIRTY: clean
-CENSUS: 610 / 749 done
-BITE: 741 PASS
-STAMP_AT: 2026-07-10T16:21
+HEAD: d3a8b04
+DIRTY: 1 files
+CENSUS: 611 / 749 done
+BITE: 748 PASS
+STAMP_AT: 2026-07-10T17:44
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -50,7 +50,13 @@ STAMP_AT: 2026-07-10T16:21
 - **texture 縫階段 3 LIVE**：buffer 軌 SRV-tex 承重（跨貨幣 gather 雙 cook 腿+CS_TEX_SRV_BASE 分區+預設 sampler）+GetImageBrightness 封印走 production resident 路徑 diff=0。地形實勘推翻工單兩候選（PointsFromMeshData .Sample 被 TiXL 註解未接線）。誠實留白=sampler 綁而未活驗/CB live 覆寫 defer/importer fold 待合適 .t3——**全歸 stage 4**。
 - **render C 桶首波 1/3+量級地圖修正**：ColorGradeDepth 完工（純 screen-quad+既有縫=小顆半天可批量）；**新 DrawKind 型卡滿版檔瓶頸**（render_command.h 398/400+point_ops_rendertarget.cpp 726 頂格）——先做一次性剝離重構（mesh_pbr_fill.cpp 前例）才能批量；資產型=大（TextGrid 標稱 20 行實為 VS102+CPU 排版+點陣字型資產）。GridPlane 設計已查清（含 fwidth/.x 隱式截斷 quirk 要逐字保留）留騰空間後施工。
 
-**接力待辦（下一棒）**：㈠ render 滿版檔剝離重構（render_command.h+point_ops_rendertarget.cpp 剝 case 騰永久餘裕，mesh_pbr_fill.cpp 前例——C 桶新 DrawKind 批量的前置鑰匙）→ 接著 GridPlane（設計已查清）㈡ transpiler 波次 4（§10 SOP 成熟，buffer-only 存量續）㈢ texture 縫階段 4（多 UAV 出口+CB live 覆寫+sampler 活驗+importer fold）㈣ render-state importer guid 接線（Seam2 機制在）㈤ render C 桶 screen-quad 小顆批量（ColorGradeDepth 前例，量級=小）㈥ field-render 3 顆接線 ㈦ 查退場 agent 的 RETIREMENT_BATTLE_SPEC 孤兒任務 ㈧ PairPointsForLines/Splines 缺 NodeSpec。
+**第五批收官（2026-07-10 16:26-17:44，748/0/0）**：
+- **滿版檔剝離+GridPlane**：剝 Layer2d/ScreenQuad/Lines 三肥 case（rendertarget 726→661 留 65 行/render_command.h 398→340）——**C 桶新 DrawKind 批量門開通**；GridPlane 新 DrawKind 落地（Seam2 frozen 零新 executor 分支+fwidth/.x quirk 逐字保留+閉式雙腿 golden）。
+- **transpiler 波次 4：6 顆全綠（mathv 庫存 31）**——成本回升 ~91k/顆（低垂果實漸少，三次換牌+§10.5 追⑨⑩：provenance 花括號漏 grep 等三隱性覆蓋 pattern+hash-chaos）。GridWalkPoints WRAPPED 分支降級集合成員驗證（手推 Python 排除 ref 錯）——**待 S 抽查此類降級慣例**。
+- **render-state guid 接線**：5 映射+3 fold，probe 實證 render-state 膠水全清（DrawMeshUnlit 19→12/GridPlane 14→5/BlendWithMask 17→9=「缺 shader」誠實態）。**結構性發現=下一縫座標**：TiXL render-state 是 Execute flat siblings 非嵌套 Command 鏈→cook 時 stamp 到不了 sibling Draw——需 S2a collector 學 MultiInput state-accumulation 或 wire 序重合成嵌套。
+- **柏為 chip 合流**：FlipNormals winding reversal（task_ffd899e3，真 parity bug——TiXL 派兩 kernel sw 只 port 一半）。**另三顆 chip session 還在跑**（ODR shared_quat 遷移+lint 閘/EXPECTED-RED 註解[大概率無事可做]/RETIREMENT_BATTLE_SPEC 更新），等結束通知逐顆收，檔域不碰。
+
+**接力待辦（下一棒）**：㈠ **Execute-siblings state 鏈縫**（render-state 接線的結構性發現，63 顆 render 複合 cook 通的承重線——S2a collector MultiInput state-accumulation，承重縫走全工法 Plan 先行）㈡ render C 桶批量（門已開：screen-quad 小顆照 ColorGradeDepth/新 DrawKind 照 GridPlane，剝離餘裕 65 行）㈢ transpiler 波次 5（§10.5 已 ⑩ 條，注意成本回升趨勢，低垂存量或改按需生產）㈣ texture 縫階段 4（多 UAV+CB live+sampler 活驗+importer fold）㈤ field-render 3 顆接線 ㈥ S 抽查波次 3/4 的驗證降級慣例（GridWalkPoints 集合成員/DeformMesh AMBIGUITY-PINNED）㈦ 三顆柏為 chip 等收 ㈧ PairPointsForLines/Splines 缺 NodeSpec。
 
 **★★★戰役主線（柏為 2026-07-09 17:14 令）＝數學驗證 workflow + 全節點完成戰役（memory [[math-verify-workflow-2026-07-09]]，藍圖 `MATH_VERIFY_WORKFLOW.md`）**：五關 mathv → 302 顆 shader 增量過閘、600 CPU 普通 golden → 全節點做完（143 退場+137 未做 shader+129 未做 CPU+82 未做原子）。**模型分層鐵律（柏為 17:32，memory [[model-tiering-explicit-always]]）：每個 Agent 呼叫顯式帶 model——Sonnet 機械/Opus 承重+refuter/Fable 只給 mathv S 語義稽核+最難判斷。**
 - **mathv 工單0 基建 DONE 合流（`c5c4f67` 系，710/0/0 親驗）**：`mathv_harness/input/compare.h` 三 header（重用 ParityHarness）+ `--selftest-mathv-core` 24 meta-row（rot 演練驗過比對器本身）+ golden_lint P5-oracle 硬閘/軟篩（既有三顆 oracle 補 provenance 過閘）+ GOLDEN_STANDARD P5-safe oracle 判準節。
