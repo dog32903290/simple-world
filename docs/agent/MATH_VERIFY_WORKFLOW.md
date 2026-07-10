@@ -145,6 +145,78 @@ fuzz 紅
 
 mul(m,v) 順序/row-vs-col-major（TransformPoints host 矩陣 v·M）｜Euler 順序 yaw/pitch/roll（cfypr 已證）｜floored vs truncated mod（wrappoints NAMED FORK）｜saturate/clamp NaN fast-math 行為｜整數除法截斷與 uint wrap｜HLSL 隱式截斷 vs MSL 顯式｜float3 packing/SW_PACKED3 對齊｜denormal FTZ｜fma 收縮改變捨入｜step/sign 在 0｜normalize(0)/rsqrt 精度｜quaternion 乘法約定（qMulD）｜lerp 參數順序｜frac/pow(neg)/atan2(0,0)｜asuint/asfloat 位技巧｜texture wrap/sRGB｜dispatch 邊界 `idx>=Count` 守衛｜stride 64(SwPoint)/80(SwVertex)｜NaN sentinel 依賴（Particle.BirthTime）｜Metal fast-math 可能把 `isnan()` 摺疊成恆 false——每顆帶 isnan 的 kernel 必須實測 NaN probe 活性（本倉 WrapPointPosition 實測 LIVE）｜transcendental 類 noise-lookup 座標 ill-conditioned（座標量級 ulp≈函式 cell/週期尺度，fast-math 重結合合法落不同 cell；判準見 §2 2b，AddNoise 首例：Frequency=±1e6 特殊值格觸發，denormal 格實測 0 貢獻，S 2026-07-10 拔格實驗 + X bisect 獨立確認）。
 
+## 10. Transpiler 量產工作流（kernel-port 量產版，取代 137 顆未 port kernel 的手刻步驟）
+
+**背景**：137 顆未 port 的 shader body（見頂部帳）過去要靠人手把 TiXL HLSL 逐行翻成 MSL——這是每顆 kernel-port 最貴的步驟，也是唯一沒有機械化的一環（R 寫 CPU ref / D 寫 fuzz driver 都已有 §1.1 的固定形式）。試金石 branch `worktree-agent-ae12359c71deefe72`（commits `0277899`/`07c0c3f`/`2523a07`，2026-07-10）證明**這一步可以完全機械化**：轉換工具鏈把 HLSL body 逐行搬成 MSL，人手只補一份 ~4-12 行的 ABI 轉接層。本節把那個實驗結果制度化成量產 SOP。
+
+### 10.1 工具鏈＋版本＋一行配方
+
+```
+glslang（16.3.0，brew 現成）：HLSL → SPIR-V
+  glslang -D --hlsl-iomap --amb --sbb 0 --sib 8 --sub 16 --stb 24 \
+          -e <EntryName> -S comp -V --target-env vulkan1.0 \
+          -I external/tixl/Operators/Lib/Assets/shaders \
+          external/tixl/.../<Op>.hlsl -o <op>.spv
+
+spirv-cross（1.4.350.1，brew 現成）：SPIR-V → MSL
+  spirv-cross --msl --msl-version 20000 <op>.spv --output <op>_raw.metal
+```
+兩個工具都是 `brew install glslang spirv-cross` 現成二進位，無需編譯、無需 vendor；DXC（DirectX Shader Compiler）路線曾評估但撞版本/平台死路，全倉一律走 glslang+spirv-cross。`--hlsl-iomap --amb --sbb 0 --sib 8 --sub 16 --stb 24` 四個 shift flag 是 SSOT——固定不變，換 op 只換輸入檔名；`-e main`（TiXL 大多數 compute shader 的 entry 名）**不是恆定**，撞到非 `main` entry（如 `sort-1-CleanBucketCounter.hlsl` 的 `ClearBucketCounter`）要照實改 `-e` 值（見 §10.5 限制②）。兩步驟零 CMake 整合——都在轉換階段的暫存檔跑完，落地的只有最終 `.metal`（走 `app/shaders/*.metal` 既有 glob，零編輯）。
+
+### 10.2 每顆流程（轉換→adapter→selftest 閘→分流）
+
+```
+① glslang+spirv-cross 轉換出 <op>_raw.metal（見 §10.1 一行配方）
+② 讀 raw 輸出的 buffer 綁定順序（每顆不同，順序=HLSL 宣告序，SRV/UAV/CB 各自從 0 起算，
+   spirv-cross 用 t#/u#/b# 對應 [[buffer(N)]] 的映射規則不是全域固定值，逐顆讀輸出核對）
+③ 寫 adapter（手動的唯一部分，實測 1-12 行）：
+   - entry 改名：main0 -> <kernel-name>
+   - [[buffer(N)]] 字面數字換成具名 binding enum（純識別字重寫，不動運算式）
+   - 若 HLSL 呼叫過 .GetDimensions()：spirv-cross 會多注入一個 spvBufferSizeConstants
+     [[buffer(25)]] 常數陣列（§10.5 限制①）——adapter 把它換成從 host ABI 算出的一行運算式
+   - 若原 cbuffer 跨兩個 register（b0/b1）：adapter 重組成 host 送來的單一 flat ABI struct
+     視圖（AddNoise 先例：`Params _736 = {AP.Amount, AP.Frequency, ...}`）
+④ 產物落地 `app/shaders/<op>.metal`（body 逐行= raw 輸出 verbatim，只有③改動可見）
+⑤ 寫 mathv_ref_<op>.h（R 角色不變，仍是獨立讀 HLSL 轉錄，見 §10.4 為何雙路徑不衝突）
+⑥ 寫 selftests_mathv_<op>.cpp fuzz driver（D 角色不變，§1.3 direct-dispatch）
+⑦ `--selftest-mathv-<op>` 跑到底 → 綠直接收；紅進 §10.3 分流
+```
+adapter 行數三個實測資料點：AddNoise ~12 行（雙 cbuffer 重組 + GetDimensions 替換）、BRDFLookup 1 行（純 texture kernel，無 CB/SRV/sampler，只需 entry 改名）、本批 SimBlendTo/AppendPoints ~4-6 行（單 cbuffer 已扁平、無 GetDimensions，只需 entry 改名+binding enum 替換）——adapter 成本跟「cbuffer 是否跨暫存器」「是否呼叫 GetDimensions」正相關，不跟 kernel 數學複雜度相關（AddNoise 帶 simplex noise 但 adapter 仍只 12 行；SnapPointsToGrid 數學簡單但 adapter 也要處理同款雙 cbuffer）。
+
+### 10.3 分流判準（紅的兩種對治，不可混淆）
+
+試金石三數據點釘死判準：
+- **AddNoise（5/5 綠）**：sw 現有 kernel 對 raw HLSL **忠實到連陷阱都保留**（RLD=0 的 NaN trap 沒被「修掉」）→ 轉換產物與 sw 現有數學語義本來就相同 → 直接綠。
+- **SnapPointsToGrid（紅，`2523a07`）**：`compared=201984 miss=4608`（2.008% > 1% 閘），**miss 100% 落在 sw 三個具名 hardening fork 上**（`safeGridSize` select 擋 div-by-zero、`idx>=Count` 邊界守衛、`ApplyGainAndBias` vec4→scalar 修正）——identity sentinel 768/0 全過，證明轉換本身結構正確，發散只出現在 sw 刻意加的守衛邊界。
+- **BRDFLookup（1/1 綠，`5b0ae7d`）**：無 CB/SRV/sampler 的純 texture kernel，逐行核對 HLSL（radicalInverse_VdC 位元反轉/sampleGGX alpha=roughness²/Schlick-GGX IBL k）全數吻合。
+
+判準表：
+| 紅的形狀 | 歸因 | 動作 |
+|---|---|---|
+| miss **全部**落在 sw 已具名的 fork 邊界（`safeGridSize`/`idx>=Count`/已知 vec4→scalar 修正等） | **轉換正確，raw HLSL 本身有 sw 刻意不繼承的瑕疵**（div-by-zero/邊界溢位/上游 bug） | 補 1-3 行守衛到轉換產物（照抄 sw 既有 fork 的做法），**不動 ref、不動轉換配方** |
+| miss **散佈**在非 fork 邊界的一般輸入（如隨機層大面積 RED、非邊界值也錯） | 轉換配方本身有問題（binding 錯位/GetDimensions 算錯/矩陣 major 序弄反等）或 ref 轉錄有誤 | 升級：回 §7 失敗路由表（X 手推樣本裁 ref 錯 vs MSL 錯 vs eps 太緊），**不可自行加豁免蓋過去** |
+| miss 全部落在 §2 2b 的 ill-conditioned-lookup 範圍 | transcendental/branchy 既有豁免通道 | 走既有 §2 2b 五判準，跟轉換無關 |
+
+**核心規則**：轉換出紅 ≠ 轉換工具有問題。137 顆未 port 顆多數會落在第一格（sw 過去手刻 port 時已經在同樣的位置踩過坑、加過守衛；轉換產物只是「還沒繼承那些守衛」的乾淨版本）——**這是量產的常態，不是異常**。只有第二格才是真正要停下來查的訊號。
+
+### 10.4 adapter 的 P5 地位（雙獨立路徑，不削弱 R≠MSL-author 的稽核紀律）
+
+§4.1 的隔離規則要求「R（ref 作者）≠ MSL 作者」，目的是防止同一個人的理解錯誤同時滲進 ref 和 kernel 兩邊、讓比對兩邊自我印證假綠。transpiler 量產不改這條規則的精神，因為**adapter 不是數學創作**：
+
+- transpiler 產出的 kernel body 是**機械轉換**（glslang/spirv-cross 的確定性編譯輸出），沒有人在裡面做數學判斷——R≠MSL-author 防的是「人的理解錯誤」，機械轉換沒有「人的理解」可錯。
+- adapter 本身（§10.2③ 那 1-12 行）只碰 ABI 重排（binding 綁定、cbuffer 扁平化、GetDimensions 替換），不碰任何運算式——lint 可機械稽核「body 逐行 verbatim」這件事（diff raw 輸出 vs 落地檔，非 adapter 註記的行必須逐字相同）。
+- R 仍然是**獨立讀 HLSL 轉錄 ref**，全程不看轉換產物（§4.1 隔離不變）——ref 與 kernel 是兩條完全獨立的路徑：一條人手轉錄（R）、一條機械轉換（glslang+spirv-cross），兩者的共同祖先只有 TiXL 原始 HLSL 文字。
+
+**交叉驗證加強而非削弱**：AddNoise 的 rotation tooth 是實證——ref 用 `qFromMatrix3Precise`（R 手推的四元數重建路徑）算出的旋轉，跟轉換產物用 SPIRV-Cross 自動產生的 `transpose(float3x3)` 路徑（完全不同的中間表示法）算出的旋轉，兩條**結構上不相干**的路徑收斂到同一個數值答案（5/5 綠，`07c0c3f`）。若兩條路徑有任一邊藏著理解錯誤，兩條不相干的計算路徑同時錯成同一個答案的機率極低——這比「R 和 D 各自手刻但互相看得到對方在幹嘛」更強的獨立性證據，不是更弱。
+
+### 10.5 限制（撞到就是撞到，不要假裝沒有）
+
+- **① GetDimensions 魔法緩衝**：HLSL 呼叫 `Buffer.GetDimensions()` 時 spirv-cross 會多插入一個 `constant uint* spvBufferSizeConstants [[buffer(25)]]` 常數陣列參數（本批 PointSimulation 實測），kernel body 讀 `spvBufferSizeConstants[N]`（N=該 buffer 的 binding 序）取得 byteSize。adapter 必須決定：要嘛真的多綁一個 buffer(25) 塞入正確的 size 陣列，要嘛（AddNoise/PointSimulation 兩份先例做法）把那行替換成從 host ABI 算出的一行運算式（`uint SourcePoints_1BufferSize = AP.Count * 64u;`）——後者省一個 buffer slot，是本倉慣例。**這行手改必須人核**：GetDimensions 語義是「buffer 的位元組大小」不是「元素數」，替換運算式要對 stride（通常 SwPoint 64B）負責，算錯會讓 bound-guard 悄悄失效。
+- **② entry 改名逐顆讀，非固定 `main`**：多數 TiXL compute shader entry 叫 `main`，但不是全部（sort-1-CleanBucketCounter.hlsl 的 entry 叫 `ClearBucketCounter`）——轉換前先 `grep numthreads -A2` 確認真正的 entry 名，`-e` flag 跟著換，不能假設每顆都是 `main`。
+- **③ binding 順序不是固定公式，逐顆讀轉換輸出核對**：spirv-cross 把 SRV/UAV/CB 各自從宣告序編號、合流進 `[[buffer(N)]]`，但**合流順序=HLSL 原始宣告順序**（不是「CB 永遠 0 開頭」這種全域規則）——AddNoise 是 buffer(0)=SRV/1=UAV/2=CB，SimBlendTo 是 buffer(0)=UAV/1=SRV/2=CB，AppendPoints 是 buffer(0)=CB/1=UAV/2=SRV/3=SRV2。adapter 寫死 binding enum 前必須看那一顆的實際轉換輸出，不能照抄別顆的順序。
+- **④ 雙 cbuffer 需要 adapter 手動重組視圖**：HLSL 用兩個 `register(b0)/register(b1)` cbuffer 時 spirv-cross 各自產生一個 struct（如 AddNoise 的 `Params`/`Params_1`），adapter 要從 host 送來的單一 flat ABI struct 重建這兩個 view（§10.2③ 第三點）——這是 AddNoise 12 行 adapter 裡最貴的部分；本批三顆單 cbuffer op 都不撞這條，adapter 因此壓到個位數行。
+- **⑤ 轉換只搬「這顆 kernel 讀什麼、寫什麼」，佈線鏈不歸這步管**：轉換產物只證明 kernel body 的數學語義（配 mathv 的 R6），dispatch bound / FloatsToBuffer 排布 / MultiInput 順序 / 誰把 buffer 接給誰，仍歸退場②parity 閘（§8）——轉換綠不代表這顆已經可以接 stage、上圖。
+
 ## Critical Files
 - `app/src/turbulence_parity_golden.cpp`（direct-dispatch + CPU-oracle 逐點比對 + 實測校準容差母版 :75-112/:204-256）
 - `app/src/tixl_noise_oracle.h`（合格 CPU ref 的 provenance/float 紀律範本）
