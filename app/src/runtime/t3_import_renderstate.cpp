@@ -84,12 +84,21 @@ const char* const kRsDepthBiasClamp = "2b53507e-24c3-4895-8928-3400c6acccb6";
 const char* const kDsEnableZTest = "956b735b-c38a-4e8e-8186-caf4d36d4d20";
 const char* const kDsEnableZWrite = "2342df71-a162-4db7-afc3-514916239897";
 const char* const kDsComparison = "27f1f703-7333-49e5-a024-4606e34e8427";
-// RenderTargetBlendDescription sub-slots (SourceAlphaBlend/DestinationAlphaBlend/AlphaBlendOperation are
-// NOT read: cookOutputMerger hardcodes the alpha channel per the census fork — point_ops_renderstate.cpp).
+// RenderTargetBlendDescription sub-slots. SourceAlphaBlend/DestinationAlphaBlend/AlphaBlendOperation (S-review
+// batch-3, correcting the prior "census convenience constant" over-generalization): dropping these unconditionally
+// was wrong — that census posture only holds for TiXL's BUILT-IN preset RTBDs (DefaultRenderingStates.cs), not
+// every AUTHORED one. GridPlane.t3:114-136 explicitly authors SourceAlphaBlend=SourceAlpha (≠ the OM convenience
+// constant One) and DestinationAlphaBlend=InverseSourceAlpha; PickBlendMode.t3 has 10 RTBD children, 6 of which
+// author at least one of the 3 alpha fields (1 authors all 3). So these ARE read now and captured as overrides
+// (point_ops_renderstate.cpp's cookOutputMerger reads them via cookParam, falling back to the SAME convenience
+// constant only when a .t3 leaves them unauthored).
 const char* const kRtbdBlendEnabled = "7f535169-8f65-4186-866d-59c2b89d7da2";
 const char* const kRtbdSourceBlend = "56c398ce-fe71-47eb-a33f-11eec8f82e79";
 const char* const kRtbdDestinationBlend = "8dc53fe4-79bb-43e4-9d4a-4e06f9a3214c";
 const char* const kRtbdBlendOperation = "f56e4281-356a-451a-88f1-9cd8ad95d1a5";
+const char* const kRtbdSourceAlphaBlend = "2632af70-5a05-429c-8123-fe280adea655";
+const char* const kRtbdDestinationAlphaBlend = "acc5550b-18ed-4dba-8e69-d5228e2ad850";
+const char* const kRtbdAlphaBlendOperation = "01305a3e-54cc-4f6d-8774-f6ff04b4fec1";
 }  // namespace
 
 // ── TABLE ③b / ②b: the 5 wrapper-op rows (fallback for t3_import_maps.cpp) ─────────────────────────────
@@ -214,6 +223,12 @@ bool captureIfRenderStateValue(const std::string& symbolId, const std::string& c
     if (auto it = iv.find(lc(kRtbdSourceBlend)); it != iv.end()) f["SourceBlend"] = blendOptionIndex(strVal(it->second));
     if (auto it = iv.find(lc(kRtbdDestinationBlend)); it != iv.end()) f["DestinationBlend"] = blendOptionIndex(strVal(it->second));
     if (auto it = iv.find(lc(kRtbdBlendOperation)); it != iv.end()) f["BlendOp"] = blendOpIndex(strVal(it->second));
+    if (auto it = iv.find(lc(kRtbdSourceAlphaBlend)); it != iv.end())
+      f["SourceAlphaBlend"] = blendOptionIndex(strVal(it->second));
+    if (auto it = iv.find(lc(kRtbdDestinationAlphaBlend)); it != iv.end())
+      f["DestinationAlphaBlend"] = blendOptionIndex(strVal(it->second));
+    if (auto it = iv.find(lc(kRtbdAlphaBlendOperation)); it != iv.end())
+      f["AlphaBlendOperation"] = blendOpIndex(strVal(it->second));
     return true;
   }
   return false;

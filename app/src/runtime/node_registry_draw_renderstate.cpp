@@ -41,11 +41,17 @@ const std::vector<NodeSpec>& drawRenderStateSpecs() {
       // separate BlendState currency — same posture as Rasterizer). Census (PLAN §1, BlendState 25 consumers):
       // BlendEnable true×22/false×11; SourceBlend {SrcAlpha,One,Zero,InvDestColor}; DestinationBlend
       // {InvSrcAlpha,One,InvSrcColor,Zero,SrcColor,SrcAlpha}; BlendOp {Add,ReverseSubtract,Min}. ColorWriteMask
-      // hardcoded All (no port). FORKS (named, all dormant/guard per census): AlphaToCoverage / IndependentBlend
-      // (always false → field shipped, path guarded), BlendFactor(constant-color)/BlendSampleMask/StencilRef
-      // (dynamic encoder state, no census wire), RTV/UAV/DSV resource binds (RenderTarget executor owns
-      // attachments), logic-op / dual-source (Bucket-C guards, never fire). Command in → Command out. Defaults =
-      // DX11 OM defaults (BlendEnable FALSE = opaque One/Zero/Add, DepthEnable FALSE = sw 2D depth-inert).
+      // hardcoded All (no port). SourceAlphaBlend/DestinationAlphaBlend/AlphaBlendOperation (S-review batch-3):
+      // real ports now — the RGB triple's alpha-channel counterpart, captured from RTBD by t3_import_renderstate
+      // .cpp when a .t3 authors them (GridPlane.t3/PickBlendMode.t3 do); default = TiXL's own convenience
+      // constant (DefaultRenderingStates.cs: srcA=One, dstA=InverseSourceAlpha for BOTH the Normal AND Additive
+      // presets — NOT derived from dstRGB, NOT conditioned on BlendEnable; a disabled OM never reads them at all,
+      // applyFrozenBlend short-circuits before touching rt.srcA/dstA/opA). FORKS (named, all dormant/guard per
+      // census): AlphaToCoverage / IndependentBlend (always false → field shipped, path guarded), BlendFactor
+      // (constant-color)/BlendSampleMask/StencilRef (dynamic encoder state, no census wire), RTV/UAV/DSV resource
+      // binds (RenderTarget executor owns attachments), logic-op / dual-source (Bucket-C guards, never fire).
+      // Command in → Command out. Defaults = DX11 OM defaults (BlendEnable FALSE = opaque One/Zero/Add,
+      // DepthEnable FALSE = sw 2D depth-inert).
       {"OutputMerger", "OutputMerger",
        {{"command", "command", "Command", true},
         {"out", "out", "Command", false},
@@ -57,6 +63,14 @@ const std::vector<NodeSpec>& drawRenderStateSpecs() {
          {"Zero", "One", "SrcAlpha", "InvSrcAlpha", "SrcColor", "InvSrcColor", "DestColor", "InvDestColor",
           "DestAlpha", "InvDestAlpha"}, true},
         {"BlendOp", "BlendOp", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"Add", "Subtract", "ReverseSubtract", "Min", "Max"}, true},
+        {"SourceAlphaBlend", "SourceAlphaBlend", "Float", true, 1.0f, 0.0f, 9.0f, Widget::Enum,
+         {"Zero", "One", "SrcAlpha", "InvSrcAlpha", "SrcColor", "InvSrcColor", "DestColor", "InvDestColor",
+          "DestAlpha", "InvDestAlpha"}, true},
+        {"DestinationAlphaBlend", "DestinationAlphaBlend", "Float", true, 3.0f, 0.0f, 9.0f, Widget::Enum,
+         {"Zero", "One", "SrcAlpha", "InvSrcAlpha", "SrcColor", "InvSrcColor", "DestColor", "InvDestColor",
+          "DestAlpha", "InvDestAlpha"}, true},
+        {"AlphaBlendOperation", "AlphaBlendOperation", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
          {"Add", "Subtract", "ReverseSubtract", "Min", "Max"}, true},
         {"DepthEnable", "DepthEnable", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
         {"DepthWrite", "DepthWrite", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
