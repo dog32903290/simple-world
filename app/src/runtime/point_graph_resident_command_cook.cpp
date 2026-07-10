@@ -344,15 +344,15 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
             }
           }  // out-of-window: inCmd stays empty (== TimeClipSlot returns before _baseUpdateAction)
         } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
-          RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
-          inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
-          inCmdWireCounts.push_back((uint32_t)sub.items.size());  // spread seam: per-wire boundary
+          FrozenRenderState rsAccum; uint32_t rsAccumMask = 0;  // Execute-siblings render-state SEAM (flat mirror)
+          std::vector<std::string> srcPaths{ri->srcNodePath};   // wire 0 = primary; +extraConns below
           if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires
-            for (const auto& ec : ri->extraConns) {
-              RenderCommand es = cookCommand(ec.first, depth + 1);
-              inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
-              inCmdWireCounts.push_back((uint32_t)es.items.size());  // spread seam (extra wires)
-            }
+            for (const auto& ec : ri->extraConns) srcPaths.push_back(ec.first);
+          for (const std::string& sp : srcPaths) {  // wire order: flat state-setters accumulate, else stamp+concat
+            RenderCommand sub = cookCommand(sp, depth + 1);
+            const ResidentNode* sn = rg.node(sp);
+            concatRenderSibling(sn ? sn->opType : std::string{}, nodeParams(sp), sub, rsAccum, rsAccumMask, inCmd, inCmdWireCounts);
+          }
         }
       }
       cmdVarRestore(varScope, ctxVars);    // S3a restore (SetFloatVar.cs:33-40)

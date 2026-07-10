@@ -130,6 +130,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"inputassembler-cookthrough", runInputAssemblerCookThroughSelfTest}, // Seam 2 IA cook-through: real NodeSpec topology → cookInputAssembler → stamped frozen.topology == census (both legs identical)
     {"draw-explicit", runDrawExplicitSelfTest},                      // Seam 2 Draw cook-through: real NodeSpec VertexCount/Start → cookDrawExplicit → DrawKind::Explicit item (both legs identical)
     {"draw-explicit-topology", runDrawExplicitTopologySelfTest},     // Seam 2 Draw composition: InputAssembler(LineList) wraps Draw → stamped Explicit item's topology == LineList
+    {"execute-siblings-state", runExecuteSiblingsStateSelfTest},     // ★Seam 2 EXECUTE-SIBLINGS state-accum: flat Rasterizer/OM/IA siblings into Execute accumulate + stamp each Draw (4 gates: takeover/order/both-leg/multi-draw; -bug disables accumulation)
 
     {"transformops", runTransformOpsSelfTest},
     {"drawmeshunlit", runDrawMeshUnlitSelfTest},

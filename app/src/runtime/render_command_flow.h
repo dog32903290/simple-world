@@ -7,13 +7,48 @@
 // fork between legs (the S2c/S3a blood lesson). Zone: runtime leaf (no upward deps).
 #pragma once
 
+#include <cstdint>
 #include <functional>
+#include <map>
 #include <string>
+#include <vector>
 
 namespace sw {
 
 struct RenderCommand;    // render_command.h
 struct ContextVarMap;    // stateful_value_ops.h (complete type only where the map is mutated)
+struct FrozenRenderState;  // render_command.h (Seam 2 tuple; helpers below take it by reference only)
+
+// ─── Execute-siblings render-state accumulation seam (EXECUTE_SIBLINGS_STATE_SEAM_SPEC.md) ───
+// TiXL wires Rasterizer/OutputMergerStage/InputAssemblerStage as FLAT SIBLINGS into Execute's
+// MultiInput<Command> (not a nested Command→Command wrap — t3_import_renderstate.cpp ★STRUCTURAL FINDING),
+// so the collector must ACCUMULATE their frozen-state deltas in wire order and STAMP the running tuple onto
+// each Draw sibling (DX11's implicit device-context state machine: a state-setter affects every LATER Draw).
+// These two functions are the SINGLE math BOTH cook legs (point_graph_command_cook.cpp +
+// point_graph_resident_command_cook.cpp) call so flat/resident can NEVER fork (the S2c blood lesson, same
+// posture as switchSelectIndex/loopRunIterations). Defined in point_ops_renderstate.cpp.
+//
+// frozenDeltaForRenderStateOp: opType + its param map → the fields this op sets (outDelta) + a nonzero
+// field-group MASK (0 = not a render-state op). It is the SINGLE param→frozen source both the flat-sibling
+// accumulation AND the existing nested cookRasterizer/cookOutputMerger/cookInputAssembler stamp paths call —
+// so the enum-index tables can never fork between the two paths. `params` may be null (→ struct defaults).
+uint32_t frozenDeltaForRenderStateOp(const std::string& opType,
+                                     const std::map<std::string, float>* params, FrozenRenderState& outDelta);
+// concatRenderSibling: process ONE cooked sibling of an Execute-style MultiInput concat. A FLAT render-state
+// op (frozenDeltaForRenderStateOp mask≠0 AND `sub` produced no items = no Command subtree wired) folds its
+// masked delta into the running (accum, accumMask) — per-stage last-wins — and contributes NO items. Every
+// other sibling gets the running accum STAMPED onto its unstamped items (innermost-wins) then CONCATENATED
+// into `out`, and its item count pushed to `wireCounts` (the spread seam). accumMask==0 (no render-state
+// sibling seen) → the stamp is a no-op → byte-identical to the pre-seam concat (backward compat).
+void concatRenderSibling(const std::string& opType, const std::map<std::string, float>* params,
+                         RenderCommand& sub, FrozenRenderState& accum, uint32_t& accumMask,
+                         RenderCommand& out, std::vector<uint32_t>& wireCounts);
+// -bug DRIVER flag (the Execute-siblings accumulation tooth): true → concatRenderSibling SKIPS the accumulate
+// + stamp (reverts to the pre-seam plain concat) so the flat state-setters contribute nothing and every Draw
+// stays UNSTAMPED → --selftest-execute-siblings-state's four gates go RED. OFF in production (zero behaviour
+// change). A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); parallel to
+// executeCollectFirstOnlyForTest. Defined in point_ops_renderstate.cpp.
+bool& executeSiblingsStateBugForTest();
 
 // S2a test-only DRIVER flag (the MultiInput Command collector tooth): when true, cookCommand's
 // MultiInput Command branch COLLAPSES to the first wire (the `break` bug) instead of concatenating all

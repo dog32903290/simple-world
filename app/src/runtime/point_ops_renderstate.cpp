@@ -28,9 +28,13 @@
 #include "runtime/dx11_metal_state_map.h"  // Dx11Cull/Dx11Fill/Dx11Compare/Dx11Blend* (closed-form ordinals)
 #include "runtime/point_graph.h"           // CmdCookCtx, registerCmdOp, cookParam
 #include "runtime/graph.h"                 // Graph/Node
+#include "runtime/render_command_flow.h"   // frozenDeltaForRenderStateOp / concatRenderSibling (Execute-siblings seam)
 
 #include <cmath>
 #include <cstdint>
+#include <map>
+#include <string>
+#include <vector>
 
 #include <Metal/Metal.hpp>  // the executor applies the frozen rasterizer state onto the encoder
 
@@ -173,14 +177,11 @@ Dx11Fill fillFromIndex(int i) {
 // (leaving blend/depth at the DX11 defaults — this op only owns the rasterizer stage), stamps it onto
 // every unstamped subtree item. Unwired Command → empty chain (TiXL would eval an empty subtree).
 RenderCommand cookRasterizer(CmdCookCtx& c) {
-  if (!c.inputCommand) return RenderCommand{};  // no subtree wired → empty
+  if (!c.inputCommand) return RenderCommand{};  // no subtree wired → empty (flat-sibling: the collector
+                                                // ACCUMULATES this op's delta instead — concatRenderSibling)
   FrozenRenderState st;  // defaults = DX11 defaults (blend off, depth Less/write) — only rasterizer set below
-  st.cullMode = (uint32_t)cullFromIndex((int)std::lround(cookParam(c, "CullMode", 2.0f)));  // .t3 default Back
-  st.fillMode = (uint32_t)fillFromIndex((int)std::lround(cookParam(c, "FillMode", 0.0f)));  // .t3 default Solid
-  st.frontCCW = cookParam(c, "FrontCounterClockwise", 0.0f) > 0.5f;  // DX11 default FALSE (CW front)
-  st.depthBias = cookParam(c, "DepthBias", 0.0f);                    // Bucket-B EMERGENT (deferred golden)
-  st.slopeScaledDepthBias = cookParam(c, "SlopeScaledDepthBias", 0.0f);
-  st.depthBiasClamp = cookParam(c, "DepthBiasClamp", 0.0f);
+  frozenDeltaForRenderStateOp("Rasterizer", c.params, st);  // SINGLE param→frozen source (shared with the
+                                                            // flat-sibling accumulation, so no fork)
   return stampRenderState(*c.inputCommand, st);
 }
 
@@ -247,38 +248,137 @@ Dx11Compare compareFromIndex(int i) {
 // BlendEnable=false → the DX11 default opaque src*One + dst*Zero (blending off); the executor then draws the
 // item with blend disabled (byte-identical to the pre-Seam-2 opaque path for a default tuple).
 RenderCommand cookOutputMerger(CmdCookCtx& c) {
-  if (!c.inputCommand) return RenderCommand{};  // no subtree wired → empty
+  if (!c.inputCommand) return RenderCommand{};  // no subtree wired → empty (flat-sibling: accumulated instead)
   FrozenRenderState st;  // defaults = DX11 defaults (rasterizer Back/Solid/CW untouched by this stage)
-  st.rt.enabled = cookParam(c, "BlendEnable", 0.0f) > 0.5f;   // DX11 default FALSE (opaque)
-  int srcI = (int)std::lround(cookParam(c, "SourceBlend", 1.0f));       // default One
-  int dstI = (int)std::lround(cookParam(c, "DestinationBlend", 0.0f));  // default Zero
-  int opI  = (int)std::lround(cookParam(c, "BlendOp", 0.0f));           // default Add
-  st.rt.srcRGB = (uint32_t)blendFactorFromIndex(srcI);
-  st.rt.dstRGB = (uint32_t)blendFactorFromIndex(dstI);
-  st.rt.opRGB  = (uint32_t)blendOpFromIndex(opI);
-  // Alpha channel (census "Src/Dst/AlphaOp" column, PLAN §1): AlphaOp is ALWAYS Add (the census never wires a
-  // non-Add alpha op — even when the RGB op is ReverseSubtract/Min); SrcAlpha=One; DstAlpha is a CONSTANT
-  // InverseSourceAlpha — NOT derived from the RGB dst. Ground truth: TiXL DefaultRenderingStates.cs sets
-  // DestinationAlphaBlend = BlendOption.InverseSourceAlpha for BOTH DefaultBlendState (Normal, :68) AND
-  // AdditiveBlendState (:112). Deriving dstA from dstRGB was WRONG for Additive (dstRGB=One → dstA would become
-  // One instead of InvSrcAlpha). This is a closed-form constant, latched by --selftest-outputmerger-cookthrough's
-  // Additive case (frozen.rt.dstA == InvSrcAlpha). Blend OFF → opaque One/Zero (dstA=Zero, blend disabled).
-  st.rt.srcA = (uint32_t)Dx11Blend::One;                                          // census: alpha src One
-  st.rt.dstA = st.rt.enabled ? (uint32_t)Dx11Blend::InvSrcAlpha                   // TiXL const: DstAlphaBlend=InvSrcAlpha
-                             : (uint32_t)Dx11Blend::Zero;                         // blend OFF → opaque
-  st.rt.opA  = (uint32_t)Dx11BlendOp::Add;                                        // census: alpha op ALWAYS Add
-  // Depth-stencil half (DX11 default DepthEnable=TRUE / WriteAll / LESS). DepthEnable=false → compare Always +
-  // write off (the executor's depth-disabled state — every 2D kind's effective default → byte-identical).
-  bool depthEnable = cookParam(c, "DepthEnable", 0.0f) > 0.5f;  // sw 2D default: depth inert (Always/no-write)
-  st.depthCompare = depthEnable
-      ? (uint32_t)compareFromIndex((int)std::lround(cookParam(c, "DepthCompare", 1.0f)))  // default Less
-      : (uint32_t)Dx11Compare::Always;
-  st.depthWrite = depthEnable && (cookParam(c, "DepthWrite", 1.0f) > 0.5f);
-  st.alphaToCoverage = false;  // census: never enabled (dormant fork)
+  frozenDeltaForRenderStateOp("OutputMerger", c.params, st);  // blend+depth half; the alpha-channel census
+                                                              // constants live in the shared helper below
   return stampRenderState(*c.inputCommand, st);
 }
 
 void registerOutputMergerOp() { registerCmdOp("OutputMerger", cookOutputMerger); }
+
+// ═══════════════ EXECUTE-SIBLINGS render-state accumulation (EXECUTE_SIBLINGS_STATE_SEAM_SPEC.md) ═══════════════
+// ★NAMED FORK (execute-siblings-state-accumulation, blueprint §3.1 route (a)): TiXL wires the render-state ops
+// as FLAT SIBLINGS into Execute's MultiInput<Command>, not a nested Command→Command wrap (t3_import_renderstate
+// .cpp ★STRUCTURAL FINDING). So the collector ACCUMULATES each flat state-setter's delta in wire order and
+// STAMPS the running tuple onto each Draw sibling (DX11 implicit-device-context semantics: a setter affects
+// every LATER Draw). We chose route (a) over route (b) importer-nested-resynthesis because (a) alone models
+// order-sensitivity (a Draw BEFORE a setter keeps the old state) + multi-Draw sharing — see blueprint §3.2/3.3.
+// The existing NESTED stamp path (cookRasterizer/OM/IA's c.inputCommand branch) is UNTOUCHED — the real corpus
+// never nests; only the both-leg/cookthrough goldens do. This accumulation triggers ONLY for a flat state-setter
+// (mask≠0 AND empty output), so those goldens + every non-render-state graph stay byte-identical.
+namespace {
+// InputAssemblerStage PrimitiveTopology enum index → Dx11Topology ordinal (moved here from
+// point_ops_inputassembler.cpp so frozenDeltaForRenderStateOp is the SINGLE param→frozen source; cook-
+// InputAssembler now calls this helper too). .t3 default index 3 = TriangleList (census: every consumer).
+Dx11Topology topologyFromIndex(int i) {
+  switch (i) {
+    case 0:  return Dx11Topology::PointList;
+    case 1:  return Dx11Topology::LineList;
+    case 2:  return Dx11Topology::LineStrip;
+    case 3:  return Dx11Topology::TriangleList;
+    case 4:  return Dx11Topology::TriangleStrip;
+    default: return Dx11Topology::TriangleList;  // out-of-range → the safe default
+  }
+}
+// Null-safe param lookup with default — the SAME shape as cookParam(CmdCookCtx)=mapParam(c.params,…), so a
+// delta computed here from nodeParams(sib) is byte-identical to what the nested op would compute via cookParam.
+float pget(const std::map<std::string, float>* m, const char* id, float def) {
+  if (!m) return def;
+  auto it = m->find(id);
+  return it != m->end() ? it->second : def;
+}
+// Field-group MASK bits (file-local — the collectors treat the returned mask as opaque: nonzero = render-state
+// op). The FrozenRenderState fields are grouped DISJOINT by stage so per-stage last-wins = DX11 semantics.
+constexpr uint32_t kMaskRaster = 1u << 0;  // fill/cull/frontCCW/depthBias/slope/clamp   (Rasterizer)
+constexpr uint32_t kMaskBlend  = 1u << 1;  // rt.* + alphaToCoverage                      (OutputMerger)
+constexpr uint32_t kMaskDepth  = 1u << 2;  // depthCompare/depthWrite                     (OutputMerger)
+constexpr uint32_t kMaskTopo   = 1u << 3;  // topology                                    (InputAssemblerStage)
+
+// Fold a delta's masked field-groups into the running accumulator (per-stage last-wins; groups disjoint).
+void mergeFrozenDelta(FrozenRenderState& acc, uint32_t& accMask, const FrozenRenderState& d, uint32_t dMask) {
+  if (dMask & kMaskRaster) {
+    acc.fillMode = d.fillMode; acc.cullMode = d.cullMode; acc.frontCCW = d.frontCCW;
+    acc.depthBias = d.depthBias; acc.slopeScaledDepthBias = d.slopeScaledDepthBias;
+    acc.depthBiasClamp = d.depthBiasClamp;
+  }
+  if (dMask & kMaskBlend) { acc.rt = d.rt; acc.alphaToCoverage = d.alphaToCoverage; }
+  if (dMask & kMaskDepth) { acc.depthCompare = d.depthCompare; acc.depthWrite = d.depthWrite; }
+  if (dMask & kMaskTopo)  { acc.topology = d.topology; }
+  accMask |= dMask;
+}
+// Stamp the accumulator's masked fields onto every UNSTAMPED item (hasRenderState=false → innermost-wins: an
+// item a NESTED render-state op already stamped is left alone). accMask==0 → no-op (byte-identical to concat).
+void stampAccumOntoItems(RenderCommand& sub, const FrozenRenderState& acc, uint32_t accMask) {
+  if (accMask == 0) return;
+  for (RenderDrawItem& it : sub.items) {
+    if (it.hasRenderState) continue;
+    uint32_t m = 0;
+    mergeFrozenDelta(it.frozen, m, acc, accMask);  // copy ONLY accMask fields onto the item's default frozen
+    it.hasRenderState = true;
+  }
+}
+}  // namespace
+
+// SINGLE param→frozen source (shared by the nested cookRasterizer/OM/IA AND the flat-sibling accumulation).
+uint32_t frozenDeltaForRenderStateOp(const std::string& opType, const std::map<std::string, float>* p,
+                                     FrozenRenderState& d) {
+  if (opType == "Rasterizer") {
+    d.cullMode = (uint32_t)cullFromIndex((int)std::lround(pget(p, "CullMode", 2.0f)));  // .t3 default Back
+    d.fillMode = (uint32_t)fillFromIndex((int)std::lround(pget(p, "FillMode", 0.0f)));  // .t3 default Solid
+    d.frontCCW = pget(p, "FrontCounterClockwise", 0.0f) > 0.5f;   // DX11 default FALSE (CW front)
+    d.depthBias = pget(p, "DepthBias", 0.0f);                     // Bucket-B EMERGENT (deferred golden)
+    d.slopeScaledDepthBias = pget(p, "SlopeScaledDepthBias", 0.0f);
+    d.depthBiasClamp = pget(p, "DepthBiasClamp", 0.0f);
+    return kMaskRaster;
+  }
+  if (opType == "OutputMerger") {
+    d.rt.enabled = pget(p, "BlendEnable", 0.0f) > 0.5f;                                   // DX11 default FALSE
+    d.rt.srcRGB = (uint32_t)blendFactorFromIndex((int)std::lround(pget(p, "SourceBlend", 1.0f)));       // One
+    d.rt.dstRGB = (uint32_t)blendFactorFromIndex((int)std::lround(pget(p, "DestinationBlend", 0.0f)));  // Zero
+    d.rt.opRGB  = (uint32_t)blendOpFromIndex((int)std::lround(pget(p, "BlendOp", 0.0f)));               // Add
+    // Alpha channel: SrcAlpha=One; DstAlpha is a CONSTANT InverseSourceAlpha (TiXL DefaultRenderingStates.cs
+    // sets DestinationAlphaBlend=InverseSourceAlpha for BOTH Normal :68 AND Additive :112 — NOT derived from
+    // dstRGB); AlphaOp ALWAYS Add. Blend OFF → opaque One/Zero. (Latched by --selftest-outputmerger-cookthrough.)
+    d.rt.srcA = (uint32_t)Dx11Blend::One;
+    d.rt.dstA = d.rt.enabled ? (uint32_t)Dx11Blend::InvSrcAlpha : (uint32_t)Dx11Blend::Zero;
+    d.rt.opA  = (uint32_t)Dx11BlendOp::Add;
+    bool depthEnable = pget(p, "DepthEnable", 0.0f) > 0.5f;  // sw 2D default: depth inert (Always/no-write)
+    d.depthCompare = depthEnable
+        ? (uint32_t)compareFromIndex((int)std::lround(pget(p, "DepthCompare", 1.0f)))  // default Less
+        : (uint32_t)Dx11Compare::Always;
+    d.depthWrite = depthEnable && (pget(p, "DepthWrite", 1.0f) > 0.5f);
+    d.alphaToCoverage = false;  // census: never enabled (dormant fork)
+    return kMaskBlend | kMaskDepth;
+  }
+  if (opType == "InputAssemblerStage") {
+    d.topology = (uint32_t)topologyFromIndex((int)std::lround(pget(p, "PrimitiveTopology", 3.0f)));  // Tri
+    return kMaskTopo;
+  }
+  return 0;  // not a render-state op → mask 0, delta untouched
+}
+
+// The per-wire accumulate-or-concat decision, called by BOTH cook legs (single source → no flat/resident fork).
+bool& executeSiblingsStateBugForTest() {
+  static bool v = false;
+  return v;
+}
+
+void concatRenderSibling(const std::string& opType, const std::map<std::string, float>* params,
+                         RenderCommand& sub, FrozenRenderState& accum, uint32_t& accumMask,
+                         RenderCommand& out, std::vector<uint32_t>& wireCounts) {
+  if (!executeSiblingsStateBugForTest()) {  // -bug OFF (production): accumulate flat state-setters + stamp
+    FrozenRenderState delta;
+    uint32_t m = frozenDeltaForRenderStateOp(opType, params, delta);
+    if (m != 0 && sub.items.empty()) {  // flat state-setter (no Command subtree → empty) → accumulate, no items
+      mergeFrozenDelta(accum, accumMask, delta, m);
+      return;
+    }
+    stampAccumOntoItems(sub, accum, accumMask);
+  }  // -bug ON: skip accumulate+stamp → plain concat (pre-seam) → Draw stays unstamped → the four gates RED
+  out.items.insert(out.items.end(), sub.items.begin(), sub.items.end());
+  wireCounts.push_back((uint32_t)sub.items.size());  // spread seam: per-wire boundary (draw-producing wires)
+}
 
 // ─────────────────────────── BUCKET-C GUARDS (NO-METAL-EQUIVALENT, port-time) ───────────────────────────
 // Two DX11 render-state capabilities have no standard public-Metal path (conversion table §Bucket C): logic-op
