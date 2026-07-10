@@ -332,11 +332,18 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
             }
           }  // out-of-window: inCmd stays empty (== TimeClipSlot returns before _baseUpdateAction)
         } else {
+          // Execute-siblings render-state accumulation (SEAM): a flat Rasterizer/OutputMerger/
+          // InputAssemblerStage sibling folds its frozen delta into rsAccum (wire order); every other sibling
+          // gets rsAccum STAMPED onto its unstamped items then concatenated. rsAccumMask stays 0 when no
+          // render-state sibling appears → concatRenderSibling is a plain concat → byte-identical to pre-seam.
+          FrozenRenderState rsAccum; uint32_t rsAccumMask = 0;
           for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
             if (c.toPin != pinId(id, (int)i)) continue;
-            RenderCommand sub = cookCommand(pinNode(c.fromPin));
-            inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
-            inCmdWireCounts.push_back((uint32_t)sub.items.size());  // spread seam: per-wire boundary
+            const int sib = pinNode(c.fromPin);
+            RenderCommand sub = cookCommand(sib);
+            const Node* sn = g.node(sib);
+            concatRenderSibling(sn ? sn->type : std::string{}, nodeParams(sib), sub, rsAccum, rsAccumMask,
+                                inCmd, inCmdWireCounts);  // accumulate flat state-setters, else stamp+concat
             if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
           }
         }
