@@ -200,7 +200,10 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       {"3f955def-cf86-4bd4-be98-ff1adea8c495", "ValueRaster"},             // image/generate/pattern/ValueRaster.t3
   };
   auto it = kTable.find(t3Lc(guid));
-  return it != kTable.end() ? it->second : std::string();
+  if (it != kTable.end()) return it->second;
+  // Seam 2 RENDER-STATE glue lives in its own table (t3_import_renderstate.cpp) — kept out of kTable
+  // above purely for the line-count ratchet; same guid→type row shape otherwise.
+  return swTypeForRenderStateGuid(guid);
 }
 
 // ---- TABLE ②: (sw op type, t3 slot guid) → sw slot NAME (= PortSpec.id). Per-atom, hand-verified
@@ -380,9 +383,12 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
        }},
   };
   auto t = kTable.find(swType);
-  if (t == kTable.end()) return std::string();
-  auto s = t->second.find(t3Lc(slotGuid));
-  return s != t->second.end() ? s->second : std::string();
+  if (t != kTable.end()) {
+    auto s = t->second.find(t3Lc(slotGuid));
+    if (s != t->second.end()) return s->second;
+  }
+  // Seam 2 RENDER-STATE glue lives in its own table (t3_import_renderstate.cpp) — same reason as above.
+  return swSlotNameForRenderStateGuid(swType, slotGuid);
 }
 
 

@@ -187,6 +187,7 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
   // Fold pass state (computeshader-source-folded-onto-stage): ComputeShader child guid → its Source string.
   // ComputeShader is NOT emitted as an sw child; its Source rides onto the ComputeShaderStage it feeds.
   std::map<std::string, std::string> computeShaderSource;
+  RenderStateFoldState renderStateFold;  // Seam2 struct-value capture (t3_import_renderstate.cpp)
   int nextChildId = 1;
 
   if (root["Children"].is_array()) {
@@ -205,6 +206,7 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
           }
         continue;  // ComputeShader itself is never an sw child
       }
+      if (captureIfRenderStateValue(symbolId, childGuid, cv, renderStateFold)) continue;  // t3_import_renderstate.cpp fold
       std::string swType = swTypeForSymbolGuid(symbolId);
       if (swType.empty()) {
         // NESTED COMPOUND: SymbolId is not a mapped atom. A resolver may supply the child's own .t3 (a
@@ -297,6 +299,8 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
         if (ch.id == dit->second) { ch.strOverrides["KernelName"] = cs->second; break; }
     }
   }
+  // t3_import_renderstate.cpp: RasterizerState/DepthStencilState/(RTBD→BlendState→)OutputMerger fold.
+  foldRenderStateOntoStages(root["Connections"], childGuidToId, childIdToSwType, sym.children, renderStateFold);
 
   // Connections[] → SymbolConnection 4-tuples, ARRAY ORDER PRESERVED (MultiInput order).
   auto slotNameForEndpoint = [&](int childId, const std::string& slotGuid) -> std::string {

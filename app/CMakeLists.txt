@@ -852,6 +852,7 @@ add_executable(simple_world
   src/runtime/t3_import_clips.cpp                  # .t3 per-child TimeClip OutputData parse (DataSet-timeline seam, split for the ≤400 ratchet)
   src/runtime/t3_import_layout.cpp                 # ★.t3ui CANVAS-POSITION seam: SymbolChildUis/InputUis/OutputUis Position → SymbolChild/SlotDef x,y (fixes dive-in-stacks-at-origin, split for the ≤400 ratchet)
   src/runtime/t3_import_texcompute.cpp             # ★TEXTURE-COMPUTE COLLAPSE (TEXTURE_COMPUTE_SEAM_SPEC §3): shape-detected texture-OUT compute .t3 (stage+UavFromTexture2d) → ONE ComputeShaderStageTex atom
+  src/runtime/t3_import_renderstate.cpp            # ★SEAM 2 RENDER-STATE glue: Rasterizer/OutputMerger/InputAssemblerStage/Draw/Execute guid rows + RasterizerState/DepthStencilState/BlendState/RenderTargetBlendDescription fold (split for the ≤400 ratchet)
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/t3import_nestedcompound_golden.cpp   # ★COMPOUND-RECURSION keystone: DrawPointsDOF.t3 recurses TransformPoints into a nested compound → structural + cross-layer parity vs host-matrix oracle; -bug disables recursion → RED
   src/runtime/t3import_layout_golden.cpp           # ★.t3ui LAYOUT keystone: TransformPoints.t3+.t3ui → every child/boundary-pin x,y matches the .t3ui constants (not sw's own output); -bug disables the read → RED (all 0,0)
