@@ -31,6 +31,26 @@
 //   carries them, but main() READS NONE of them (only Amount).  Porting them as operable knobs
 //   would invent controls TiXL itself ignores; we keep only the live Amount param.
 //
+// NAMED FORK — next-neighbour OOB-read guard (genuine TiXL kernel bug, not a translation slip):
+//   TiXL's guard is `if (index <= numStructs - 1 && !isnan(SourcePoints[index + 1].Scale.x))`
+//   (ReorientLinePoints.hlsl:126). Given main()'s earlier `index >= numStructs` early-return already
+//   established `index < numStructs`, the condition `index <= numStructs - 1` is ALGEBRAICALLY
+//   ALWAYS TRUE — the evident intent was `index < numStructs - 1` ("not the last element"), guarding
+//   the `SourcePoints[index + 1]` read just below it. As written, when `index == numStructs - 1` (the
+//   LAST point), the guard never blocks the read: `SourcePoints[numStructs]`, one past the declared
+//   buffer, is read out-of-bounds — undefined per the D3D/Metal spec (real GPUs typically zero-fill
+//   slack capacity past `Count`, presumably why this never visibly misbehaved). sw's GPU buffer is
+//   allocated to EXACTLY `numStructs` slots (no slack), so a literal port would read uninitialized/
+//   OOB device memory. We FORK to a real guard, `index + 1 < numStructs`, so the last point never
+//   triggers a next-neighbour bump (falls back to the previous neighbour instead — the same
+//   "backward difference" outcome an in-bounds TiXL slack-zero-read would produce for a dead
+//   sentinel). mathv_ref_reorientlinepoints.h keeps TiXL's literal always-true condition and
+//   requires callers to supply a `count+1`-element buffer with a caller-chosen padding value at
+//   `in[count]`, so the CPU oracle can reproduce the OOB read's observable divergence on demand;
+//   --selftest-mathv-reorientlinepoints's OOB-last-point quirk probe asserts GPU==ref(padding=NaN)
+//   (this fork's own invariant) while ref(padding=a real point) diverges from both (proving TiXL's
+//   literal bug is real and distinct from this fork, not just an unexercised corner).
+//
 // qAlignForward2 is ported VERBATIM from the .hlsl (the variant the kernel actually calls);
 // the unused qAlignForward / qAlignForward3 helpers are not ported.
 #include <metal_stdlib>
@@ -85,8 +105,8 @@ kernel void reorientlinepoints(
     if (index > 0 && !isnan(SourcePoints[index - 1].Scale.x)) {
         prevIndex--;
     }
-    // TiXL guards index <= numStructs-1; index+1 may equal numStructs (OOB read in HLSL is
-    // clamped/zeroed). We additionally guard index+1 < numStructs to avoid a real OOB read.
+    // NAMED FORK (next-neighbour OOB-read guard) -- see file header NAMED FORKS list. TiXL's guard
+    // `index <= numStructs-1` is always-true (algebraic slip); we guard index+1 < numStructs for real.
     if (index + 1 < numStructs && !isnan(SourcePoints[index + 1].Scale.x)) {
         nextIndex++;
     }

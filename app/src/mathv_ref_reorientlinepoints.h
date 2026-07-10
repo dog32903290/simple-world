@@ -25,7 +25,11 @@
 //
 // Cross-checked against the C# op at
 // external/tixl/Operators/Lib/point/transform/ReorientLinePoints.cs:7-26 -- Amount/Center/UpVector/
-// WIsWeight/Flip input slots line up 1:1 with the cbuffer field NAMES, but see the NOTED-QUIRK below:
+// WIsWeight/Flip input slots line up 1:1 IN COUNT AND ORDER with the cbuffer fields (:9/:8/:10/:11/
+// :12) -- NOT by literal name: C#'s `WIsWeight` (.cs:23) corresponds to the cbuffer's
+// `UseWAsWeight` (:11), a renamed-but-otherwise-1:1 field, the one non-exact pairing in the list
+// (R-comment correction 2026-07-10 -- the prior wording claimed name-for-name equality, which is
+// false for this one field; every OTHER slot name is a literal match). See the NOTED-QUIRK below:
 // Center/UpVector/UseWAsWeight/Flip are all DEAD ABI -- declared in the cbuffer and wired from C#
 // inputs, but never read anywhere in main() or either qAlignForward variant it calls. Only Amount is
 // live. Transcribed verbatim (this is TiXL's own kernel, not a translation slip); flagged for S in
@@ -264,8 +268,18 @@ inline bool mathvRefReorientLinePointsSelfCheck() {
           approxEq(out.Rotation.z, 0.0f) && approxEq(out.Rotation.w, 1.0f) &&
           approxEq(out.Position.x, 5.0f);
   }
-  {  // case B: qAlignForward2 in isolation, forward=(0,0,1) (z-axis) with q=identity -> num8=3>0
-     // branch of qLookAt yields q=(0,0,0,1) exactly (see file header hand-derivation).
+  {  // case B: qAlignForward2 in isolation, forward=(0,0,1) (z-axis) with q=identity. OWN hand-
+     // derivation (R-comment correction 2026-07-10 -- the prior wording pointed at "file header
+     // hand-derivation", but that derivation is for forward=(1,0,0) (cases A/C/E, num8=1); this is a
+     // DIFFERENT input and was never actually walked through there):
+     //   oldUp = qRotateVec3((0,1,0), identity) = (0,1,0) (identity leaves any vector unchanged).
+     //   d = dot((0,1,0),(0,0,1)) = 0 -> projUp = (0,1,0); length=1, not <1e-5 -> normalize -> (0,1,0).
+     //   qLookAt(forward=(0,0,1), up=-(0,1,0)=(0,-1,0)):
+     //     right = normalize(cross((0,0,1),(0,-1,0))) = normalize((1,0,0)) = (1,0,0).
+     //     up = normalize(cross((0,0,1),(1,0,0))) = normalize((0,1,0)) = (0,1,0).
+     //     m00=1,m11=1,m22=1 -> num8=3>0 -> num=sqrt(4)=2; q.w=1; num=0.5/2=0.25;
+     //     q.x=(m12-m21)*0.25=0; q.y=(m20-m02)*0.25=0; q.z=(m01-m10)*0.25=0.
+     //   => target = (0,0,0,1) exactly (identity in, identity out for this axis-aligned input).
     quat::Quat q = qAlignForward2({0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f});
     ok &= approxEq(q.x, 0.0f) && approxEq(q.y, 0.0f) && approxEq(q.z, 0.0f) && approxEq(q.w, 1.0f);
   }

@@ -44,6 +44,19 @@ app/src/selftests_mathv_<op>.cpp 關2 每 op fuzz TU（agent-D 寫）：域+disp
 ### 1.5 injectBug（P1-safe 咬合）
 `-bug` 腿在**送 GPU 的 params 上**注入微擾（第一個 float +1e-2），CPU ref 收原值 → 必然分岔 → 比對器必翻紅才算牙活。腐蝕真 dispatch 路徑非 want-flip；did-not-trip `return 0`。擾動參數必須選輸出**連續依賴**的（勿選僅經離散分支影響輸出的參數，如 wrap 的 Center——會咬合 margin 趨零）。
 
+**已知限制（X flag，跨 op 慣例級，2026-07-10，harness backlog，非阻斷）：`-bug` 腿目前只咬 PRIMARY 牙。**
+每個 Tier-H 直接 dispatch op（`selftests_mathv_<op>.cpp` 手刻多顆 tooth 的形狀，如 BlendPoints/
+SnapPointsToGrid/ReorientLinePoints）的 `runMathv<Op>SelfTest(bool injectBug)` 入口都是
+`if (injectBug) return mathvVerdictToExit(checkPrimaryTooth(disp, true, ...), true, opName);`——
+**只重跑 PRIMARY/main tooth**，其餘牙（identity sentinel、quirk probes、branch-coverage 等）在
+injectBug=true 下完全不執行。若那些牙自己的比對邏輯壞掉（例如 identity tooth 的容差、quirk probe 的
+gate 判斷），`--bite` 咬不到——因為它們從未在擾動路徑下跑過一次。（唯一例外：走
+`mathv_harness.h::runMathvFuzz` 通用 3 層 harness 的 op，因為 `gpuParams()` 擾動包在 `runCompare`/
+`runSmoke`/identity 迴圈的每一次 GPU 呼叫外層，所以 identity sentinel 也連帶被咬——通用 harness 沒有
+這個洞，只有手刻多牙 TU 有。）**建議修法**：新 op 的 D 工單應對每根牙（不只 PRIMARY）都做一次
+injectBug 敏感性檢查——或至少每根手刻 tooth 自己判斷是否值得被 -bug 咬（有些牙如 quirk probe 本身就是
+釘死已知分岔的 pin，不見得需要二次咬合）。既有 op 不強制回頭補（backlog 級，不阻斷量產）。
+
 ## 2. epsilon 策略（每顆 `MathvCase::EpsSpec`，調整必附實測推導註記——turbulence :227-233 是範本）
 
 1. **exact 類**（加減乘/mod/select/swizzle/仿射）：`|a−b| ≤ atol + rtol·max(|a|,|b|)`，atol=1e-6、rtol=1e-5，100% 樣本過。

@@ -6,6 +6,11 @@
 // `ref(P,e,out)` signature can't carry it — every tooth below is a direct Comparator batch
 // (addnoise.cpp's TOOTH ROTATION shape, as the whole test, not a PRIMARY-layer supplement).
 //
+// Shared dispatch adapter + corpus/classification helpers live in
+// selftests_mathv_reorientlinepoints_shared.h (§1.4 split — the qSlerp clamp-hi/-lo coverage tooth
+// added 2026-07-10, selftests_mathv_reorientlinepoints_probes.cpp, didn't fit this file's own
+// 400-line budget).
+//
 // ParamDomain: ReorientLinePoints.t3ui:16-25 Amount Min=0.0 Max=1.0 ClampMin/ClampMax=true — the only
 // live ABI field (Center/UpVector/WIsWeight/Flip are declared but never read; sw drops them, no slot).
 //
@@ -18,20 +23,25 @@
 // live `*out=p` pre-copy) — checked with equal rigor, same corpus.
 //
 // BRANCH COVERAGE (quat 分支覆蓋 batch-tag): qLookAt has 4 branches (trace>0/m00/m11/else-dominant),
-// qSlerp has 5 (clamp-hi/-lo, acos±flip, linear±flip). classifyQLookAt/classifyQSlerp are
-// INSTRUMENTATION ONLY (replicate the already-oracled branch CONDITIONS for bucketing, never
-// substitute for the compared value); every Rotation-lane compare is tagged with both, gated >=3/4
-// and >=3/5. clamp-hi/-lo have no simple closed-form trigger and are not engineered — noted, not required.
+// qSlerp has 6 (clamp-hi, clamp-lo, acos-direct, acos-flipped, linear-direct, linear-flipped).
+// classifyQLookAt/classifyQSlerp (shared.h) are INSTRUMENTATION ONLY (replicate the already-oracled
+// branch CONDITIONS for bucketing, never substitute for the compared value); every Rotation-lane
+// compare is tagged with both. clamp-hi/-lo have no simple closed-form trigger through random fuzz
+// alone (measure-zero to land on an exact float boundary by chance) — checkClampBranchTooth (probes
+// TU) engineers them deterministically instead and folds its hits into the SAME slerpCov map, so the
+// gate below requires the full 6/6 once both sources are merged (MASTER_PLAN.md 接力待辦 ㈢ D "clamp
+// 補牙 6-6", 2026-07-10; qLookAt's >=3/4 floor is unchanged by this fix).
 //
 // QUIRK PROBES: 1. NO-WRITEBACK (ref :119-130) — TiXL's early `return;` leaves ResultPoints[idx]
 // UNWRITTEN; reorientlinepoints.metal FORKS to an explicit copy-through. Probed on all 3 early-return
 // conditions: GPU copy-through must equal ref-called-with-its-documented-preseed contract
 // (`out[i]=in[i]` before the call) — pinned parity. A naive zero-init call (the oracle's documented
 // usage TRAP) is shown diverging too — printed, not gated. 2. OOB-READ at the last point (ref
-// :132-148, metal NAMED FORK "guard index+1<numStructs") — sw's GPU buffer has no slot `count`, so
-// GPU always behaves as if the padding were NaN. ref(padding=NaN)==GPU is the fork's own invariant
+// :132-148, metal NAMED FORK "next-neighbour OOB-read guard") — sw's GPU buffer has no slot `count`,
+// so GPU always behaves as if the padding were NaN. ref(padding=NaN)==GPU is the fork's own invariant
 // (pinned); ref(padding=a real differing point) reproduces TiXL's literal OOB-read bug and diverges
 // from GPU (documented NAMED FORK, sanity-asserted to actually differ, proving the probe fired).
+// 3. qSlerp CLAMP-HI/-LO branch coverage (probes TU) — see BRANCH COVERAGE above.
 //
 // ZONE: shell tier (app/src/ root, mathv support). Crosses runtime only for SwPoint + params ABI.
 #include "mathv_harness.h"
@@ -39,6 +49,7 @@
 #include "runtime/reorientlinepoints_params.h"
 #include "runtime/selftest_registry.h"
 #include "runtime/tixl_point.h"
+#include "selftests_mathv_reorientlinepoints_shared.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -53,141 +64,13 @@ namespace sw {
 namespace {
 using mathv::Comparator;
 using mathv::EpsSpec;
-using mathv::ParamDomain;
 using mathv::Rng;
-
-// direct-kernel dispatch adapter. `amount` is the sole live ABI param; GPU buffer is allocated to
-// EXACTLY `in.size()` slots (no padding — the metal guard never reads past it, see quirk 2).
-struct ReorientDispatch {
-  MTL::Device* dev;
-  MTL::CommandQueue* queue;
-  MTL::ComputePipelineState* pso = nullptr;
-  bool ok = false;
-  ReorientDispatch(MTL::Device* d, MTL::CommandQueue* q, MTL::Library* lib) : dev(d), queue(q) {
-    MTL::Function* fn =
-        lib->newFunction(NS::String::string("reorientlinepoints", NS::UTF8StringEncoding));
-    if (!fn) return;
-    NS::Error* err = nullptr;
-    pso = dev->newComputePipelineState(fn, &err);
-    fn->release();
-    ok = pso != nullptr;
-  }
-  ~ReorientDispatch() { if (pso) pso->release(); }
-  ReorientDispatch(const ReorientDispatch&) = delete;
-  bool dispatch(float amount, const std::vector<SwPoint>& in, std::vector<SwPoint>& out) const {
-    if (!ok) return false;
-    const uint32_t n = (uint32_t)in.size();
-    out.clear();
-    if (n == 0) return true;
-    MTL::Buffer* srcBuf = dev->newBuffer(in.data(), (NS::UInteger)(n * sizeof(SwPoint)),
-                                        MTL::ResourceStorageModeShared);
-    MTL::Buffer* dstBuf = dev->newBuffer((NS::UInteger)(n * sizeof(SwPoint)),
-                                        MTL::ResourceStorageModeShared);
-    ReorientLineParams P{}; P.Count = n; P.Amount = amount;
-    MTL::CommandBuffer* cmd = queue->commandBuffer();
-    MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
-    enc->setComputePipelineState(pso);
-    enc->setBuffer(srcBuf, 0, REORIENTLINE_SourcePoints);
-    enc->setBuffer(dstBuf, 0, REORIENTLINE_ResultPoints);
-    enc->setBytes(&P, sizeof(P), REORIENTLINE_Params);
-    const uint32_t tg = 64;
-    enc->dispatchThreadgroups(MTL::Size::Make((n + tg - 1) / tg, 1, 1), MTL::Size::Make(tg, 1, 1));
-    enc->endEncoding();
-    cmd->commit();
-    cmd->waitUntilCompleted();
-    out.assign(n, SwPoint{});
-    std::memcpy(out.data(), dstBuf->contents(), (size_t)n * sizeof(SwPoint));
-    srcBuf->release(); dstBuf->release();
-    return true;
-  }
-};
-const std::vector<ParamDomain>& paramTable() {
-  static const std::vector<ParamDomain> t = {
-      {"Amount", 0.0f, 1.0f, ParamDomain::Linear,
-       "external/tixl ReorientLinePoints.t3ui:16-25 Amount Min=0.0 Max=1.0 ClampMin/ClampMax=true"},
-  };
-  return t;
-}
-
-// Random UNIT quaternion (axis-angle) — same shape as addnoise.cpp's (each mathv TU duplicates it).
-struct QuatF { float x, y, z, w; };
-QuatF randomUnitQuat(Rng& rng) {
-  float ax, ay, az, len2;
-  do {
-    ax = rng.uniform(-1.0f, 1.0f); ay = rng.uniform(-1.0f, 1.0f); az = rng.uniform(-1.0f, 1.0f);
-    len2 = ax * ax + ay * ay + az * az;
-  } while (len2 < 1e-4f);
-  float invLen = 1.0f / std::sqrt(len2);
-  ax *= invLen; ay *= invLen; az *= invLen;
-  float theta = rng.uniform(0.0f, 6.2831853f);
-  float s = std::sin(theta * 0.5f), c = std::cos(theta * 0.5f);
-  return {ax * s, ay * s, az * s, c};
-}
-// Random-WALK polyline (not an independent point cloud): consecutive alive points carry a
-// meaningful, varying tangent. Interior points (never 0/n-1) become a "line break" (NaN Scale.x)
-// sentinel at `breakProb`; the rest get a random-in-domain Scale.x doubling as the alive flag.
-std::vector<SwPoint> buildRandomPolyline(Rng& rng, size_t n, float breakProb) {
-  std::vector<SwPoint> pts(n);
-  float x = 0.0f, y = 0.0f, z = 0.0f;
-  for (size_t i = 0; i < n; ++i) {
-    if (i > 0) {
-      float dx = rng.uniform(-1.0f, 1.0f), dy = rng.uniform(-1.0f, 1.0f), dz = rng.uniform(-1.0f, 1.0f);
-      float len = std::sqrt(dx * dx + dy * dy + dz * dz);
-      if (len < 1e-6f) { dx = 1.0f; dy = 0.0f; dz = 0.0f; len = 1.0f; }
-      float step = rng.uniform(0.2f, 2.0f);
-      x += dx / len * step; y += dy / len * step; z += dz / len * step;
-    }
-    SwPoint p{};
-    p.Position = SW_PACKED3{x, y, z};
-    QuatF q = randomUnitQuat(rng);
-    p.Rotation = SW_FLOAT4{q.x, q.y, q.z, q.w};
-    p.Color = SW_FLOAT4{rng.uniform(0.0f, 1.0f), rng.uniform(0.0f, 1.0f), rng.uniform(0.0f, 1.0f),
-                        rng.uniform(0.0f, 1.0f)};
-    p.Scale = SW_PACKED3{rng.uniform(0.1f, 3.0f), rng.uniform(-4.0f, 4.0f), rng.uniform(-4.0f, 4.0f)};
-    p.FX1 = rng.uniform(-4.0f, 4.0f);
-    p.FX2 = rng.uniform(-4.0f, 4.0f);
-    pts[i] = p;
-  }
-  if (breakProb > 0.0f)
-    for (size_t i = 1; i + 1 < n; ++i)
-      if (rng.uniform(0.0f, 1.0f) < breakProb)
-        pts[i].Scale.x = std::numeric_limits<float>::quiet_NaN();
-  return pts;
-}
-// BRANCH CLASSIFICATION (instrumentation only, mirrors the already-oracled branch conditions, purely
-// for evidence bucketing — never substitutes for the compared value).
-const char* classifyQLookAt(mathv_ref::quat::Vec3 dir, mathv_ref::quat::Quat curRot) {
-  using namespace mathv_ref::quat;
-  Vec3 fwd = hlslNormalize3(dir);
-  Vec3 oldUp = qRotateVec3({0.0f, 1.0f, 0.0f}, curRot);
-  float d = hlslDot3(oldUp, fwd);
-  Vec3 projUp{oldUp.x - fwd.x * d, oldUp.y - fwd.y * d, oldUp.z - fwd.z * d};
-  if (hlslLength3(projUp) < 1e-5f) {
-    Vec3 axis = std::fabs(fwd.x) < 0.9f ? Vec3{1.0f, 0.0f, 0.0f} : Vec3{0.0f, 1.0f, 0.0f};
-    projUp = hlslNormalize3(axis);
-    float d2 = hlslDot3(projUp, fwd);
-    projUp = hlslNormalize3({projUp.x - fwd.x * d2, projUp.y - fwd.y * d2, projUp.z - fwd.z * d2});
-  } else {
-    projUp = hlslNormalize3(projUp);
-  }
-  Vec3 up{-projUp.x, -projUp.y, -projUp.z};
-  Vec3 right = hlslNormalize3(hlslCross3(fwd, up));
-  Vec3 up2 = hlslNormalize3(hlslCross3(fwd, right));
-  float num8 = right.x + up2.y + fwd.z;
-  if (num8 > 0.0f) return "qlookat-trace-pos";
-  if (right.x >= up2.y && right.x >= fwd.z) return "qlookat-m00-dominant";
-  if (up2.y > fwd.z) return "qlookat-m11-dominant";
-  return "qlookat-else-m22-dominant";
-}
-const char* classifyQSlerp(mathv_ref::quat::Quat a, mathv_ref::quat::Quat b) {
-  float cosHalf = a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
-  if (cosHalf >= 1.0f) return "qslerp-clamp-hi";
-  if (cosHalf <= -1.0f) return "qslerp-clamp-lo";
-  bool flipped = cosHalf < 0.0f;
-  float eff = flipped ? -cosHalf : cosHalf;
-  if (eff < 0.99f) return flipped ? "qslerp-acos-flipped" : "qslerp-acos-direct";
-  return flipped ? "qslerp-linear-flipped" : "qslerp-linear-direct";
-}
+using mathv_rlp_shared::buildRandomPolyline;
+using mathv_rlp_shared::classifyQLookAt;
+using mathv_rlp_shared::classifyQSlerp;
+using mathv_rlp_shared::mkPt;
+using mathv_rlp_shared::paramTable;
+using mathv_rlp_shared::ReorientDispatch;
 
 // MAIN TOOTH: random-line rotation parity (transcendental) + passthrough (exact) on the SAME corpus.
 // injectBug: GPU-side amount += 1e-2 (§1.5 — Amount is params[0], the sole live ABI slot).
@@ -228,8 +111,9 @@ bool checkMainTooth(const ReorientDispatch& disp, bool injectBug,
       uint32_t prevIndex = (uint32_t)i, nextIndex = (uint32_t)i;
       if (i > 0 && !std::isnan(line[i - 1].Scale.x)) prevIndex = (uint32_t)(i - 1);
       if (i + 1 <= n && !std::isnan(inPadded[i + 1].Scale.x)) nextIndex = (uint32_t)(i + 1);
-      // batch tag = a STATIC string literal (Evidence stores a raw `const char*`, not a copy — a
-      // per-iteration snprintf buffer would dangle by print() time; only literals are safe here).
+      // batch tag = a STATIC string literal. Comparator::Evidence copies it into a std::string at
+      // record time (mathv_compare.h, stack-use-after-scope fix 2026-07-10 — a per-iteration
+      // snprintf'd tag used to dangle by print() time), but literals remain the simplest safe choice.
       const char* tag = "no-tangent";
       if (!std::isnan(line[i].Scale.x) && prevIndex != nextIndex) {
         mathv_ref::quat::Vec3 v{inPadded[nextIndex].Position.x - inPadded[prevIndex].Position.x,
@@ -277,13 +161,6 @@ bool checkIdentityAmountZeroTooth(const ReorientDispatch& disp) {
   }
   cmp.print();
   return dispatchOk && cmp.verdict();
-}
-// Compact SwPoint literal: Position=(x,y,z), Scale=(scaleX,1,1) (scaleX==NaN -> dead sentinel).
-SwPoint mkPt(float x, float y, float z, float scaleX) {
-  SwPoint p{};
-  p.Position = SW_PACKED3{x, y, z};
-  p.Scale = SW_PACKED3{scaleX, 1.0f, 1.0f};
-  return p;
 }
 
 // QUIRK PROBE 1: NO-WRITEBACK on the three early-return conditions (dead/isolated/degenerate).
@@ -375,12 +252,17 @@ int runMathvReorientLinePointsSelfTest(bool injectBug) {
   bool passIdentity = checkIdentityAmountZeroTooth(disp);
   bool passNoWriteback = checkNoWritebackQuirk(disp);
   bool passOob = checkOobLastPointQuirk(disp);
+  bool passClamp = mathv_rlp_shared::checkClampBranchTooth(disp, &slerpCov);
   printf("[mathv-reorientlinepoints] qLookAt branch coverage:\n");
   for (const auto& kv : lookatCov) printf("  %s: %d\n", kv.first.c_str(), kv.second);
   printf("[mathv-reorientlinepoints] qSlerp branch coverage:\n");
   for (const auto& kv : slerpCov) printf("  %s: %d\n", kv.first.c_str(), kv.second);
-  bool covOk = (int)lookatCov.size() >= 3 && (int)slerpCov.size() >= 3;
-  printf("[mathv-reorientlinepoints] coverage gate: qLookAt %zu/4, qSlerp %zu/5 -> %s\n",
+  // clamp-hi/-lo used to be "no simple closed-form trigger" (random fuzz alone never reaches an exact
+  // float boundary) — checkClampBranchTooth engineers both deterministically and merges its hits into
+  // slerpCov above, so all 6 qSlerp buckets are now genuinely reachable and required (MASTER_PLAN.md
+  // 接力待辦 ㈢ D "clamp 補牙 6-6", 2026-07-10; qLookAt's >=3/4 floor is unchanged by this fix).
+  bool covOk = (int)lookatCov.size() >= 3 && (int)slerpCov.size() == 6;
+  printf("[mathv-reorientlinepoints] coverage gate: qLookAt %zu/4, qSlerp %zu/6 -> %s\n",
          lookatCov.size(), slerpCov.size(), covOk ? "ok" : "RED");
   ParityReport rep("selftest-mathv-reorientlinepoints");
   rep.expectTrue("rotation+passthrough(main random-line fuzz, quat-branch tagged)", passMain,
@@ -390,7 +272,9 @@ int runMathvReorientLinePointsSelfTest(bool injectBug) {
                  passNoWriteback, passNoWriteback ? 1.0 : 0.0);
   rep.expectTrue("quirk(OOB last-point, guard invariant pinned + NAMED FORK documented)", passOob,
                  passOob ? 1.0 : 0.0);
-  rep.expectTrue("quatBranchCoverage(qLookAt>=3/4, qSlerp>=3/5 buckets hit)", covOk,
+  rep.expectTrue("quirk(qSlerp clamp-hi/-lo, engineered exact-boundary hit)", passClamp,
+                 passClamp ? 1.0 : 0.0);
+  rep.expectTrue("quatBranchCoverage(qLookAt>=3/4, qSlerp==6/6 buckets hit)", covOk,
                  covOk ? 1.0 : 0.0);
   return rep.finish();
 }
